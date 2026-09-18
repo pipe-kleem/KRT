@@ -45,11 +45,13 @@ def _run_installer():
         src_path = os.path.normcase(os.path.normpath(package_src))
         dst_path = os.path.normcase(os.path.normpath(install_dest))
         if src_path != dst_path:
+            # Clean reinstall: close any running KRT window (it holds module
+            # references), wipe the old install completely, then copy fresh.
+            _close_running_krt()
+            leftover = _wipe_tree(install_dest)
+            if leftover:
+                cmds.warning(f"[KRT] {leftover} old file(s) could not be deleted (locked) - they will be overwritten.")
             copied, skipped = _safe_copy_tree(package_src, install_dest)
-            # The 2026-09 restructure turned graph.py/widgets.py/... into
-            # graph/ widgets/ packages. A copy never deletes, so an older
-            # install would keep the dead single-file modules beside the new
-            # folders - remove any top-level .py that no longer exists in src.
             removed = _remove_stale_modules(package_src, install_dest)
             if removed:
                 cmds.warning("[KRT] Removed stale module(s) from install: " + ", ".join(removed))
@@ -67,8 +69,12 @@ def _run_installer():
         return
 
     # ── 4. Make sure the scripts folder is importable ────────────────────────
-    if user_scripts not in sys.path:
-        sys.path.insert(0, user_scripts)
+    # Put the install folder FIRST - if another 'KRT' folder sits earlier on
+    # sys.path (an old copy elsewhere), 'import KRT' would silently load that
+    # one and the drag-drop would look like it "didn't update".
+    while user_scripts in sys.path:
+        sys.path.remove(user_scripts)
+    sys.path.insert(0, user_scripts)
 
     # ── 5. Flush any stale copies already in memory ──────────────────────────
     for m in [x for x in list(sys.modules) if x == PACKAGE_NAME or x.startswith(PACKAGE_NAME + ".")]:
@@ -77,8 +83,14 @@ def _run_installer():
     # ── 6. Smoke-test the import ─────────────────────────────────────────────
     try:
         import importlib
-        importlib.import_module(PACKAGE_NAME)
-        cmds.warning("[KRT] Package imported successfully.")
+        importlib.invalidate_caches()
+        pkg = importlib.import_module(PACKAGE_NAME)
+        loaded_from = os.path.dirname(os.path.abspath(pkg.__file__)).replace("\\", "/")
+        if os.path.normcase(loaded_from) != os.path.normcase(install_dest):
+            cmds.warning(f"[KRT] WARNING: 'import KRT' loaded from {loaded_from}, NOT the fresh install at {install_dest}. "
+                         "Remove/rename that other KRT folder (or its sys.path entry in userSetup.py) so updates take effect.")
+        else:
+            cmds.warning(f"[KRT] Package imported successfully from {loaded_from}")
     except Exception as e:
         cmds.error(f"[KRT] Import test failed: {e}")
         return
@@ -174,6 +186,43 @@ def _safe_copy_tree(src, dst):
             except Exception:
                 skipped += 1
     return copied, skipped
+
+
+def _close_running_krt():
+    """Close an open KRT window so its modules can be dropped and replaced."""
+    try:
+        from PySide6 import QtWidgets
+    except ImportError:
+        try:
+            from PySide2 import QtWidgets
+        except ImportError:
+            return
+    try:
+        for w in QtWidgets.QApplication.topLevelWidgets():
+            if w.objectName() == "KRT_Window":
+                w.close(); w.deleteLater()
+    except Exception:
+        pass
+
+
+def _wipe_tree(dst):
+    """Delete everything under dst (files first, then empty dirs). Locked
+    files are skipped and counted; the copy afterwards overwrites them."""
+    import os, stat
+    if not os.path.isdir(dst):
+        return 0
+    leftover = 0
+    for dirpath, dirnames, filenames in os.walk(dst, topdown=False):
+        for n in filenames:
+            p = os.path.join(dirpath, n)
+            try:
+                os.chmod(p, stat.S_IWRITE); os.remove(p)
+            except Exception:
+                leftover += 1
+        for d in dirnames:
+            try: os.rmdir(os.path.join(dirpath, d))
+            except Exception: pass
+    return leftover
 
 
 def _remove_stale_modules(src, dst):

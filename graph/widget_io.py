@@ -36,7 +36,7 @@ class GraphIoMixin(object):
         recent" idea behind KRT's own Load JSON Pipeline recent-files list,
         instead of leaving it to whatever folder Maya's fileDialog2 happened
         to open last, anywhere in the whole Maya session."""
-        current = self.path_field.text().strip()
+        current = self.workspace.resolve_path(self.path_field.text()).strip()
         if current:
             d = os.path.dirname(current)
             if d and os.path.exists(d):
@@ -77,7 +77,7 @@ class GraphIoMixin(object):
         save_all_guides(overwrite=False) writes) so "Switch Version" can
         point the field at any of them without a file dialog."""
         v_actions = {}
-        base_path = self.path_field.text().strip()
+        base_path = self.workspace.resolve_path(self.path_field.text()).strip()
         if not base_path:
             switch_menu.setEnabled(False)
             return v_actions
@@ -162,7 +162,7 @@ class GraphIoMixin(object):
         at it, THEN writes - a deliberate "only Graph" save gets its own
         new version; a KRT-save-triggered sync does not.
         """
-        path = self.path_field.text().strip()
+        path = self.workspace.resolve_path(self.path_field.text()).strip()
         if not path: return
 
         if not overwrite:
@@ -202,7 +202,7 @@ class GraphIoMixin(object):
         Guide Settings from a previously saved guide JSON. Doesn't touch the
         Maya scene either - use 'Build Guides' afterward to actually draw
         real guides from the restored graph."""
-        path = self.path_field.text()
+        path = self.workspace.resolve_path(self.path_field.text())
         if not os.path.exists(path):
             cmds.warning("Specified guide file does not exist.")
             return

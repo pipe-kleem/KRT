@@ -196,3 +196,20 @@ Then in Maya: **KRT menu → launch** (reloads modules) and test the actual beha
 - `DRAG_DROP_TO_MAYA.py` already copies sub-folders recursively, so the new packages install fine. Added: skips `tools/`, `archive/`, `*.md`;
   new `_remove_stale_modules()` deletes leftover single-file `graph.py`/`widgets.py`/… from an older install so they can't shadow the packages.
 - Created `archive/`: old Claude handoff docs, `BUILD_SPEED_NOTES.md` (still useful — optimisation ideas list), the one-off splitter script.
+
+### 2026-09-18 — Session 3 / Stage 41: Rig Root relative paths + Qt page-switch sizing
+Request (verbatim): *"I want to make this relative … in the ui 1 path and everything under that path … root path - P:/rigging_team/Rigging_local_share/all_Rigs/blindfold_a/ and each portion should have only this - scripts/utils.py … second important update is there is some ui scaling issue when going to graph and coming back it stucks, overall check qt issues"*
+
+**Relative paths**
+- New `utils/relpath.py` — pure-string `resolve(root, p)` / `relativize(root, p)`; non-path text (inline code, `GRAPH::uuid`) passes through untouched. Unit-tested offline.
+- New mixin `workspace/root_path.py` (`WorkspaceRootPathMixin`): `rig_root()`, `resolve_path()`, `relativize_path()`, `set_rig_root()`, `relativize_all_paths()`, `infer_rig_root_from_panels()`.
+- UI: **Rig Root** row under the Rig Name header (`pages.py`) — field + 📁 browse + "⇄ Make Relative". Editing the root re-shortens every path under it live.
+- JSON: new top-level `"root_path"`. Panel `path`, module bubble `path`, graph `custom_sgt_path` / `plebe_template_path` / `control_shapes_library` saved relative when under root. Loading a **legacy JSON with no `root_path`** adopts the active PUBLISH folder as root and shortens on screen (nothing written until saved).
+- Every disk read now goes through resolve: `SortablePanel.path()` (new; replaced 22 `self.field.text()` reads), bubble `.py`/`.sgt` runs, graph builds, guide path field, publish-dir lookups (`pipeline_io`, `build.py`, `ayon_publish`). Browse/save dialogs write back relative.
+- Inline scripts get a `RIG_ROOT` variable in the shared namespace.
+- Not rewritten on purpose: absolute paths **inside** inline script code (e.g. the `Load_Guide` panel) — use `RIG_ROOT` there by hand.
+
+**Qt sizing** (`workspace/core.py::CurrentPageStackedWidget`)
+- Root cause hypothesis: `minimumSizeHint()` forwarded the current page's minimum, so returning from Graph (compact) to Rig (wide header ≈1100px) raised the window minimum mid-flight → jump, or a half-laid-out page when the window couldn't grow. Now a small fixed floor (360×240) + a deferred relayout (`QTimer.singleShot(0)`) after every page switch.
+- **Unverified in Maya.** If it still sticks, need: screenshot + whether window is floating/docked + which page → page.
+- Perf note (not changed): the graph's position-watch timer reads t/r/s of every guide transform every 1.5 s while the Graph page is visible — can feel laggy with big guides. Candidate follow-up.

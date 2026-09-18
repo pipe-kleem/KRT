@@ -25,14 +25,15 @@ class GraphBuildMixin(object):
             cmds.error("mGear is not installed/loaded in this Maya session.")
             return None
 
-        if not node.plebe_template_path or not os.path.exists(node.plebe_template_path):
+        plebe_template_path = self.workspace.resolve_path(node.plebe_template_path or "")   # Stage 41
+        if not plebe_template_path or not os.path.exists(plebe_template_path):
             cmds.warning(f"'{node.display_title}' has no valid Plebe character template set. "
                          "Right-click it isn't available - use 'Change Template...' in the Node tab.")
             return None
 
         plebe = mg_plebes.Plebes()
         try:
-            with open(node.plebe_template_path) as f:
+            with open(plebe_template_path) as f:
                 plebe.template = json.load(f)
         except Exception:
             traceback.print_exc()
@@ -173,7 +174,7 @@ class GraphBuildMixin(object):
         # Auto-replace this biped's control shapes from its Control Shapes
         # Library, right away - before align/custom-script - so anything
         # that inspects the guide afterward already sees the real shapes.
-        self.apply_control_shapes_library_to(node.maya_guide_root, node.control_shapes_library)
+        self.apply_control_shapes_library_to(node.maya_guide_root, self.workspace.resolve_path(node.control_shapes_library or ""))
 
         if node.align_guides_auto:
             try:
@@ -214,7 +215,8 @@ class GraphBuildMixin(object):
         if node.maya_guide_root and cmds.objExists(node.maya_guide_root):
             return node.maya_guide_root
 
-        if not node.custom_sgt_path or not os.path.exists(node.custom_sgt_path):
+        custom_sgt_path = self.workspace.resolve_path(node.custom_sgt_path or "")   # Stage 41
+        if not custom_sgt_path or not os.path.exists(custom_sgt_path):
             cmds.warning(f"'{node.display_title}' has no valid .sgt file set - "
                          "use Change File... in the Node tab to pick one.")
             return None
@@ -246,7 +248,7 @@ class GraphBuildMixin(object):
         before = set(cmds.ls(type="transform", long=True) or [])
 
         try:
-            sh_io.import_partial_guide(filePath=node.custom_sgt_path, initParent=parent_pynode)
+            sh_io.import_partial_guide(filePath=custom_sgt_path, initParent=parent_pynode)
         except Exception:
             traceback.print_exc()
             cmds.warning(f"Failed to import custom .sgt guide for '{node.display_title}' - "

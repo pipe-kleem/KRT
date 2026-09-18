@@ -183,14 +183,14 @@ class GraphScriptsMixin(object):
                 cmds.warning(f"{label} script failed for '{node.display_title}' - see Script Editor.")
 
     def browse_control_shapes_library(self):
-        start = self.edit_control_shapes_lib.text().strip()
-        start_dir = os.path.dirname(start) if start else ""
+        start = self.workspace.resolve_path(self.edit_control_shapes_lib.text().strip())
+        start_dir = os.path.dirname(start) if start else self.workspace.rig_root()
         res = cmds.fileDialog2(
             fm=1, ff="Maya Files (*.ma *.mb);;Maya ASCII (*.ma);;Maya Binary (*.mb);;All Files (*.*)",
             caption="Choose Control Shapes Library",
             dir=start_dir if os.path.exists(start_dir) else "")
         if res:
-            self.edit_control_shapes_lib.setText(res[0])
+            self.edit_control_shapes_lib.setText(self.workspace.relativize_path(res[0]))   # Stage 41
             # setText() alone doesn't fire editingFinished, so the node
             # wouldn't otherwise pick up a Browse-selected path until some
             # unrelated edit happened to trigger a save.

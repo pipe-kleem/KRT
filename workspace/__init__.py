@@ -8,3 +8,4 @@ from .build import WorkspaceBuildMixin
 from .pipeline_io import WorkspacePipelineIoMixin
 from .executors import WorkspaceExecutorsMixin
 from .playblast import WorkspacePlayblastMixin
+from .root_path import WorkspaceRootPathMixin

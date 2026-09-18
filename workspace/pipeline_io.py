@@ -10,6 +10,7 @@ class WorkspacePipelineIoMixin(object):
         pipeline_data = {"lods": []}
         if hasattr(self, 'edit_rig_name'): pipeline_data["rig_name"] = self.edit_rig_name.text().strip()
         pipeline_data["comment"] = getattr(self, 'pipeline_comment', "")
+        pipeline_data["root_path"] = self.rig_root()   # Stage 41
 
         # Stage 38, request #2: everything set on the Playblast tab now
         # travels with the pipeline JSON too, same as every other KRT
@@ -30,12 +31,12 @@ class WorkspacePipelineIoMixin(object):
             for j in range(container.layout.count()):
                 panel = container.layout.itemAt(j).widget()
                 if panel.p_type == "MODULE":
-                    mods = [{"path": panel.bubble_layout.itemAt(b).widget().full_path, "active": panel.bubble_layout.itemAt(b).widget().is_active} for b in range(panel.bubble_layout.count())]
+                    mods = [{"path": self.relativize_path(panel.bubble_layout.itemAt(b).widget().full_path), "active": panel.bubble_layout.itemAt(b).widget().is_active} for b in range(panel.bubble_layout.count())]
                     seq.append({"title": panel.title_edit.text(), "type": "MODULE", "modules": mods, "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', ''), "cache_enabled": panel.cache_marked() if hasattr(panel, 'cache_marked') else False})
                 elif panel.p_type == "LOD_LOADER":
                     seq.append({"title": panel.title_edit.text(), "type": "LOD_LOADER", "lod_names": panel.checked_lod_names(), "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', '')})
                 else:
-                    data = {"title": panel.title_edit.text(), "type": panel.p_type, "path": panel.field.text(), "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', ''), "cache_enabled": panel.cache_marked() if hasattr(panel, 'cache_marked') else False}
+                    data = {"title": panel.title_edit.text(), "type": panel.p_type, "path": self.relativize_path(panel.field.text()), "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', ''), "cache_enabled": panel.cache_marked() if hasattr(panel, 'cache_marked') else False}
                     if panel.p_type == "SHAPES": data["pattern"] = panel.pattern_field.text()
                     if panel.p_type == "JSON":
                         data["meshes"] = panel.mesh_field.text()
@@ -119,7 +120,7 @@ class WorkspacePipelineIoMixin(object):
                 p_type = getattr(panel, 'p_type', None)
 
                 if p_type in FIELD_TYPES:
-                    path = panel.field.text().strip().replace("\\", "/")
+                    path = self.resolve_path(panel.field.text()).strip().replace("\\", "/")
                     if path and os.path.isfile(path) and path not in seen:
                         seen.add(path); paths.append(path)
 
@@ -157,7 +158,7 @@ class WorkspacePipelineIoMixin(object):
         for i in range(container.layout.count()):
             panel = container.layout.itemAt(i).widget()
             if getattr(panel, 'p_type', '') == "PUBLISH":
-                p = panel.field.text().strip()
+                p = self.resolve_path(panel.field.text()).strip()
                 if p:
                     if getattr(panel, 'is_active', True):
                         return p
@@ -186,6 +187,11 @@ class WorkspacePipelineIoMixin(object):
             if "rig_name" in data and hasattr(self, 'edit_rig_name'): self.edit_rig_name.setText(data["rig_name"])
             self.pipeline_comment = data.get("comment", "")
             self.refresh_comment_view()
+            # Stage 41: root first, so relative paths in the panels below
+            # resolve from the moment they appear. Existing paths are NOT
+            # rewritten here (they come in from the file as saved).
+            self._pending_legacy_root = "root_path" not in data
+            self.set_rig_root(data.get("root_path", ""), relativize_existing=False)
 
             # Stage 38, request #2: restore the Playblast tab's settings,
             # if this pipeline JSON has them (older files won't - the tab
@@ -331,7 +337,17 @@ class WorkspacePipelineIoMixin(object):
                     pan.sync_from_lod_manager()
                     pan.set_checked_lod_names(names)
                 if self.lod_list.count() > 0: self.lod_list.setCurrentRow(0)
-            
+
+            # Stage 41: a JSON saved before Rig Root existed has only absolute
+            # paths - adopt the PUBLISH folder as root and shorten on screen.
+            # Nothing is written to disk until the user saves.
+            if getattr(self, "_pending_legacy_root", False) and not self.rig_root():
+                inferred = self.infer_rig_root_from_panels()
+                if inferred:
+                    cmds.warning(f"[KRT] No root_path in this pipeline JSON - using PUBLISH folder as Rig Root: {inferred}")
+                    self.set_rig_root(inferred, relativize_existing=True)
+            self._pending_legacy_root = False
+
             saved_guide_path = graph_data.get("guide_path") or None
             self.set_session_path(file_path, guide_path=saved_guide_path, refresh_guide_default=(saved_guide_path is None))
             self.session_manager.add_recent(file_path); self.main_window.refresh_all_session_lists()
@@ -393,7 +409,7 @@ class WorkspacePipelineIoMixin(object):
             for i in range(container.layout.count()):
                 panel = container.layout.itemAt(i).widget()
                 if hasattr(panel, 'p_type') and panel.p_type == "PUBLISH" and panel.is_active:
-                    publish_dir = panel.field.text(); break
+                    publish_dir = self.resolve_path(panel.field.text()); break
         if not publish_dir or not os.path.exists(publish_dir):
             cmds.warning("[KRT] {}: no valid PUBLISH directory set.".format(dialog_title))
             return None

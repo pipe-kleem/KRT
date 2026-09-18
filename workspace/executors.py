@@ -44,6 +44,9 @@ class WorkspaceExecutorsMixin(object):
 
     def run_script(self, path_or_code, func_call=""):
         try:
+            # Stage 41: inline scripts can build paths off the Rig Root
+            # instead of hardcoding P:/... -> e.g. os.path.join(RIG_ROOT, "guides/x.sgt")
+            self.shared_namespace["RIG_ROOT"] = self.rig_root()
             if not path_or_code.strip():
                 if func_call:
                     exec(func_call, self.shared_namespace)

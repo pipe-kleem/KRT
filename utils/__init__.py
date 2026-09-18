@@ -1,5 +1,6 @@
 """utils package - re-exports so `from .utils import X` keeps working."""
 from ._shared import *
+from . import relpath
 from .paths import get_versioned_path
 from .control_shapes import export_control_shapes, import_control_shapes, find_guide_model, apply_control_shapes_library
 from .materials import _is_intermediate, _mesh_shapes_for_export, _compress_face_ranges, _shading_engines_for_shape_api, _shading_engines_for_shape_fallback, _shading_engines_for_mesh, _walk_shader_network, _capture_node_data, _capture_node_connections, export_material_data, _ensure_material_node, _set_material_attr, _resolve_mesh_by_short_name, import_material_data

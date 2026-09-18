@@ -9,6 +9,7 @@ from .build import WorkspaceBuildMixin
 from .pipeline_io import WorkspacePipelineIoMixin
 from .executors import WorkspaceExecutorsMixin
 from .playblast import WorkspacePlayblastMixin
+from .root_path import WorkspaceRootPathMixin
 
 
 class CurrentPageStackedWidget(QtWidgets.QStackedWidget):
@@ -27,28 +28,59 @@ class CurrentPageStackedWidget(QtWidgets.QStackedWidget):
     effective minimum is recalculated immediately.
     """
 
+    # Stage 41 (Qt sizing fix): the page's *minimum* is deliberately NOT
+    # forwarded any more. Forwarding it meant that coming back from a
+    # compact page (Graph Editor) to a wide one (Rig Workspace, whose header
+    # row alone wants ~1100px) suddenly raised the whole window's minimum
+    # size. A floating window then jumps; a window that CAN'T grow (docked,
+    # or already at screen edge) ends up with content laid out for a size it
+    # doesn't have - the "stuck"/half-drawn look. Pages are scrollable or
+    # flexible anyway, so a small floor is the honest minimum.
+    _MIN_FLOOR = QtCore.QSize(360, 240)
+
     def sizeHint(self):
         current = self.currentWidget()
         return current.sizeHint() if current else super(CurrentPageStackedWidget, self).sizeHint()
 
     def minimumSizeHint(self):
-        current = self.currentWidget()
-        return current.minimumSizeHint() if current else super(CurrentPageStackedWidget, self).minimumSizeHint()
+        return self._MIN_FLOOR
+
+    def _after_switch(self):
+        self.updateGeometry()
+        # Re-run the layout pass once the event loop is idle, so the newly
+        # shown page gets a real resize instead of keeping the geometry it
+        # had when it was last visible (possibly at a different window size).
+        def _relayout(self=self):
+            try:
+                w = self.currentWidget()
+                if w is not None:
+                    w.updateGeometry()
+                    if w.layout() is not None:
+                        w.layout().activate()
+                    w.resize(self.size())
+                    w.update()
+                top = self.window()
+                if top is not None and top.layout() is not None:
+                    top.layout().activate()
+            except Exception:
+                pass
+        QtCore.QTimer.singleShot(0, _relayout)
 
     def setCurrentIndex(self, index):
         super(CurrentPageStackedWidget, self).setCurrentIndex(index)
-        self.updateGeometry()
+        self._after_switch()
 
     def setCurrentWidget(self, widget):
         super(CurrentPageStackedWidget, self).setCurrentWidget(widget)
-        self.updateGeometry()
-class SessionWorkspace(WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
+        self._after_switch()
+class SessionWorkspace(WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
     def __init__(self, main_window):
         super(SessionWorkspace, self).__init__()
         self.main_window = main_window
         self.session_manager = main_window.session
         self.session_path = ""
         self.pipeline_comment = ""
+        self._rig_root = ""   # Stage 41: rig root folder; see workspace/root_path.py
         self.dragged_panel = None
         self._syncing_selection = False
         # Node uuids in the order the user actually built up the current

@@ -178,6 +178,39 @@ class WorkspacePagesMixin(object):
         header_layout.addWidget(self.chk_ignore_errors)
         main_vbox.addLayout(header_layout)
 
+        # Stage 41: Rig Root row. One folder; every path field below stores
+        # only its part under this root (scripts/utils.py) - see
+        # workspace/root_path.py for resolve/relativize.
+        root_layout = QtWidgets.QHBoxLayout()
+        root_layout.setContentsMargins(15, 0, 15, 5)
+        lbl_root = QtWidgets.QLabel("<b>Rig Root:</b>")
+        lbl_root.setStyleSheet("color: #cccccc; font-size: 13px;")
+        root_layout.addWidget(lbl_root)
+        self.edit_rig_root = QtWidgets.QLineEdit(getattr(self, "_rig_root", ""))
+        self.edit_rig_root.setPlaceholderText("P:/.../all_Rigs/<rig_name>   - every path below is relative to this folder")
+        self.edit_rig_root.setToolTip(
+            "Root folder of this rig. Panel paths, module files and graph .sgt paths\n"
+            "are stored RELATIVE to it (e.g. scripts/utils.py). Paths outside the\n"
+            "root stay absolute. Saved into the pipeline JSON as 'root_path'.")
+        self.edit_rig_root.setStyleSheet(
+            "QLineEdit { background: #1e1e1e; border: 1px solid #2bb5a8; color: #ffd27f; padding: 5px;"
+            " font-size: 13px; border-radius: 3px; }")
+        self.edit_rig_root.editingFinished.connect(self.on_rig_root_edited)
+        root_layout.addWidget(self.edit_rig_root, 1)
+        btn_root_browse = QtWidgets.QPushButton("📁")
+        btn_root_browse.setFixedWidth(34)
+        btn_root_browse.setToolTip("Browse for the rig root folder.")
+        btn_root_browse.clicked.connect(self.browse_rig_root)
+        root_layout.addWidget(btn_root_browse)
+        btn_root_rel = QtWidgets.QPushButton("⇄ Make Relative")
+        btn_root_rel.setToolTip("Shorten every path that lives under the Rig Root (panels, module bubbles, graph nodes).")
+        btn_root_rel.setStyleSheet(
+            "QPushButton { background: #333; color: #cccccc; border: 1px solid #2bb5a8; padding: 5px 8px;"
+            " border-radius: 3px; } QPushButton:hover { background: #444; color: white; }")
+        btn_root_rel.clicked.connect(self.relativize_all_paths)
+        root_layout.addWidget(btn_root_rel)
+        main_vbox.addLayout(root_layout)
+
         # Panel search bar: filters the panels of the current LOD live.
         search_layout = QtWidgets.QHBoxLayout()
         search_layout.setContentsMargins(15, 0, 15, 5)

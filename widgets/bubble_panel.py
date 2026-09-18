@@ -700,13 +700,13 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
             if action == a_file:
                 kwargs = {'fm': 1, 'ff': "All Files (*.*);;Module Files (*.py *.sgt);;Python (*.py);;mGear Guide (*.sgt)"}
                 if self.bubble_layout.count() > 0:
-                    last_path = self.bubble_layout.itemAt(self.bubble_layout.count()-1).widget().full_path
+                    last_path = self.workspace.resolve_path(self.bubble_layout.itemAt(self.bubble_layout.count()-1).widget().full_path)
                     sd = os.path.dirname(last_path)
                     if os.path.exists(sd): kwargs['dir'] = sd
 
                 res = cmds.fileDialog2(**kwargs)
                 if not res: return
-                pre_path = res[0]
+                pre_path = self.workspace.relativize_path(res[0])   # Stage 41
                 
                 bubble = ModuleBubble(os.path.basename(pre_path), pre_path, is_active=is_active)
                 bubble.closed.connect(self.remove_bubble)
@@ -948,9 +948,9 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
                 return success, error_msg
 
             elif path.endswith(".py"):
-                success, error_msg = self.workspace.run_script(path)
+                success, error_msg = self.workspace.run_script(self.workspace.resolve_path(path))
             elif path.endswith(".sgt"):
-                success, error_msg = self.workspace.run_mgear_sgt(path)
+                success, error_msg = self.workspace.run_mgear_sgt(self.workspace.resolve_path(path))
         except Exception as e:
             error_msg = traceback.format_exc()
             log_crash("Module bubble ({})".format(path), e)

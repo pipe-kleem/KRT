@@ -789,7 +789,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
             for i in range(container.layout.count()):
                 panel = container.layout.itemAt(i).widget()
                 if getattr(panel, 'p_type', '') == "PUBLISH" and getattr(panel, 'is_active', True):
-                    candidate = panel.field.text().strip()
+                    candidate = self.workspace.resolve_path(panel.field.text()).strip()
                     if candidate and os.path.isdir(candidate):
                         publish_dir = candidate
                         break

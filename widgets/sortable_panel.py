@@ -570,7 +570,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
 
     def populate_versions_menu(self, switch_menu):
         v_actions = {}
-        base_path = self.field.text().strip()
+        base_path = self.path().strip()
         if not base_path:
             switch_menu.setEnabled(False)
             return v_actions
@@ -601,7 +601,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         return v_actions
 
     def save_versioned_data(self, overwrite=False):
-        current_path = self.field.text().strip()
+        current_path = self.path().strip()
         if not current_path:
             # First save on this panel (Stage 16, request #3): ask where,
             # instead of just erroring - and make sure whatever's picked
@@ -609,7 +609,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             current_path = self.prompt_first_save_path()
             if not current_path:
                 return  # user cancelled the Save As dialog
-            self.field.setText(current_path)
+            self.field.setText(self.workspace.relativize_path(current_path))
 
         if self.p_type in ("JSON", "TWEAKER"):
             # mgear.core.skin.exportSkin() hard-rejects any extension other
@@ -623,7 +623,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             root, ext = os.path.splitext(current_path)
             if ext.lower() not in (".jskin", ".gskin"):
                 current_path = root + ".jSkin"
-                self.field.setText(current_path)
+                self.field.setText(self.workspace.relativize_path(current_path))
 
         save_path = current_path
         if not overwrite:
@@ -685,7 +685,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
                 if not os.path.isfile(save_path):
                     raise RuntimeError(
                         "Skin file was not written. Make sure the selected mesh(es) actually have a skinCluster.")
-                self.field.setText(save_path)
+                self.field.setText(self.workspace.relativize_path(save_path))
                 cmds.warning(f"Skin exported successfully to: {save_path}")
             except Exception as e:
                 om.MGlobal.displayError(f"Failed to export skin: {e}")
@@ -694,7 +694,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             pattern = self.pattern_field.text()
             try:
                 export_control_shapes(save_path, search_pattern=pattern)
-                self.field.setText(save_path)
+                self.field.setText(self.workspace.relativize_path(save_path))
                 cmds.warning(f"Shapes exported successfully to: {save_path}")
             except Exception as e:
                 om.MGlobal.displayError(f"Failed to export shapes: {e}")
@@ -704,7 +704,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             try:
                 result = export_material_data(save_path, meshes=meshes if meshes else None)
                 if result:
-                    self.field.setText(save_path)
+                    self.field.setText(self.workspace.relativize_path(save_path))
                     cmds.warning(f"Material exported successfully to: {save_path}")
                 else:
                     om.MGlobal.displayError("Failed to export material - nothing to save (select mesh(es) or fill the Meshes field first).")
@@ -755,7 +755,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
                     cmds.warning("[KRT] Ignored a non-fatal Maya docs warning during skin export.")
                 if not os.path.isfile(save_path):
                     raise RuntimeError("Skin file was not written.")
-                self.field.setText(save_path)
+                self.field.setText(self.workspace.relativize_path(save_path))
                 if not meshes:
                     # Keep the Meshes field in sync with whatever was
                     # actually exported, same as the auto-fill on Create.
@@ -1301,7 +1301,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         # load failure is silently non-fatal - Create itself still
         # succeeded either way.
         try:
-            skin_path = self.field.text().strip()
+            skin_path = self.path().strip()
             if skin_path and os.path.exists(skin_path) and self.mesh_field.text().strip():
                 load_ok, load_err = self.workspace.load_skin_cluster_logic(
                     skin_path, self.mesh_field.text(),
@@ -1323,11 +1323,19 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         chk = getattr(self, 'chk_naming_popup', None)
         return chk.isChecked() if chk is not None else True
 
+    def path(self):
+        """Stage 41: the field's text resolved against the Rig Root - use
+        THIS whenever the text is about to be opened/run/checked on disk.
+        Inline code and empty text come back unchanged. self.path()
+        stays the raw (possibly relative) value for display and saving."""
+        return self.workspace.resolve_path(self.path())
+
     def get_start_dir(self):
-        current_path = self.field.text().strip()
+        current_path = self.path().strip()
         if os.path.isdir(current_path): return current_path
         elif os.path.isfile(current_path): return os.path.dirname(current_path)
-        return ""
+        root = self.workspace.rig_root()
+        return root if root and os.path.isdir(root) else ""
 
     def show_context_menu(self):
         menu = QtWidgets.QMenu(self)
@@ -1394,7 +1402,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             a_vs = menu.addAction("📝 Edit code in VS Code")
             a_load = menu.addAction("📂 Load any other file")
             a_comp = menu.addAction("⚖ Compare older script in VS Code")
-            if is_script_file_ref(self.field.text()):
+            if is_script_file_ref(self.path()):
                 # Stage 19: the field is currently locked to a .py/.mel file
                 # path - this is the only way back to a normal, editable,
                 # type-your-own-code field.
@@ -1462,7 +1470,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         elif action == a_build_from: self.build_from_cache()
         elif action == a_replace_paths: self.workspace.open_path_replace_dialog()
         elif action == a_vs:
-            path = self.field.text()
+            path = self.path()
             if not os.path.exists(path) and not path.endswith(".py") and not path.endswith(".mel"):
                 om.MGlobal.displayError("Cannot open raw code in VS Code. Please save as a file first.")
             else:
@@ -1476,11 +1484,11 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             sd = self.get_start_dir()
             if os.path.exists(sd): kwargs['dir'] = sd
             old_file = cmds.fileDialog2(**kwargs)
-            if old_file: subprocess.Popen(f'code -d "{self.field.text()}" "{old_file[0]}"', shell=True)
+            if old_file: subprocess.Popen(f'code -d "{self.path()}" "{old_file[0]}"', shell=True)
         elif action == a_rem: self.field.setText("")
         elif action == a_save_over: self.save_versioned_data(overwrite=True)
         elif action == a_save_new: self.save_versioned_data(overwrite=False)
-        elif action in v_actions: self.field.setText(v_actions[action])
+        elif action in v_actions: self.field.setText(self.workspace.relativize_path(v_actions[action]))
         elif action == a_note_text_color: self.change_note_text_color()
         elif action == a_note_bg_color: self.change_note_bg_color()
         elif action == a_note_size:
@@ -1497,7 +1505,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         file path - stays a normal editable field for raw pasted code."""
         if self.p_type not in ("SCRIPT", "GLOBAL_SCRIPT"):
             return
-        if is_script_file_ref(self.field.text()):
+        if is_script_file_ref(self.path()):
             style_readonly_path_field(self.field, self.accent)
         else:
             self.field.setReadOnly(False)
@@ -1519,7 +1527,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         sd = self.get_start_dir()
         if os.path.exists(sd): kwargs['dir'] = sd
         res = cmds.fileDialog2(**kwargs)
-        if res: self.field.setText(res[0])
+        if res: self.field.setText(self.workspace.relativize_path(res[0]))
 
     def execute(self, progress_ui=None):
         if not self.is_active: return True
@@ -1549,19 +1557,19 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             else:
                 if self.p_type == "SCRIPT":
                     func_call_txt = self.func_field.text().strip()
-                    success, error_msg = self.workspace.run_script(self.field.text(), func_call=func_call_txt)
+                    success, error_msg = self.workspace.run_script(self.path(), func_call=func_call_txt)
                 elif self.p_type == "GLOBAL_SCRIPT":
                     func_call_txt = self.func_field.text().strip()
-                    success, error_msg = self.workspace.run_script_global(self.field.text(), func_call=func_call_txt)
+                    success, error_msg = self.workspace.run_script_global(self.path(), func_call=func_call_txt)
                 elif self.p_type == "IMPORT_3D":
                     # Stage 18: MA and IMPORT_3D merged into one panel type -
                     # import_3d_logic already auto-detects by extension
                     # (.abc/.fbx/.obj get their dedicated importer, anything
                     # else - including .ma/.mb - falls back to cmds.file()).
-                    success, error_msg = self.workspace.import_3d_logic(self.field.text())
+                    success, error_msg = self.workspace.import_3d_logic(self.path())
                 elif self.p_type == "JSON":
                     success, error_msg = self.workspace.load_skin_cluster_logic(
-                        self.field.text(), self.mesh_field.text(),
+                        self.path(), self.mesh_field.text(),
                         show_popup=self.naming_popup_enabled())
                     # Stage 33: re-skin runs automatically after a
                     # successful load, but ONLY if at least one Scale
@@ -1577,28 +1585,28 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
                 elif self.p_type == "TWEAKER":
                     success, error_msg = self._execute_tweaker()
                 elif self.p_type == "SHAPES":
-                    if os.path.exists(self.field.text()) or os.path.exists(get_versioned_path(self.field.text(), True)):
+                    if os.path.exists(self.path()) or os.path.exists(get_versioned_path(self.path(), True)):
                         try:
-                            success = import_control_shapes(self.field.text())
+                            success = import_control_shapes(self.path())
                             if not success: error_msg = "Failed to import shapes."
                         except Exception as e:
                             success = False; error_msg = traceback.format_exc()
                     else:
                         success = False
-                        error_msg = f"Shape file not found: {self.field.text()}"
+                        error_msg = f"Shape file not found: {self.path()}"
                 elif self.p_type == "MATERIAL":
-                    if os.path.exists(self.field.text()) or os.path.exists(get_versioned_path(self.field.text(), True)):
+                    if os.path.exists(self.path()) or os.path.exists(get_versioned_path(self.path(), True)):
                         try:
                             meshes = [m.strip() for m in self.mesh_field.text().split(",") if m.strip()]
-                            success = import_material_data(self.field.text(), meshes=meshes if meshes else None)
+                            success = import_material_data(self.path(), meshes=meshes if meshes else None)
                             if not success: error_msg = "Failed to import material."
                         except Exception as e:
                             success = False; error_msg = traceback.format_exc()
                     else:
                         success = False
-                        error_msg = f"Material file not found: {self.field.text()}"
+                        error_msg = f"Material file not found: {self.path()}"
                 elif self.p_type == "PUBLISH":
-                    if os.path.exists(self.field.text()):
+                    if os.path.exists(self.path()):
                         success = True
                         cmds.warning("Publish Path Validated.")
                     else:
@@ -1611,7 +1619,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
                     # rigger may just want to re-organize a scene that's
                     # already been imported/assembled by hand) - only the
                     # organize step is required to have run.
-                    path = self.field.text().strip()
+                    path = self.path().strip()
                     if path:
                         success, error_msg = self.workspace.import_3d_logic(path)
                         if not success:
@@ -1631,7 +1639,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
                         self.child_field.text(), self.parent_field.text())
                 elif self.p_type == "INSTANCE_OBJ":
                     success, error_msg = self.workspace.create_instances_logic(
-                        self.target_field.text(), self.field.text(),
+                        self.target_field.text(), self.path(),
                         self.func_field.text(), panel_uuid=self.uuid)
         finally:
             QtWidgets.QApplication.processEvents() 

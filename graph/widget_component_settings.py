@@ -546,14 +546,14 @@ class GraphComponentSettingsMixin(object):
         if len(selected) != 1 or selected[0].module_type != CUSTOM_SGT_MODULE_TYPE:
             return
         node = selected[0]
-        start_dir = os.path.dirname(node.custom_sgt_path) if node.custom_sgt_path else ""
+        start_dir = os.path.dirname(self.workspace.resolve_path(node.custom_sgt_path)) if node.custom_sgt_path else self.workspace.rig_root()
         res = cmds.fileDialog2(
             fm=1, ff="mGear Guide Template (*.sgt);;All Files (*.*)",
             caption="Choose a Custom Module .sgt File",
             dir=start_dir if os.path.exists(start_dir) else "")
         if res:
             self._push_undo_snapshot()
-            node.custom_sgt_path = res[0]
+            node.custom_sgt_path = self.workspace.relativize_path(res[0])   # Stage 41
             if not node.custom_name.strip():
                 node.custom_name = os.path.splitext(os.path.basename(res[0]))[0]
             node.update_display()

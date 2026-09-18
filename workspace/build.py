@@ -46,7 +46,7 @@ class WorkspaceBuildMixin(object):
             panel = container.layout.itemAt(i).widget()
             if panel is target_panel: break
             if getattr(panel, 'p_type', '') != "SCRIPT": break
-            path = panel.field.text().strip()
+            path = self.resolve_path(panel.field.text()).strip()
             if not path or not os.path.isfile(path): break
             try: self.run_script(path, func_call=panel.func_field.text().strip())
             except Exception: pass

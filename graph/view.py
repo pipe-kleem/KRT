@@ -615,7 +615,7 @@ class NodeGraphView(QtWidgets.QGraphicsView):
         self.workspace.graph_widget._push_undo_snapshot()
         new_node = RigNode(pos.x() - 70, pos.y() - 20, module_type=CUSTOM_SGT_MODULE_TYPE, side=side,
                            custom_name=default_name)
-        new_node.custom_sgt_path = sgt_path
+        new_node.custom_sgt_path = self.workspace.relativize_path(sgt_path)   # Stage 41
         new_node.update_display()
         self.scene.addItem(new_node)
 

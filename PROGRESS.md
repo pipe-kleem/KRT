@@ -35,21 +35,65 @@ Playblast tab with ffmpeg encode + wipe-compare player, fast skin export/import 
   must be tested by the user in a real Maya session. Maya caches modules — **relaunch via the KRT menu (it reloads) or restart Maya**
   before reporting a fix "didn't work".
 
-## 3. Codebase map (as of 2026-09-18, ~20,100 lines)
+## 3. Codebase map (as of 2026-09-18, after restructure — ~20,300 lines, 45 files)
 
-| File | Lines | Contents |
+Package name is still `KRT`; **every public import path is unchanged** (`from .widgets import SortablePanel`, `from .graph import ModuleGraphWidget` …)
+because each package's `__init__.py` re-exports everything. Inside a package, `_shared.py` holds the original module's imports + constants + small helpers,
+and every sibling file starts with `from ._shared import *`.
+
+Giant classes were split into **mixins**: the class keeps `__init__`, class attributes and core methods in one file; groups of related methods live in
+`*_<group>.py` as `class <Name><Group>Mixin(object)`. The real class inherits all its mixins, so `self.anything` works exactly as before.
+Rule of thumb: **to find a method, grep for `def name`** — it lives in exactly one file.
+
+| Path | Lines | Contents |
 |---|---|---|
-| `main.py` | 345 | `KRT_Tool` (MayaQWidgetBaseMixin QDialog): tabs of sessions, autosave timer (5 min), crash-health check on startup, styling. `run_tool()`. |
-| `workspace.py` | 5037 | `SessionWorkspace` (**159 methods, one class**) — pages: File, Rig (LOD panel stacks), Docs, Profile/notes, Scripts library, Playblast. Full build / build-till-here / cache-resume logic, panel serialize/restore + undo of panel delete, pipeline JSON save/load/versions, all panel-type executors (`run_script`, `import_3d_logic`, `load_skin_cluster_logic`, `run_tweaker_logic`, `publish_asset_logic`…), playblast pipeline (`pb_*`, ~60 methods), LOD sequence build. `CurrentPageStackedWidget`. |
-| `widgets.py` | 4706 | `SortablePanel` (45 methods — generic step row: script/MA/skin/shapes/publish/tweaker), `SortableBubblePanel` (LOAD MODULE panel w/ `ModuleBubble`s, batch guide build/delete), `LodLoaderPanel`, `CacheMixin` (per-step `.ma` cache buttons), `FlowLayout`, drag/drop containers, `GraphNodeOrderDialog`, `TweakerVertexGroup`, `PBCameraViewWidget` (embedded model panel), `PBWipeCompareWidget` (PySide6 only). |
-| `graph.py` | 5378 | `RigNode`, `RigWire`, `NodeGraphView` (mouse/keys, wire drag, context menu, copy/cut/paste/duplicate), `NodeSearchPopup`, `GuideSettingsPanel` (mirrors mGear guide root settings: rig/anim/skin/joint/color/custom steps/naming/blueprint), `ModuleGraphWidget` (85 methods — business logic: build guides, Plebe ops, custom sgt/script nodes, attach-under resolution `_resolve_attach_parent`, guide position capture/apply, main-settings live apply, save/load guides, snapshot undo/redo, `execute_graph_nodes`). Defaults: `DEFAULT_CONTROL_SHAPES_LIBRARY`, fan/stretchy joint scripts. |
-| `dialogs.py` | 1912 | `AdvancedSaveDialog`, `SaveCommentDialog`, `BuildProgressDialog`, `PathReplaceDialog`, `CreateFolderStructureDialog`, `AyonPublishDialog` (21 methods: publishes rig + work folder to AYON via `ayon_api`/EntityHub), `SimpleCodeEditorDialog`, JSON path helpers. |
-| `utils.py` | 1632 | Versioned paths, control-shape export/import + library apply, material export/import (shader network capture), skinCluster naming/mismatch/re-skin helpers, crash log + session health markers, **fast skin export/import (OpenMaya API)**. |
-| `session.py` | 109 | `SessionManager` — session json (notes, recents, autosaves, published). |
-| `compat.py` | 54 | Qt binding shim (see above). |
-| `menu.py`, `run.py` | 39/16 | Launchers. |
-| `DRAG_DROP_TO_MAYA.py` | 285 | Drag-into-Maya installer: copies package, makes shelf + menu, installs `userSetup.py` auto-menu hook. |
-| `PanelScripts/Tweaker.py` | 595 | Standalone Tweaker system: per-vertex follicle+plane control, skin copy, auto-weight falloff, blendshape hookup. |
+| `main.py` | 345 | `KRT_Tool` window, tabs, autosave timer, crash-health check, `run_tool()`. |
+| `compat.py` / `session.py` / `menu.py` / `run.py` | 54/109/39/16 | Qt shim; `SessionManager`; launchers. |
+| `DRAG_DROP_TO_MAYA.py` | 285 | Drag-into-Maya installer (shelf + menu + userSetup hook). |
+| `PanelScripts/Tweaker.py` | 595 | Standalone Tweaker algorithm (loaded by path from `workspace/executors.py`). |
+| **`utils/`** | | |
+| `utils/paths.py` | 32 | `get_versioned_path` |
+| `utils/control_shapes.py` | 271 | control-shape export/import, `find_guide_model`, `apply_control_shapes_library` |
+| `utils/materials.py` | 442 | material/shader-network export + import |
+| `utils/skin.py` | 330 | skinCluster naming/mismatch/re-skin helpers, skin-file readers |
+| `utils/crash_log.py` | 129 | crash log + session start/clean-exit markers |
+| `utils/fast_skin.py` | 345 | OpenMaya-API fast skin export/import |
+| **`dialogs/`** | | |
+| `dialogs/save_dialogs.py` | 346 | `AdvancedSaveDialog`, `SaveCommentDialog`, `BuildProgressDialog`, `SimpleCodeEditorDialog` |
+| `dialogs/path_tools.py` | 549 | `PathReplaceDialog`, `CreateFolderStructureDialog`, JSON path helpers |
+| `dialogs/ayon_publish.py` | 1011 | `AyonPublishDialog` (the only place `ayon_api` is imported) |
+| **`widgets/`** | | |
+| `widgets/style.py` | 105 | panel colour/icon helpers, `panel_run_label`, `prompt_skincluster_naming_check` |
+| `widgets/dialogs.py` | 157 | `ErrorDialog`, `GraphNodeOrderDialog` |
+| `widgets/flow_layout.py`, `drag_drop.py`, `cache_mixin.py`, `tweaker_group.py` | 142/36/146/201 | `FlowLayout`; `DragDropContainer`; `CacheMixin` (per-step cache buttons); `TweakerVertexGroup` |
+| `widgets/sortable_panel.py` | 1662 | `SortablePanel` — generic step row (script/MA/skin/shapes/publish/tweaker) |
+| `widgets/bubble_panel.py` | 1135 | `ModuleBubble`, `BubbleDropArea`, `SortableBubblePanel` (LOAD MODULE panel) |
+| `widgets/lod_loader.py` | 532 | `LodLoaderBubble`, `LodLoaderPanel` |
+| `widgets/playblast_widgets.py` | 499 | `PBCameraViewWidget`, `PBWipeCompareWidget` |
+| **`graph/`** | | |
+| `graph/_shared.py` | 88 | node-type constants, default control-shapes lib path, default fan/stretchy joint scripts |
+| `graph/catalog.py` | 97 | `list_mgear_components` (+cache), `list_plebe_templates`, `_find_guide_root` |
+| `graph/items.py` | 443 | `RigWire`, `RigNode`, `bezier_path` |
+| `graph/dialogs.py` | 358 | `CustomScriptDialog`, `AutoScriptEditDialog`, `PlebeTemplateDialog`, `NodeSearchPopup` |
+| `graph/view.py` | 648 | `NodeGraphView` — mouse/keys, wire drag, context menu, copy/cut/paste/duplicate, node creation |
+| `graph/guide_settings.py` | 518 | `CustomStepListEditor`, `GuideSettingsPanel` (mGear guide-root settings tab) |
+| `graph/widget.py` | 1010 | `ModuleGraphWidget` core: `__init__`, side panel/Node tab UI, `update_attr_editor`, `on_attr_changed`, parent combo |
+| `graph/widget_positions.py` | 366 | `GraphPositionsMixin` — guide position capture/apply, position watch |
+| `graph/widget_component_settings.py` | 600 | `GraphComponentSettingsMixin` — mGear Main Settings, attach-under combo, joint names, colour, `apply_main_settings_live` |
+| `graph/widget_scripts.py` | 216 | `GraphScriptsMixin` — custom/fan/stretchy scripts, control-shapes library browse/apply |
+| `graph/widget_io.py` | 353 | `GraphIoMixin` — guide path defaults, save/load guides, `serialize_node`/`deserialize_node`, graph config data |
+| `graph/widget_undo.py` | 117 | `GraphUndoMixin` — snapshot undo/redo |
+| `graph/widget_build.py` | 635 | `GraphBuildMixin` — Plebe ops, `_resolve_attach_parent`, all `_build_*` methods, `build_node_guide`, `execute_graph_nodes` |
+| **`workspace/`** | | |
+| `workspace/core.py` | 315 | `CurrentPageStackedWidget`; `SessionWorkspace` core: `__init__`, `setup_ui`, nav, session lists, autosave toggle |
+| `workspace/lods.py` | 278 | `WorkspaceLodsMixin` — LOD list, create/delete LOD, default panels, LOD loader panel, LOD sequence build |
+| `workspace/pages.py` | 694 | `WorkspacePagesMixin` — File / Rig / Docs / Profile / Scripts-library pages, module list ↔ graph sync |
+| `workspace/panels.py` | 242 | `WorkspacePanelsMixin` — add/duplicate/delete panel, serialize/restore, panel-delete undo |
+| `workspace/build.py` | 433 | `WorkspaceBuildMixin` — full build, build-till-here, cache clear/resume, fast-build context, timings |
+| `workspace/pipeline_io.py` | 466 | `WorkspacePipelineIoMixin` — pipeline JSON data/save/load/versions, autosave, publish paths |
+| `workspace/executors.py` | 783 | `WorkspaceExecutorsMixin` — every panel-type action: scripts, import 3D, instances, skin, re-skin, tweaker |
+| `workspace/playblast.py` | 1844 | `WorkspacePlayblastMixin` — all `pb_*`, camera generation, ffmpeg encode, compare mode, Playblast page |
+| **`tools/`** | | `smoke_test.py` (import test outside Maya), `smoke_stubs/` (fake maya/PySide2/ayon_api), `restructure/split_krt.py` (the one-off splitter, for reference) |
 
 **Data files:** pipeline JSON (per LOD panel stack, with step uuids), graph config JSON (nodes/wires/fields), step caches
 `<MayaAppDir>/KleemRiggingTool/step_caches/<uuid>.ma`, sessions under `<MayaAppDir>/KRT/Sessions`, autopublish under `<MayaAppDir>/KRT/AutoPublish`.
@@ -81,15 +125,14 @@ Observations / candidates for future work (not yet done — decide together):
    new LOD point at another artist's disk. Should become blank or a configurable studio default.
 2. **Hardcoded network defaults**: `P:\pipeline_database\Maya\Scripts\ONE` (workspace.py:27, session.py:35), `P:\rigging_team\...studiolibrary`,
    `R:\Pipeline_Share\...\controlShapes.ma` (graph.py:53), ffmpeg/font search paths (workspace.py:3450–3464). Fine for now; consider a `config.json`.
-3. **`SessionWorkspace` is 5k lines / 159 methods.** The `pb_*` playblast block (~60 methods) is the obvious extraction into its own module
-   (`playblast.py`) if we ever refactor. Same for build-execution logic.
+3. ~~`SessionWorkspace` is 5k lines / 159 methods~~ — **done 2026-09-18** (split into 8 files via mixins, see §3). Biggest remaining files: `workspace/playblast.py` (1844), `widgets/sortable_panel.py` (1662).
 4. **User-facing "AYON" text** in `dialogs.py` (window title "Publish Rig to AYON — KRT", "AYON Context" group, "AYON API is not connected", `[AYON PUBLISH]` prints).
    Per your standing rule, UI text should say **KRISHNA** (internals like `ayon_api`, env vars, `ayon:5000` untouched). **Pending your go-ahead.**
 5. **Naming:** your tools carry an `ssd_` prefix; this one is `KRT` (package name baked into installer, menu, shelf, userSetup hook, `run.py`).
    Renaming is doable but touches launch/install — **decide whether KRT stays as-is.**
 6. **Stale docs:** `Claude outputs/HANDOFF.md` and `KRT_AI_HANDOFF.md` reference the old location/device and a claude.ai project doc that no longer applies.
    This `PROGRESS.md` supersedes them.
-7. **No version control.** `git init` + first commit recommended before further edits.
+7. ~~No version control~~ — **git repo initialised 2026-09-18**; baseline commit before restructure, one commit per stage from now on.
 8. Old known-unverified item from Stage 14: Custom `.sgt` node built with **no** Attach Under locator relies on PyMEL `getParent(-1)` behaviour on a
    parentless node — never confirmed. Workaround: always pick a locator.
 
@@ -112,6 +155,9 @@ for f in ['graph.py','widgets.py','workspace.py','dialogs.py','utils.py','main.p
                     if m.name in s: print('DUP',f,c.name,m.name,s[m.name],m.lineno)
                     s[m.name]=m.lineno
 print('scan done')"
+
+:: 3) Import smoke test - loads the whole package with fake Maya/Qt, catches circular imports / missing names
+python tools\smoke_test.py
 ```
 
 Then in Maya: **KRT menu → launch** (reloads modules) and test the actual behaviour. Report back what happened.
@@ -126,6 +172,18 @@ Then in Maya: **KRT menu → launch** (reloads modules) and test the actual beha
 ---
 
 ## 8. Work Log (newest first)
+
+### 2026-09-18 — Session 2: restructure into packages + mixins  (commit `0301516`)
+- Request: *"lets restructure all the code first divide in multiple files so its faster to edit and work in it"*. Chosen style: folders + mixins.
+- `git init` done; baseline commit `8b8c487` (user had already made `da8fb00`). Added `.gitignore` (`__pycache__`, `*.pyc`).
+- Wrote an AST/line-range splitter (`tools/restructure/split_krt.py`) so comments and formatting survived; no code was re-typed by hand.
+- `utils.py`, `dialogs.py`, `widgets.py`, `graph.py`, `workspace.py` → packages (see §3). `ModuleGraphWidget` → core + 6 mixins; `SessionWorkspace` → core + 7 mixins.
+- Mechanical edits inside mixins: `super(ClassName, self)` → `super()`; `SessionWorkspace._pb_settings_clipboard` → `type(self)._pb_settings_clipboard`.
+- One real path fix: `workspace/executors.py::_load_tweaker_module` now goes up two dirs to find `PanelScripts/Tweaker.py`.
+- Verification: every class/method/function accounted for exactly once (AST inventory diff); all files compile; `tools/smoke_test.py` imports the whole
+  package with stubs — no circular imports, MROs resolve. **Not yet launched in Maya** — that is the first thing to do next session
+  (KRT menu → launch; if it errors, paste the traceback).
+- Known cosmetic side-effect: `_shared.py` re-exports all of a module's original imports, so sibling files see unused names like `cmds`/`os` even when they don't need them. Harmless.
 
 ### 2026-09-18 — Session 1: full code review + this document
 - Read all 15 source files (AST outline of every class/method), both old handoff docs and `BUILD_SPEED_NOTES.md`.

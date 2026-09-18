@@ -2,7 +2,7 @@
 
 > **Purpose:** single living document for this project. Any new chat should start by reading this file
 > (`C:\pipeline\KRT_02\PROGRESS.md`), then the "Work Log" at the bottom to see where we stopped.
-> Update it at the end of every work session. Keep older handoff docs in `Claude outputs/` for history only —
+> Update it at the end of every work session. Old handoff docs are in `archive/claude_outputs_old_handoffs/` for history only —
 > they are STALE (they describe `C:\Pipeline\KRT` on device "kl201" at Stage 27; the code here is at Stage 40+).
 
 ---
@@ -113,7 +113,7 @@ Stages are the user's numbered requests; code comments say `Stage N` where a cha
 - **28–31** (see `grep "Stage 28"` etc.) heavy work in graph/widgets — guide position capture/apply & position watch, component settings capture, joint names editing, RGB color picker, UI-host grab.
 - **33–36** AYON publish dialog rules (Stage 35 rule 2: publish also writes pipeline JSON), folder-structure creation dialog, path replace.
 - **37–40** Playblast: camera generation/AOV, metadata burn-in via ffmpeg, HUD/gate hiding, StudioLibrary anim load on filtered controls, compare mode, **wipe/slider compare (PySide6 QVideoSink)**.
-- **Caching & speed pass** (`BUILD_SPEED_NOTES.md`): per-step cache/load/build-from-cache, fast-build context (undo off, echo off, refresh suspended), per-step timings.
+- **Caching & speed pass** (`archive/BUILD_SPEED_NOTES.md`): per-step cache/load/build-from-cache, fast-build context (undo off, echo off, refresh suspended), per-step timings.
 
 ## 5. Review findings (2026-09-18 full-code scan)
 
@@ -130,7 +130,7 @@ Observations / candidates for future work (not yet done — decide together):
    Per your standing rule, UI text should say **KRISHNA** (internals like `ayon_api`, env vars, `ayon:5000` untouched). **Pending your go-ahead.**
 5. **Naming:** your tools carry an `ssd_` prefix; this one is `KRT` (package name baked into installer, menu, shelf, userSetup hook, `run.py`).
    Renaming is doable but touches launch/install — **decide whether KRT stays as-is.**
-6. **Stale docs:** `Claude outputs/HANDOFF.md` and `KRT_AI_HANDOFF.md` reference the old location/device and a claude.ai project doc that no longer applies.
+6. **Stale docs:** `archive/claude_outputs_old_handoffs/*.md` reference the old location/device and a claude.ai project doc that no longer applies.
    This `PROGRESS.md` supersedes them.
 7. ~~No version control~~ — **git repo initialised 2026-09-18**; baseline commit before restructure, one commit per stage from now on.
 8. Old known-unverified item from Stage 14: Custom `.sgt` node built with **no** Attach Under locator relies on PyMEL `getParent(-1)` behaviour on a
@@ -191,3 +191,8 @@ Then in Maya: **KRT menu → launch** (reloads modules) and test the actual beha
 - Created `PROGRESS.md` (this file). No code changed.
 - **Open decisions for user:** items 1, 4, 5, 7 in §5.
 - **Next:** user picks first Stage of work for KRT_02.
+
+### 2026-09-18 — Session 2b: installer check + archive folder
+- `DRAG_DROP_TO_MAYA.py` already copies sub-folders recursively, so the new packages install fine. Added: skips `tools/`, `archive/`, `*.md`;
+  new `_remove_stale_modules()` deletes leftover single-file `graph.py`/`widgets.py`/… from an older install so they can't shadow the packages.
+- Created `archive/`: old Claude handoff docs, `BUILD_SPEED_NOTES.md` (still useful — optimisation ideas list), the one-off splitter script.

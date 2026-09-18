@@ -46,6 +46,13 @@ def _run_installer():
         dst_path = os.path.normcase(os.path.normpath(install_dest))
         if src_path != dst_path:
             copied, skipped = _safe_copy_tree(package_src, install_dest)
+            # The 2026-09 restructure turned graph.py/widgets.py/... into
+            # graph/ widgets/ packages. A copy never deletes, so an older
+            # install would keep the dead single-file modules beside the new
+            # folders - remove any top-level .py that no longer exists in src.
+            removed = _remove_stale_modules(package_src, install_dest)
+            if removed:
+                cmds.warning("[KRT] Removed stale module(s) from install: " + ", ".join(removed))
             if copied == 0:
                 cmds.error("[KRT] Nothing was copied - check folder permissions.")
                 return
@@ -124,8 +131,8 @@ def _run_installer():
 
 
 # Folder / file names that must never be copied to the install destination.
-_SKIP_DIRS = {".git", ".github", "__pycache__"}
-_SKIP_FILE_EXT = {".pyc", ".pyo"}
+_SKIP_DIRS = {".git", ".github", "__pycache__", "tools", "archive", "Claude outputs"}
+_SKIP_FILE_EXT = {".pyc", ".pyo", ".md"}
 _SKIP_FILE_NAMES = {"_t.txt", "_cache_write_test.txt"}
 
 
@@ -167,6 +174,26 @@ def _safe_copy_tree(src, dst):
             except Exception:
                 skipped += 1
     return copied, skipped
+
+
+def _remove_stale_modules(src, dst):
+    """Delete top-level *.py files in dst that have no counterpart in src
+    (e.g. graph.py after graph/ became a package). Returns removed names."""
+    import os
+    removed = []
+    try:
+        src_files = {n for n in os.listdir(src) if n.lower().endswith(".py")}
+        for n in os.listdir(dst):
+            full = os.path.join(dst, n)
+            if n.lower().endswith(".py") and os.path.isfile(full) and n not in src_files:
+                try:
+                    os.remove(full)
+                    removed.append(n)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return removed
 
 
 # ── Launch command used by the shelf button (python sourceType) ──────────────

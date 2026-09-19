@@ -29,6 +29,7 @@ class WorkspaceRootPathMixin(object):
             field.blockSignals(True); field.setText(root); field.blockSignals(False)
         if root and relativize_existing:
             self.relativize_all_paths()
+        self._refresh_path_mode_button()
 
     def default_browse_dir(self):
         """Where a file/folder browser should open when it has nothing better.
@@ -88,17 +89,16 @@ class WorkspaceRootPathMixin(object):
                 if w is not None:
                     yield w
 
-    def relativize_all_paths(self):
-        """Shorten every absolute path under the root, everywhere in the UI:
-        panel fields, module bubbles, graph node file paths."""
-        root = self.rig_root()
-        if not root:
-            return 0
+    def _convert_all_paths(self, convert):
+        """Apply `convert` (relativize_path or resolve_path) to every path in
+        the UI: panel fields, module bubbles, graph node file paths.
+        Non-path text (inline script code, GRAPH:: ids) is untouched by both
+        conversions, so this can run blindly over every field."""
         changed = 0
         for panel in self._iter_all_panels():
             field = getattr(panel, "field", None)
             if field is not None:
-                new = relpath.relativize(root, field.text())
+                new = convert(field.text())
                 if new != field.text():
                     field.setText(new); changed += 1
             bl = getattr(panel, "bubble_layout", None)
@@ -107,7 +107,7 @@ class WorkspaceRootPathMixin(object):
                     bub = bl.itemAt(b).widget()
                     fp = getattr(bub, "full_path", None)
                     if fp:
-                        new = relpath.relativize(root, fp)
+                        new = convert(fp)
                         if new != fp:
                             bub.full_path = new; changed += 1
         gw = getattr(self, "graph_widget", None)
@@ -120,13 +120,82 @@ class WorkspaceRootPathMixin(object):
                     for attr in ("custom_sgt_path", "plebe_template_path", "control_shapes_library"):
                         v = getattr(item, attr, None)
                         if v:
-                            new = relpath.relativize(root, v)
+                            new = convert(v)
                             if new != v:
                                 setattr(item, attr, new); changed += 1
                 if hasattr(gw, "update_attr_editor"):
                     gw.update_attr_editor()
             except Exception:
                 traceback.print_exc()
-        if changed:
-            print(f"[KRT] Rig Root '{root}': {changed} path(s) now shown relative to it.")
         return changed
+
+    def relativize_all_paths(self):
+        """Shorten every absolute path that lives under the Rig Root."""
+        root = self.rig_root()
+        if not root:
+            cmds.warning("[KRT] Set a Rig Root first - there is nothing to make paths relative to.")
+            return 0
+        changed = self._convert_all_paths(self.relativize_path)
+        print(f"[KRT] Rig Root '{root}': {changed} path(s) now shown relative to it.")
+        self._refresh_path_mode_button()
+        return changed
+
+    def absolutize_all_paths(self):
+        """Expand every relative path back to its full path under the root.
+        Paths that were already absolute (outside the root) are untouched."""
+        root = self.rig_root()
+        if not root:
+            cmds.warning("[KRT] Set a Rig Root first - a relative path needs a root to expand against.")
+            return 0
+        changed = self._convert_all_paths(self.resolve_path)
+        print(f"[KRT] {changed} path(s) expanded to full paths under '{root}'.")
+        self._refresh_path_mode_button()
+        return changed
+
+    # ── relative/absolute toggle ─────────────────────────────────────────
+    def paths_are_relative(self):
+        """True when the fields are currently SHOWING relative paths.
+
+        Decided by what is actually in the fields rather than by a stored
+        flag, so the button stays honest after a JSON load, an Initialize
+        Project, or the user typing a path in by hand.
+        """
+        for panel in self._iter_all_panels():
+            field = getattr(panel, "field", None)
+            if field is not None and relpath.looks_like_relative_path(field.text()):
+                return True
+            bl = getattr(panel, "bubble_layout", None)
+            if bl is not None:
+                for b in range(bl.count()):
+                    fp = getattr(bl.itemAt(b).widget(), "full_path", "") or ""
+                    if not fp.startswith("GRAPH::") and relpath.looks_like_relative_path(fp):
+                        return True
+        return False
+
+    def toggle_path_mode(self):
+        """The Rig Root row's ⇄ button: relative <-> absolute, in place."""
+        if self.paths_are_relative():
+            self.absolutize_all_paths()
+        else:
+            self.relativize_all_paths()
+
+    def _refresh_path_mode_button(self):
+        """Label the button with the state the paths are in NOW, so it reads
+        like a switch rather than a command with an unknown effect."""
+        btn = getattr(self, "btn_path_mode", None)
+        if btn is None:
+            return
+        if self.paths_are_relative():
+            btn.setText("⇄ Paths: Relative")
+            btn.setToolTip(
+                "Paths are shown relative to the Rig Root (scripts/utils.py).\n"
+                "Click to show full paths instead.\n\n"
+                "Display only - the pipeline JSON always saves paths relative to the\n"
+                "Rig Root, so it keeps working when the rig folder moves.")
+        else:
+            btn.setText("⇄ Paths: Absolute")
+            btn.setToolTip(
+                "Paths are shown in full (P:/.../rig/scripts/utils.py).\n"
+                "Click to shorten the ones under the Rig Root.\n\n"
+                "Display only - the pipeline JSON always saves paths relative to the\n"
+                "Rig Root, so it keeps working when the rig folder moves.")

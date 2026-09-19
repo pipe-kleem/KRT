@@ -202,13 +202,14 @@ class WorkspacePagesMixin(object):
         btn_root_browse.setToolTip("Browse for the rig root folder.")
         btn_root_browse.clicked.connect(self.browse_rig_root)
         root_layout.addWidget(btn_root_browse)
-        btn_root_rel = QtWidgets.QPushButton("⇄ Make Relative")
-        btn_root_rel.setToolTip("Shorten every path that lives under the Rig Root (panels, module bubbles, graph nodes).")
-        btn_root_rel.setStyleSheet(
+        # Stage 43: a toggle, not a one-way action - the label names the state
+        # the paths are in right now, and clicking flips them.
+        self.btn_path_mode = QtWidgets.QPushButton("⇄ Paths: Absolute")
+        self.btn_path_mode.setStyleSheet(
             "QPushButton { background: #333; color: #cccccc; border: 1px solid #2bb5a8; padding: 5px 8px;"
             " border-radius: 3px; } QPushButton:hover { background: #444; color: white; }")
-        btn_root_rel.clicked.connect(self.relativize_all_paths)
-        root_layout.addWidget(btn_root_rel)
+        self.btn_path_mode.clicked.connect(self.toggle_path_mode)
+        root_layout.addWidget(self.btn_path_mode)
 
         # Stage 42: one button - folders + utils.py + Rig Root + panel stack.
         btn_init_project = QtWidgets.QPushButton("✨ Initialize Project")

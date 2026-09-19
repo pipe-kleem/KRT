@@ -281,3 +281,10 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - `templates/utils.py` is the user's own utils (repath_textures, organize_and_convert_lod, wrap/blendshape/joint helpers…), shipped with the package so it installs with KRT.
 - Verified offline: folder creation, the 49KB template copy, and a second run creating nothing.
 - **Guesses worth correcting if wrong:** `PUBLISH PATH → rig` (the old blindfold JSON used the rig root itself), and `model/export.abc` as the model filename.
+
+### 2026-09-19 — v42.1: Rig Root path button is now a relative/absolute toggle
+- `⇄ Make Relative` was one-way. It is now **`⇄ Paths: Relative` / `⇄ Paths: Absolute`** — the label names the state the paths are in *now*, and clicking flips them.
+- `workspace/root_path.py`: `relativize_all_paths()` and the new `absolutize_all_paths()` both run through one `_convert_all_paths(convert)` helper (panel fields, module bubbles, graph node paths), so the two directions can never drift apart.
+- `paths_are_relative()` decides the label from **what is actually in the fields**, not a stored flag — so it stays correct after a JSON load, Initialize Project, or the user typing a path by hand. The label is refreshed from `set_rig_root`, `load_pipeline_from_file` and `initialize_project`.
+- **Storage is unchanged and deliberately so:** the pipeline JSON always saves paths relative to the Rig Root regardless of what the toggle is showing, so a saved pipeline keeps working when the rig folder moves. The tooltip says this.
+- Round-trip verified offline on the blindfold paths: relative → absolute → relative is stable, inline script code and `GRAPH::` ids pass through untouched, and paths outside the root stay absolute in both modes.

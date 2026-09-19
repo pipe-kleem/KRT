@@ -348,6 +348,8 @@ class WorkspacePipelineIoMixin(object):
                     self.set_rig_root(inferred, relativize_existing=True)
             self._pending_legacy_root = False
 
+            self._refresh_path_mode_button()
+
             saved_guide_path = graph_data.get("guide_path") or None
             self.set_session_path(file_path, guide_path=saved_guide_path, refresh_guide_default=(saved_guide_path is None))
             self.session_manager.add_recent(file_path); self.main_window.refresh_all_session_lists()

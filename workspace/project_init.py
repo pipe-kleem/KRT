@@ -108,6 +108,7 @@ class WorkspaceProjectInitMixin(object):
 
         if make_panels:
             self._create_default_project_panels()
+        self._refresh_path_mode_button()
 
         # Playblast output, if that tab has been built in this session.
         if hasattr(self, "pb_output_field") and not self.pb_output_field.text().strip():

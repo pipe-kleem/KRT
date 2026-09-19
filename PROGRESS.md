@@ -254,3 +254,30 @@ Request (verbatim): *"I want to make this relative … in the ui 1 path and ever
 - Real cause: Maya builds a UI path by joining the Qt **objectNames** of the whole ancestor chain with `|`. Every *unnamed* widget contributes an empty segment. KRT embeds the viewport ~9 layers deep, giving `KRT_Window||||||||||KRT_pbCamViewNNNLayout|…`, which Maya's own `createModelPanelBar` / `updateModelPanelBar` / `cleanupModelPanelBar` MEL procs can't parse. (v41.3 named only 2 widgets of the chain — that's why the pipe count changed but the error didn't go away.)
 - Fix: `_name_ancestor_chain()` walks from the widget up to the top-level window and gives every unnamed widget a unique objectName, stopping at the window so Maya's own UI is never renamed. Run at construction **and** in `showEvent` — the widget is built before it is added to its parent layout, so at `__init__` the chain is still short (that is why the first error showed 3 pipes and later ones 10). Panel creation is also wrapped in `_quiet_script_editor`.
 - Safe by construction: setting a previously-empty objectName can only add matches for `#name` stylesheet selectors, and the generated names are unique per widget.
+
+### 2026-09-19 — Stage 42 (v42.0): studio default path + Initialize Project
+Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\all_Rigs`; if a base path is set, that wins. Plus an **Initialize Project** button that creates the standard folders, copies `utils.py` into `scripts/`, and builds the panel stack from a rig name.
+
+**Default browse path**
+- `utils/paths.py::DEFAULT_RIGS_ROOT = P:\rigging_team\Rigging_local_share\all_Rigs`.
+- New `SessionWorkspace.default_browse_dir()` — **Rig Root first, then DEFAULT_RIGS_ROOT**, never an empty string when the folder exists (an empty `dir` makes Maya's file dialog reopen wherever it last was, anywhere on the machine).
+- Wired into: panel Browse (`SortablePanel.get_start_dir`), Rig Root browse, module-bubble browse (prefers `guides/` under the root), graph Control-Shapes-Library browse, graph `.sgt` browse, Load Pipeline JSON browse.
+
+**Initialize Project** (`✨ Initialize Project`, next to Rig Root)
+- `dialogs/project_init.py::ProjectInitDialog` — rigs folder (defaults to `DEFAULT_RIGS_ROOT`), rig name, live preview of the folders, three opt-outs (copy utils.py / create panels / open in Explorer).
+- `workspace/project_init.py::WorkspaceProjectInitMixin.initialize_project()` creates
+  `<rigs>/<name>/{cc_rig, controlShape, guides, model, module, playblasts, rig, scripts, skinCluster}`,
+  copies the bundled `templates/utils.py` → `scripts/utils.py`, sets the Rig Root, fills the Rig Name as `<name>_rig`, sets the playblast output to `playblasts`, and creates the default panel stack with **relative** paths:
+  | panel | type | path |
+  |---|---|---|
+  | MAYA GLOBAL SCRIPT | GLOBAL_SCRIPT | — |
+  | LOAD SCRIPT PANEL | SCRIPT | `scripts/utils.py` |
+  | LOAD MODEL (3D file) | IMPORT_3D | `model/export.abc` |
+  | LOAD MODULE | MODULE | (bubbles) |
+  | LOAD SKINCLUSTER | JSON | `skinCluster/skinCluster.jSkin` |
+  | CONTROL SHAPES | SHAPES | `controlShape/controlShapes.json` |
+  | PUBLISH PATH | PUBLISH | `rig` |
+- **Non-destructive**: an existing folder is left alone, an existing `scripts/utils.py` is never replaced. Only "create default panels" is destructive, and it clears the *current LOD's* panels — it is a checkbox, on by default.
+- `templates/utils.py` is the user's own utils (repath_textures, organize_and_convert_lod, wrap/blendshape/joint helpers…), shipped with the package so it installs with KRT.
+- Verified offline: folder creation, the 49KB template copy, and a second run creating nothing.
+- **Guesses worth correcting if wrong:** `PUBLISH PATH → rig` (the old blindfold JSON used the rig root itself), and `model/export.abc` as the model filename.

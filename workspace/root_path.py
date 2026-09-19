@@ -1,6 +1,7 @@
 """SessionWorkspace - Rig Root / relative-path support (Stage 41, mixin)."""
 from ._shared import *
 from ..utils import relpath
+from ..utils.paths import DEFAULT_RIGS_ROOT
 
 
 class WorkspaceRootPathMixin(object):
@@ -29,6 +30,20 @@ class WorkspaceRootPathMixin(object):
         if root and relativize_existing:
             self.relativize_all_paths()
 
+    def default_browse_dir(self):
+        """Where a file/folder browser should open when it has nothing better.
+
+        Rig Root first (you are almost always picking a file inside the rig
+        you're working on), then the studio-wide rigs folder. Never an empty
+        string if that folder exists - an empty 'dir' makes Maya reopen
+        wherever it happened to be last, anywhere on the machine."""
+        root = self.rig_root()
+        if root and os.path.isdir(root):
+            return root
+        if os.path.isdir(DEFAULT_RIGS_ROOT):
+            return DEFAULT_RIGS_ROOT
+        return ""
+
     def resolve_path(self, text):
         return relpath.resolve(self.rig_root(), text)
 
@@ -40,9 +55,9 @@ class WorkspaceRootPathMixin(object):
         self.set_rig_root(self.edit_rig_root.text(), relativize_existing=True)
 
     def browse_rig_root(self):
-        start = self.rig_root()
+        start = self.default_browse_dir()
         kwargs = {"fm": 3, "caption": "Select Rig Root Folder"}
-        if start and os.path.isdir(start):
+        if start:
             kwargs["dir"] = start
         res = cmds.fileDialog2(**kwargs)
         if res:

@@ -186,7 +186,7 @@ class GraphScriptsMixin(object):
 
     def browse_control_shapes_library(self):
         start = self.workspace.resolve_path(self.edit_control_shapes_lib.text().strip())
-        start_dir = os.path.dirname(start) if start else self.workspace.rig_root()
+        start_dir = os.path.dirname(start) if start else self.workspace.default_browse_dir()
         res = cmds.fileDialog2(
             fm=1, ff="Maya Files (*.ma *.mb);;Maya ASCII (*.ma);;Maya Binary (*.mb);;All Files (*.*)",
             caption="Choose Control Shapes Library",

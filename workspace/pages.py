@@ -209,6 +209,18 @@ class WorkspacePagesMixin(object):
             " border-radius: 3px; } QPushButton:hover { background: #444; color: white; }")
         btn_root_rel.clicked.connect(self.relativize_all_paths)
         root_layout.addWidget(btn_root_rel)
+
+        # Stage 42: one button - folders + utils.py + Rig Root + panel stack.
+        btn_init_project = QtWidgets.QPushButton("✨ Initialize Project")
+        btn_init_project.setToolTip(
+            "Create a new rig project: the standard folder structure under the rigs folder,\n"
+            "the utils.py template in scripts/, the Rig Root set to it, and the default\n"
+            "panel stack with paths already filled in. Nothing existing is overwritten.")
+        btn_init_project.setStyleSheet(
+            "QPushButton { background: #2bb5a8; color: white; border: none; padding: 5px 10px;"
+            " border-radius: 3px; font-weight: bold; } QPushButton:hover { background: #38d1c2; }")
+        btn_init_project.clicked.connect(self.open_project_init_dialog)
+        root_layout.addWidget(btn_init_project)
         main_vbox.addLayout(root_layout)
 
         # Panel search bar: filters the panels of the current LOD live.

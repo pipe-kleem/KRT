@@ -60,7 +60,7 @@ root = sys.argv[1] if len(sys.argv) > 1 else "."
 problems = {}
 for pkg in sorted(os.listdir(root)):
     pdir = os.path.join(root, pkg)
-    if not os.path.isdir(pdir) or pkg in (".git", "tools", "archive", "__pycache__", "PanelScripts"):
+    if not os.path.isdir(pdir) or pkg in (".git", "tools", "archive", "__pycache__", "PanelScripts", "templates"):
         continue
     shared = star_exports(os.path.join(pdir, "_shared.py"))
     defines = {}
@@ -141,7 +141,7 @@ def check_relative_imports(root):
     issues = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames
-                       if d not in (".git", "tools", "archive", "__pycache__", "PanelScripts")]
+                       if d not in (".git", "tools", "archive", "__pycache__", "PanelScripts", "templates")]
         for f in sorted(filenames):
             if not f.endswith(".py"):
                 continue

@@ -705,10 +705,17 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
             
             if action == a_file:
                 kwargs = {'fm': 1, 'ff': "All Files (*.*);;Module Files (*.py *.sgt);;Python (*.py);;mGear Guide (*.sgt)"}
+                sd = ""
                 if self.bubble_layout.count() > 0:
                     last_path = self.workspace.resolve_path(self.bubble_layout.itemAt(self.bubble_layout.count()-1).widget().full_path)
                     sd = os.path.dirname(last_path)
-                    if os.path.exists(sd): kwargs['dir'] = sd
+                if not sd or not os.path.exists(sd):
+                    # Stage 42: guides/ under the rig root, else the rig root,
+                    # else the studio rigs folder - never "wherever Maya was last".
+                    root = self.workspace.default_browse_dir()
+                    guides = os.path.join(root, "guides") if root else ""
+                    sd = guides if guides and os.path.isdir(guides) else root
+                if sd and os.path.exists(sd): kwargs['dir'] = sd
 
                 res = cmds.fileDialog2(**kwargs)
                 if not res: return

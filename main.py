@@ -264,7 +264,15 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
             ws.deleteLater()
 
     def browse_session_path(self):
-        res = cmds.fileDialog2(fm=1, ff="JSON (*.json)", caption="Load Pipeline JSON Session")
+        kwargs = {"fm": 1, "ff": "JSON (*.json)", "caption": "Load Pipeline JSON Session"}
+        try:
+            ws = self.session_stack.currentWidget()
+            start = ws.default_browse_dir() if ws else ""
+            if start:
+                kwargs["dir"] = start
+        except Exception:
+            pass
+        res = cmds.fileDialog2(**kwargs)
         if res:
             self.session_path_field.setText(res[0])
             self.load_path_from_field()

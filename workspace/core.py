@@ -10,6 +10,7 @@ from .pipeline_io import WorkspacePipelineIoMixin
 from .executors import WorkspaceExecutorsMixin
 from .playblast import WorkspacePlayblastMixin
 from .root_path import WorkspaceRootPathMixin
+from .project_init import WorkspaceProjectInitMixin
 
 
 class CurrentPageStackedWidget(QtWidgets.QStackedWidget):
@@ -73,7 +74,7 @@ class CurrentPageStackedWidget(QtWidgets.QStackedWidget):
     def setCurrentWidget(self, widget):
         super(CurrentPageStackedWidget, self).setCurrentWidget(widget)
         self._after_switch()
-class SessionWorkspace(WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
+class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
     def __init__(self, main_window):
         super(SessionWorkspace, self).__init__()
         self.main_window = main_window

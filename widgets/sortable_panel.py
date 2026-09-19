@@ -1338,8 +1338,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         current_path = self.path().strip()
         if os.path.isdir(current_path): return current_path
         elif os.path.isfile(current_path): return os.path.dirname(current_path)
-        root = self.workspace.rig_root()
-        return root if root and os.path.isdir(root) else ""
+        return self.workspace.default_browse_dir()
 
     def show_context_menu(self):
         menu = QtWidgets.QMenu(self)

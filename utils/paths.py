@@ -1,6 +1,11 @@
 """Auto-split from utils.py."""
 from ._shared import *
 
+# Stage 42: the studio-wide folder every rig lives under. Used as the
+# starting directory for EVERY browse dialog when no Rig Root is set yet,
+# and as the default parent in the Initialize Project dialog.
+DEFAULT_RIGS_ROOT = r"P:\rigging_team\Rigging_local_share\all_Rigs"
+
 
 def get_versioned_path(file_path, get_latest=False):
     directory = os.path.dirname(file_path)

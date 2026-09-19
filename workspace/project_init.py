@@ -66,6 +66,70 @@ class WorkspaceProjectInitMixin(object):
         'cmds.setAttr(ctrl + ".Display", 2)\n'
     )
 
+    # Verbatim from the user's own script (2026-09-19). Kept as-is on purpose
+    # so it matches what they have already tested in Maya. Note it contains
+    # "{}" .format placeholders of its own - that is why _create_default_
+    # project_panels() only applies .format() to values that actually
+    # contain "{rig}".
+    RIG_SETS_CODE = '''import maya.cmds as cmds
+def organize_rig_sets():
+    # Define set names based on the updated requirements
+    controls_set = "rigMain_controls_SET"
+    out_set = "rigMain_out_SET"
+    skeleton_anim_set = "rigMain_skeletonMesh_SET"
+    skeleton_mesh_set = "rigMain_skeletonAnim_SET"
+    rig_main_set = "rigMain"
+
+    # Helper function to create sets safely if they don't exist
+    def create_set_if_missing(set_name):
+        if not cmds.objExists(set_name):
+            cmds.sets(empty=True, name=set_name)
+
+    # Initialize all sets
+    create_set_if_missing(controls_set)
+    create_set_if_missing(out_set)
+    create_set_if_missing(skeleton_anim_set)
+    create_set_if_missing(skeleton_mesh_set)
+    create_set_if_missing(rig_main_set)
+
+    # Helper function to process and add transform items
+    def add_transforms_to_set(search_pattern, target_set):
+        # Query items based on pattern, specifically looking for transform nodes
+        items = cmds.ls(search_pattern, type="transform", long=True) or []
+
+        if items:
+            # forceElement adds items even if they belong to other exclusive sets
+            cmds.sets(items, forceElement=target_set)
+            print("Success: Added {} items matching '{}' to {}".format(len(items), search_pattern, target_set))
+        else:
+            print("Warning: No transforms found matching '{}'.".format(search_pattern))
+
+    # 1. Select all *ctl and put inside rigMain_controls_SET
+    add_transforms_to_set("*ctl", controls_set)
+
+    # 2. Select all geo* and put inside rigMain_out_SET
+    add_transforms_to_set("geo*", out_set)
+
+    # 3. Select all *geo and put inside rigMain_skeletonAnim_SET
+    add_transforms_to_set("*geo", skeleton_anim_set)
+
+    # 4. Select all joints in the scene and put inside rigMain_skeletonMesh_SET
+    joints = cmds.ls(type="joint", long=True) or []
+    if joints:
+        cmds.sets(joints, forceElement=skeleton_mesh_set)
+        print("Success: Added {} joints to {}".format(len(joints), skeleton_mesh_set))
+    else:
+        print("Warning: No joints found in the scene.")
+
+    # 5. Select all char_*_a and put inside rigMain
+    add_transforms_to_set("char_*_a", rig_main_set)
+
+    print("--- Rig set organization complete! ---")
+
+# Execute the function
+organize_rig_sets()
+'''
+
     # (title, type, path-or-code, active)
     # "{rig}" is replaced with the rig name. A path is pre-filled even when
     # the file doesn't exist yet: it is where that step reads from, and where
@@ -84,6 +148,7 @@ class WorkspaceProjectInitMixin(object):
         ("CONTROL SHAPES",       "SHAPES",        "controlShape/controlShapes.json", True),
         ("CUSTOM SCRIPT",        "SCRIPT",        PARENT_RIG_CODE,                   True),
         ("Display Switch",       "SCRIPT",        DISPLAY_SWITCH_CODE,               True),
+        ("Rig Sets",             "SCRIPT",        RIG_SETS_CODE,                     True),
         ("PUBLISH PATH",         "PUBLISH",       ".",                               True),
     ]
 
@@ -202,7 +267,13 @@ class WorkspaceProjectInitMixin(object):
             if p_type == "MODULE":
                 pan = self.add_module_panel(title)
             else:
-                pan = self.add_panel(title, p_type, (value or "").format(rig=rig))
+                text = value or ""
+                # .format() only where a {rig} token exists: some default
+                # scripts contain their own "{}" placeholders, which .format()
+                # would either consume or choke on.
+                if "{rig}" in text:
+                    text = text.format(rig=rig)
+                pan = self.add_panel(title, p_type, text)
             if pan is not None and not active and hasattr(pan, "checkbox"):
                 pan.checkbox.setChecked(False)
         cmds.warning("[KRT] Default panel stack created ({} panels) for '{}'.".format(

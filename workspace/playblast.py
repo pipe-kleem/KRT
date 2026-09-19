@@ -22,7 +22,14 @@ class WorkspacePlayblastMixin(object):
         current session's own KRT json (same auto-pathed-beside-the-json
         convention as the Guide Path field and step caches), or the user's
         home folder if this session hasn't been saved anywhere yet."""
-        base_dir = os.path.dirname(self.session_path) if self.session_path else os.path.expanduser("~")
+        # Stage 46: prefer <Rig Root>/playblasts - that folder is part of the
+        # project structure Initialize Project creates, so QC media sits with
+        # the rig instead of beside whichever json happened to be open.
+        root = self.rig_root()
+        if root and os.path.isdir(root):
+            base_dir = root
+        else:
+            base_dir = os.path.dirname(self.session_path) if self.session_path else os.path.expanduser("~")
         d = os.path.join(base_dir, "playblasts").replace("\\", "/")
         if not os.path.exists(d):
             try:
@@ -1723,6 +1730,38 @@ class WorkspacePlayblastMixin(object):
         if "Square" in selected:
             return 1024, 1024
         return None, None
+
+    def pb_run_playblast(self):
+        """Run a playblast with whatever the Playblast tab currently holds.
+        Returns (success, error_msg, output_path).
+
+        Split out of pb_create_clicked so the AYON publish dialog can make a
+        QC movie itself without duplicating the field-gathering, and without
+        the button handler's popups/preview side-effects.
+        """
+        try:
+            start = int(self.pb_start_field.text().strip())
+        except Exception:
+            start = None
+        try:
+            end = int(self.pb_end_field.text().strip())
+        except Exception:
+            end = None
+        try:
+            fps = float(self.pb_fps_field.text().strip())
+            if fps <= 0:
+                fps = None
+        except Exception:
+            fps = None
+        width, height = self.pb_get_output_resolution()
+        return self.create_playblast(
+            self.pb_camera_field.text(), self.pb_group_field.text(),
+            self.pb_anim_field.text(), self.pb_pattern_field.text(),
+            start_frame=start, end_frame=end, width=width, height=height, fps=fps,
+            project_name=self.pb_project_field.text().strip(),
+            character_name=self.pb_character_field.text().strip(),
+            artist_name=self.pb_artist_field.text().strip(),
+            output_path_override=self.pb_output_field.text().strip())
 
     def pb_create_clicked(self):
         try:

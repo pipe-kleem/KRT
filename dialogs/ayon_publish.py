@@ -55,6 +55,18 @@ class AyonPublishDialog(QtWidgets.QDialog):
     DEFAULT_WORK_TYPE    = "workfile"
     WORK_REPRE_NAME      = "json"
 
+    # Stage 46 - the reviewable. product_type "review" is what ayon-maya and
+    # ayon-core use for QC media; the representation also carries the
+    # "review" tag, which is what marks it reviewable for downstream
+    # integrations. On top of that the file is uploaded through
+    # ayon_api.upload_reviewable() so it plays in the AYON web player.
+    DEFAULT_REVIEW_PRODUCT = "reviewRigging"
+    DEFAULT_REVIEW_TYPE    = "review"
+    # AYON's player wants H.264 MP4 (yuv420p); PNG/JPEG for stills. It does
+    # NOT transcode on upload - an unsupported file shows as unplayable.
+    REVIEW_MOVIE_EXTS = (".mp4", ".mov", ".avi")
+    REVIEW_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+
     # ── Stylesheet ────────────────────────────────────────────────────
     _STYLE = """
         QDialog  { background-color: #252526; color: white; font-size: 13px; }
@@ -163,8 +175,45 @@ class AyonPublishDialog(QtWidgets.QDialog):
         self.cmb_prod_work.setEditable(True)
         self.cmb_prod_work.setCurrentText(self.DEFAULT_WORK_PRODUCT)
 
+        # 3 — the reviewable (QC movie or a still), from the Playblast tab
+        self.chk_publish_review = QtWidgets.QCheckBox("Publish Review (QC):")
+        self.chk_publish_review.setChecked(False)
+        self.chk_publish_review.setToolTip(
+            "product_type: review  —  publishes QC media and uploads it as a\n"
+            "reviewable, so it plays in the AYON web player."
+        )
+        self.cmb_prod_review = QtWidgets.QComboBox()
+        self.cmb_prod_review.setEditable(True)
+        self.cmb_prod_review.setCurrentText(self.DEFAULT_REVIEW_PRODUCT)
+
         prod_form.addRow(self.chk_publish_rig,  self.cmb_prod_rig)
         prod_form.addRow(self.chk_publish_work, self.cmb_prod_work)
+        prod_form.addRow(self.chk_publish_review, self.cmb_prod_review)
+
+        review_row = QtWidgets.QHBoxLayout()
+        self.cmb_review_kind = QtWidgets.QComboBox()
+        self.cmb_review_kind.addItems(["QC Movie (playblast)", "Image (still)"])
+        self.cmb_review_kind.setFixedWidth(170)
+        self.cmb_review_kind.currentIndexChanged.connect(self._on_review_kind_changed)
+        review_row.addWidget(self.cmb_review_kind)
+
+        self.edit_review_path = QtWidgets.QLineEdit()
+        self.edit_review_path.setPlaceholderText(
+            "QC media to publish - leave empty to use the newest file in the rig's playblasts/ folder")
+        review_row.addWidget(self.edit_review_path, 1)
+
+        btn_review_browse = QtWidgets.QPushButton("📁")
+        btn_review_browse.setFixedWidth(34)
+        btn_review_browse.clicked.connect(self._browse_review_media)
+        review_row.addWidget(btn_review_browse)
+
+        self.btn_make_qc = QtWidgets.QPushButton("🎬 Make QC Now")
+        self.btn_make_qc.setToolTip(
+            "Run a playblast with the Playblast tab's current settings and use\n"
+            "the result as the reviewable.")
+        self.btn_make_qc.clicked.connect(self._make_qc_now)
+        review_row.addWidget(self.btn_make_qc)
+        prod_form.addRow("", review_row)
 
         self.chk_ignore_rigutils = QtWidgets.QCheckBox(
             "Ignore 'RigUtils' folder  (keep original server paths)"
@@ -353,6 +402,62 @@ class AyonPublishDialog(QtWidgets.QDialog):
         summary.setForeground(QtGui.QColor("#888"))
         self.list_pkg_files.addItem(summary)
 
+    # ── Reviewable helpers ────────────────────────────────────────────
+    def _review_is_movie(self):
+        return self.cmb_review_kind.currentIndex() == 0
+
+    def _on_review_kind_changed(self, _idx):
+        # "Make QC Now" produces a movie - meaningless in image mode.
+        self.btn_make_qc.setEnabled(self._review_is_movie())
+
+    def _browse_review_media(self):
+        if self._review_is_movie():
+            ff = "Movies (*.mp4 *.mov *.avi);;All Files (*.*)"
+        else:
+            ff = "Images (*.png *.jpg *.jpeg *.webp);;All Files (*.*)"
+        start = self.edit_review_path.text().strip()
+        start = os.path.dirname(start) if start else self.workspace.get_playblast_dir()
+        kwargs = {"fm": 1, "ff": ff, "caption": "Choose QC media to publish"}
+        if start and os.path.isdir(start):
+            kwargs["dir"] = start
+        res = cmds.fileDialog2(**kwargs)
+        if res:
+            self.edit_review_path.setText(res[0].replace("\\", "/"))
+
+    def _make_qc_now(self):
+        """Run a playblast from the Playblast tab's settings, right here."""
+        self._set_status("Creating QC playblast …", color="#f4a261")
+        QtWidgets.QApplication.processEvents()
+        try:
+            ok, err, out_path = self.workspace.pb_run_playblast()
+        except Exception:
+            traceback.print_exc()
+            self._set_status("QC playblast failed - see Script Editor.", color="#e76f51")
+            return
+        if not ok or not out_path:
+            cmds.warning("[AYON PUBLISH] QC playblast failed: {}".format(err))
+            self._set_status("QC playblast failed - see Script Editor.", color="#e76f51")
+            return
+        self.edit_review_path.setText(out_path.replace("\\", "/"))
+        self.chk_publish_review.setChecked(True)
+        self._set_status("QC playblast ready: {}".format(os.path.basename(out_path)), color="#2bb5a8")
+
+    def _resolve_review_media(self):
+        """The file to publish as the reviewable: whatever is typed, else the
+        newest matching file in the rig's playblasts/ folder."""
+        typed = self.edit_review_path.text().strip().replace("\\", "/")
+        if typed:
+            return typed if os.path.isfile(typed) else ""
+        exts = self.REVIEW_MOVIE_EXTS if self._review_is_movie() else self.REVIEW_IMAGE_EXTS
+        d = self.workspace.get_playblast_dir()
+        if not d or not os.path.isdir(d):
+            return ""
+        cands = [os.path.join(d, f).replace("\\", "/") for f in os.listdir(d)
+                 if f.lower().endswith(exts)]
+        if not cands:
+            return ""
+        return max(cands, key=os.path.getmtime)
+
     def open_create_folder_dialog(self):
         """Open the folder structure creation dialog."""
         dlg = CreateFolderStructureDialog(self.workspace, self)
@@ -375,6 +480,8 @@ class AyonPublishDialog(QtWidgets.QDialog):
           Step 5  Publish rigMain          — copy the .ma to the server
           Step 6  Publish workfileRigging  — extract the work folder onto
                   the server publish path and register it
+          Step 7  Publish reviewRigging    — copy the QC movie/still and
+                  upload it as an AYON reviewable
         """
         print("\n" + "=" * 60)
         print("[AYON PUBLISH] INITIATING KRT PUBLISH SEQUENCE")
@@ -397,15 +504,29 @@ class AyonPublishDialog(QtWidgets.QDialog):
             cmds.error("[AYON PUBLISH] A valid AYON folder must be selected. Aborting.")
             return
 
-        do_rig  = self.chk_publish_rig.isChecked()
-        do_work = self.chk_publish_work.isChecked()
-        if not (do_rig or do_work):
+        do_rig    = self.chk_publish_rig.isChecked()
+        do_work   = self.chk_publish_work.isChecked()
+        do_review = self.chk_publish_review.isChecked()
+        prod_review = self.cmb_prod_review.currentText().strip() or self.DEFAULT_REVIEW_PRODUCT
+        if not (do_rig or do_work or do_review):
             cmds.warning("[AYON PUBLISH] No products selected for publishing.")
             self._set_status("⚠️ Nothing selected to publish.", color="#f4a261")
             return
 
+        # Resolve the QC media BEFORE anything is written to the server, so a
+        # missing file stops the publish instead of leaving a half-done one.
+        review_media = ""
+        if do_review:
+            review_media = self._resolve_review_media()
+            if not review_media:
+                cmds.warning("[AYON PUBLISH] Review is ticked but no QC media was found - "
+                             "pick a file, or use 'Make QC Now'.")
+                self._set_status("⚠️ No QC media for the review product.", color="#f4a261")
+                return
+            print(f"[AYON PUBLISH] Review  : {review_media}")
+
         self.btn_publish.setEnabled(False)
-        self.progress_bar.setRange(0, 5)
+        self.progress_bar.setRange(0, 6)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         QtWidgets.QApplication.processEvents()
@@ -544,6 +665,14 @@ class AyonPublishDialog(QtWidgets.QDialog):
                 ctx, prod_work, json_name, staging_dir
             )
         self.progress_bar.setValue(5)
+        QtWidgets.QApplication.processEvents()
+
+        # ── Step 7: Publish the reviewable ─────────────────────────────
+        if do_review:
+            self._set_status(f"Publishing {prod_review} (QC) …")
+            QtWidgets.QApplication.processEvents()
+            results[prod_review] = self._publish_review(ctx, prod_review, review_media)
+        self.progress_bar.setValue(6)
         QtWidgets.QApplication.processEvents()
 
         # ── Result ────────────────────────────────────────────────────
@@ -776,6 +905,74 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # ══════════════════════════════════════════════════════════════════
     # Path helpers
     # ══════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════
+    # Product 3 — the reviewable (QC movie or still)
+    # ══════════════════════════════════════════════════════════════════
+    def _publish_review(self, ctx, prod_name, media_path):
+        """Publish QC media as a 'review' product and upload it as an AYON
+        reviewable. Returns the version number, or None on failure.
+
+        Two separate things happen here, and both matter:
+          * the file is copied to the publish path and registered as a
+            representation tagged "review" - that is the pipeline record
+            other integrations read;
+          * it is ALSO uploaded via ayon_api.upload_reviewable(), which is
+            what makes it play in the AYON web player. The server does not
+            transcode, so an unsupported codec uploads but shows as
+            unplayable - H.264 MP4 (yuv420p) is the safe choice, which is
+            what the Playblast tab produces when FFmpeg is available.
+        """
+        print(f"\n[AYON PUBLISH] → {prod_name} ({self.DEFAULT_REVIEW_TYPE})")
+        if not media_path or not os.path.isfile(media_path):
+            print(f"  [warn] QC media not found: {media_path}")
+            return None
+
+        project_name = ctx["project_name"]
+        ext = os.path.splitext(media_path)[1].lstrip(".").lower()
+        try:
+            hub = EntityHub(project_name)
+            prod_id = self._get_or_create_product(
+                hub, project_name, ctx["folder_id"], prod_name, self.DEFAULT_REVIEW_TYPE
+            )
+            ver_id, ver_num = self._create_version(
+                hub, project_name, prod_id, ctx["task_id"], ctx["comment"], ctx["author"]
+            )
+
+            server_dir = self._build_server_path(
+                ctx, self.DEFAULT_REVIEW_TYPE, prod_name, ver_num
+            )
+            dest = self._copy_file(media_path, server_dir)
+
+            self._patch_version_attribs(
+                project_name, ver_id, self.DEFAULT_REVIEW_TYPE, ctx["comment"], media_path
+            )
+            self._attach_representation(
+                ctx, ver_id, ext, [dest], prod_name,
+                self.DEFAULT_REVIEW_TYPE, ver_num, tags=["review"]
+            )
+
+            # Upload for the web player. Guarded: older ayon_api builds have
+            # no upload_reviewable(), and a failed upload must not undo a
+            # publish that has already been registered.
+            if hasattr(ayon_api, "upload_reviewable"):
+                try:
+                    label = f"{prod_name} v{ver_num:03d}"
+                    ayon_api.upload_reviewable(project_name, ver_id, dest, label=label)
+                    print(f"  [review] Uploaded reviewable: {os.path.basename(dest)}")
+                except Exception:
+                    traceback.print_exc()
+                    cmds.warning("[AYON PUBLISH] Published, but the reviewable upload failed - "
+                                 "the file can still be dropped onto the version in the web UI.")
+            else:
+                cmds.warning("[AYON PUBLISH] This ayon_api has no upload_reviewable() - the review "
+                             "product was published, but not uploaded to the web player.")
+
+            print(f"  [ok] {prod_name} → v{ver_num:03d}")
+            return ver_num
+        except Exception:
+            traceback.print_exc()
+            return None
+
     def _resolve_publish_dir(self):
         """
         Local staging directory priority:
@@ -946,7 +1143,8 @@ class AyonPublishDialog(QtWidgets.QDialog):
             print(f"  [version] Warning: could not set version attribs: {e}")
 
     def _attach_representation(self, ctx, ver_id, repre_name, file_list,
-                               prod_name, prod_type, ver_num, primary=None):
+                               prod_name, prod_type, ver_num, primary=None,
+                               tags=None):
         """
         Register ONE representation covering every file in ``file_list``.
 
@@ -1001,6 +1199,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
             },
             data={"context": context},
             files=api_files,
+            tags=list(tags or []),
         )
         print(f"  [repr] Attached '{repre_name}' ({len(api_files)} file(s))")
 

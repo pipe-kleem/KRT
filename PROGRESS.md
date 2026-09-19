@@ -341,3 +341,19 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - The script is the user's own `organize_rig_sets()`, stored **verbatim** so it matches what they have already tested: creates `rigMain_controls_SET`, `rigMain_out_SET`, `rigMain_skeletonMesh_SET`, `rigMain_skeletonAnim_SET`, `rigMain`, then fills them from `*ctl`, `geo*`, `*geo`, all joints, and `char_*_a` using `forceElement`.
 - **Brace-safety fix (would have been a crash):** that script contains its own `"{}"` `.format()` placeholders. The panel builder used to call `.format(rig=rig)` on every default value, which raises `IndexError: Replacement index 0 out of range` on this one. `_create_default_project_panels()` now only substitutes when the value actually contains a `{rig}` token. Verified both ways offline.
 - Observation, deliberately NOT changed: inside that script the local variables `skeleton_anim_set` / `skeleton_mesh_set` hold the *opposite* set names (`..._skeletonMesh_SET` / `..._skeletonAnim_SET`). The resulting membership is still sensible — meshes end up in the Mesh set, joints in the Anim set — so behaviour is right and only the variable names read oddly. Left verbatim; say the word to rename them.
+
+### 2026-09-19 — Stage 46 (v43.0): AYON reviewable (QC) as a third publish product
+**What was already there** (worth knowing before changing it): `dialogs/ayon_publish.py` already published **rigMain** (`product_type: rig`, the built .ma) and **workfileRigging** (`product_type: workfile`, the extracted work folder + re-pathed pipeline JSON), with an optional full rebuild + scene save first. That part of the request was done; only the reviewable was missing.
+
+**New: product 3 — `reviewRigging` (`product_type: review`)**
+- UI row in the Products section: checkbox + editable product name, a kind combo (**QC Movie (playblast)** / **Image (still)**), a path field, Browse, and **🎬 Make QC Now**.
+- `Make QC Now` runs a playblast with the Playblast tab's current settings and fills the path. To avoid duplicating that logic, `pb_create_clicked()` was split: the new `SessionWorkspace.pb_run_playblast()` gathers the fields and returns `(ok, err, out_path)`; the button handler keeps the popups/preview, the dialog just takes the path.
+- Empty path → falls back to the **newest matching file** in the rig's `playblasts/` folder (movies or images depending on the kind).
+- The QC file is resolved and validated **before** anything is written to the server, so a missing file aborts the publish rather than leaving it half-done.
+- `_publish_review()` copies the media to the publish path, registers a representation **tagged `review`**, and then calls **`ayon_api.upload_reviewable(project, version_id, path, label=...)`** so it plays in the AYON web player. Both steps are guarded: an ayon_api without `upload_reviewable` (older builds), or a failed upload, warns but does not undo an already-registered publish.
+- AYON does **not** transcode on upload — H.264 MP4 (yuv420p) is the safe format, which is what the Playblast tab produces when FFmpeg is present. Noted in the code.
+- `_attach_representation()` gained a `tags` parameter (passed through to the REST call); the rig and workfile products are unchanged.
+
+**Also:** `get_playblast_dir()` now prefers `<Rig Root>/playblasts` (the folder Initialize Project creates) and only falls back to "beside the session JSON" when there is no Rig Root.
+
+**Unverified** — none of the AYON calls can be exercised from here: the reviewable upload, the `tags` field on the representation POST, and `review` product/version creation all need a live server test.

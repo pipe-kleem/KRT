@@ -167,7 +167,7 @@ class GraphIoMixin(object):
         if not path: return
 
         if not overwrite:
-            from .utils import get_versioned_path
+            from ..utils import get_versioned_path
             path = get_versioned_path(path, get_latest=False)
             self.path_field.setText(path)
 

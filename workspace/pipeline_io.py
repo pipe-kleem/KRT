@@ -417,8 +417,8 @@ class WorkspacePipelineIoMixin(object):
         # Ask for a comment for this save (pre-filled with the last one),
         # and whether to overwrite the current latest version instead of
         # saving a new one.
-        from .dialogs import SaveCommentDialog
-        from .compat import IS_PYSIDE6
+        from ..dialogs import SaveCommentDialog
+        from ..compat import IS_PYSIDE6
         dlg = SaveCommentDialog(self, dialog_title, getattr(self, 'pipeline_comment', ""))
         result = dlg.exec() if IS_PYSIDE6 else dlg.exec_()
         if result != QtWidgets.QDialog.Accepted:
@@ -428,7 +428,7 @@ class WorkspacePipelineIoMixin(object):
         self.refresh_comment_view()
 
         rig_name = self.edit_rig_name.text().strip() or "Unnamed_Rig"
-        from .utils import get_versioned_path
+        from ..utils import get_versioned_path
 
         ma_path = None
         if save_maya:

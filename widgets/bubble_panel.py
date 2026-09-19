@@ -715,7 +715,7 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
                 self.bubble_layout.addWidget(bubble)
                 
             elif action == a_graph:
-                from .graph import RigNode, CUSTOM_SCRIPT_MODULE_TYPE
+                from ..graph import RigNode, CUSTOM_SCRIPT_MODULE_TYPE
                 # Stage 30: "we don't need to call it in bubble module panel
                 # as well just to run it. it is just a script which will
                 # automatically trigger when some specific module will
@@ -824,7 +824,7 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
         # can only be here from before that node type was excluded from
         # "Add from Graph Editor", so say so plainly instead of the generic
         # "could not build guide" a caller would otherwise see below.
-        from .graph import CUSTOM_SCRIPT_MODULE_TYPE
+        from ..graph import CUSTOM_SCRIPT_MODULE_TYPE
         if node.module_type == CUSTOM_SCRIPT_MODULE_TYPE:
             return (False,
                     f"'{node.display_title}' is a Custom Script module - it has no guide to build "

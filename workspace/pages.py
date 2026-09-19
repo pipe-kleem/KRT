@@ -311,14 +311,14 @@ class WorkspacePagesMixin(object):
         return page
 
     def open_ayon_publish_dialog(self):
-        from .dialogs import AyonPublishDialog
-        from .compat import IS_PYSIDE6
+        from ..dialogs import AyonPublishDialog
+        from ..compat import IS_PYSIDE6
         dialog = AyonPublishDialog(self)
         if IS_PYSIDE6: dialog.exec()
         else: dialog.exec_()
 
     def open_path_replace_dialog(self):
-        from .dialogs import PathReplaceDialog
+        from ..dialogs import PathReplaceDialog
         dialog = PathReplaceDialog(self)
         if IS_PYSIDE6: dialog.exec()
         else: dialog.exec_()

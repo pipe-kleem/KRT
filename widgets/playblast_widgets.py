@@ -169,7 +169,7 @@ class PBCameraViewWidget(QtWidgets.QWidget):
         nothing left for it to refresh."""
         try:
             import maya.OpenMayaUI as omui
-            from .compat import wrapInstance
+            from ..compat import wrapInstance
             bar_name = cmds.modelPanel(self._model_panel, query=True, barLayout=True)
             ptr = omui.MQtUtil.findControl(bar_name)
             if ptr:
@@ -376,7 +376,7 @@ class PBWipeCompareWidget(QtWidgets.QWidget):
         return self._built
 
     def _build_players(self):
-        from .compat import QMediaPlayer, QVideoSink, HAS_VIDEO_SINK
+        from ..compat import QMediaPlayer, QVideoSink, HAS_VIDEO_SINK
         if not HAS_VIDEO_SINK or QMediaPlayer is None:
             raise RuntimeError("QVideoSink not available (needs PySide6/Qt6 multimedia)")
 

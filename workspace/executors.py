@@ -522,7 +522,7 @@ class WorkspaceExecutorsMixin(object):
     def load_skin_cluster_logic(self, path, meshes=None, show_popup=True):
         if not os.path.exists(path): return False, f"File not found: {path}"
         try:
-            from .utils import ensure_skin_ready_for_import, fast_import_skin
+            from ..utils import ensure_skin_ready_for_import, fast_import_skin
             # Use cmds.select (not pm.select) to avoid pymel's spurious
             # "Cannot find Maya documentation" error on installs without docs.
             mesh_list = []
@@ -632,7 +632,7 @@ class WorkspaceExecutorsMixin(object):
         whole call fails before anything is touched (no half-scaled scene).
 
         Returns (success, message)."""
-        from .utils import re_skin_meshes
+        from ..utils import re_skin_meshes
 
         meshes = [m.strip() for m in (meshes or []) if m and m.strip()]
         if not meshes:

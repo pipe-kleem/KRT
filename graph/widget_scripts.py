@@ -104,7 +104,7 @@ class GraphScriptsMixin(object):
         if len(selected) != 1 or not selected[0].custom_script_last_error:
             return
         node = selected[0]
-        from .widgets import ErrorDialog
+        from ..widgets import ErrorDialog
         dialog = ErrorDialog("Custom Script Error", f"Custom script failed - {node.display_title}",
                              node.custom_script_last_error, self.workspace.main_window, allow_retry=True)
         result = dialog.exec() if IS_PYSIDE6 else dialog.exec_()

@@ -631,7 +631,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
 
         if self.p_type == "JSON":
             try:
-                from .utils import find_mesh_skincluster, fast_export_skin
+                from ..utils import find_mesh_skincluster, fast_export_skin
                 meshes = [m.strip() for m in self.mesh_field.text().split(",") if m.strip()]
                 sel = meshes if meshes else cmds.ls(sl=True)
                 if not sel:
@@ -713,7 +713,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
 
         elif self.p_type == "TWEAKER":
             try:
-                from .utils import find_mesh_skincluster, fast_export_skin
+                from ..utils import find_mesh_skincluster, fast_export_skin
                 # The panel-level Meshes field is the authoritative target
                 # list once it's filled (auto-filled by _execute_tweaker on
                 # a successful Create, or set by hand / Get Selected). Only
@@ -1148,7 +1148,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             om.MGlobal.displayError("List joints in the Joints field (or use 'Get Selected') before Bind All.")
             return
 
-        from .utils import find_mesh_skincluster, canonical_skincluster_name
+        from ..utils import find_mesh_skincluster, canonical_skincluster_name
         bound, skipped, failed = [], [], []
         for mesh in meshes:
             if not cmds.objExists(mesh):

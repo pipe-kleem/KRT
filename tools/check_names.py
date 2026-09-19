@@ -86,3 +86,98 @@ for k, v in problems.items():
     for n, owners in v.items():
         print(f"    {n:<28} -> {owners if owners else 'NOT FOUND IN PACKAGE'}")
 print("\nfiles with holes:", len(problems))
+
+
+# ---------------------------------------------------------------------------
+# Relative-import check.
+#
+# After the 2026-09 restructure a file that used to sit at the package root
+# (KRT/workspace.py) lives one level deeper (KRT/workspace/executors.py), so
+# every "from .utils import x" inside it now means KRT.workspace.utils, which
+# does not exist. Imports written INSIDE a function body are not executed at
+# import time, so neither py_compile nor the import smoke test sees them -
+# they only fail when a rigger clicks the button that runs that code.
+# ---------------------------------------------------------------------------
+def module_exports(path):
+    """Top-level names a module file provides (defs, classes, assignments,
+    imports, and - for a package __init__ - whatever it re-exports)."""
+    out = set()
+    try:
+        tree = ast.parse(open(path, encoding="utf-8").read())
+    except Exception:
+        return out
+    def walk_body(body):
+        # NOTE: recurse into module-level try/if/with - compat.py binds
+        # QtWidgets & friends inside a try/except (PySide6 else PySide2),
+        # which is still a module-level name.
+        for n in body:
+            if isinstance(n, (ast.Import, ast.ImportFrom)):
+                for a in n.names:
+                    if a.name == "*":
+                        if isinstance(n, ast.ImportFrom) and n.module:
+                            sib = os.path.join(os.path.dirname(path), n.module.split(".")[-1] + ".py")
+                            out.update(star_exports(sib))
+                    else:
+                        out.add((a.asname or a.name).split(".")[0])
+            elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                out.add(n.name)
+            elif isinstance(n, ast.Assign):
+                for t in n.targets:
+                    for x in ast.walk(t):
+                        if isinstance(x, ast.Name):
+                            out.add(x.id)
+            elif isinstance(n, ast.Try):
+                walk_body(n.body); walk_body(n.orelse); walk_body(n.finalbody)
+                for h in n.handlers:
+                    walk_body(h.body)
+            elif isinstance(n, (ast.If, ast.With)):
+                walk_body(n.body)
+                walk_body(getattr(n, "orelse", []))
+    walk_body(tree.body)
+    return out
+
+
+def check_relative_imports(root):
+    issues = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames
+                       if d not in (".git", "tools", "archive", "__pycache__", "PanelScripts")]
+        for f in sorted(filenames):
+            if not f.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, f)
+            try:
+                tree = ast.parse(open(path, encoding="utf-8").read())
+            except Exception:
+                continue
+            for n in ast.walk(tree):
+                if not isinstance(n, ast.ImportFrom) or not n.level:
+                    continue
+                base = dirpath
+                for _ in range(n.level - 1):
+                    base = os.path.dirname(base)
+                parts = (n.module or "").split(".") if n.module else []
+                target_mod = os.path.join(base, *parts) + ".py" if parts else None
+                target_pkg = os.path.join(base, *parts, "__init__.py") if parts else os.path.join(base, "__init__.py")
+                tpath = target_mod if target_mod and os.path.isfile(target_mod) else (
+                        target_pkg if os.path.isfile(target_pkg) else None)
+                rel = os.path.relpath(path, root)
+                if tpath is None:
+                    issues.append(f"{rel}:{n.lineno}  {ast.unparse(n)}   -> MODULE NOT FOUND")
+                    continue
+                exports = module_exports(tpath)
+                missing = [a.name for a in n.names
+                           if a.name != "*" and a.name not in exports
+                           and not os.path.isfile(os.path.join(os.path.dirname(tpath), a.name + ".py"))
+                           and not os.path.isdir(os.path.join(os.path.dirname(tpath), a.name))]
+                if missing:
+                    issues.append(f"{rel}:{n.lineno}  {ast.unparse(n)}   -> NAME(S) NOT EXPORTED: {missing}")
+    return issues
+
+
+print("\n--- relative-import check ---")
+_issues = check_relative_imports(root)
+for i in _issues:
+    print("  " + i)
+print("broken relative imports:", len(_issues))
+

@@ -614,7 +614,8 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
 
         menu.addSeparator()
 
-        a_build_till = menu.addAction("🚀 Build Till Here")
+        a_build_till = menu.addAction("🚀 Build Till Here (run every step)")
+        a_build_till_cached = menu.addAction("⚡ Build Till Here (resume from newest cache)")
         a_dup = menu.addAction("📋 Duplicate Panel")
 
         action = menu.exec(QtGui.QCursor.pos()) if IS_PYSIDE6 else menu.exec_(QtGui.QCursor.pos())
@@ -631,8 +632,11 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
         elif action == paste_above: self.paste_panel(0)
         elif action == paste_below: self.paste_panel(1)
         elif action == a_build_till:
-            print("[KRT] menu: Build Till Here ->", self.title_edit.text())
-            self.workspace.build_till_panel(self)
+            print("[KRT] menu: Build Till Here (full) ->", self.title_edit.text())
+            self.workspace.build_till_panel(self, resume_from_cache=False)
+        elif action == a_build_till_cached:
+            print("[KRT] menu: Build Till Here (cached) ->", self.title_edit.text())
+            self.workspace.build_till_panel(self, resume_from_cache=True)
         elif action == a_dup: self.workspace.duplicate_panel(self)
 
     def toggle_active(self, state):

@@ -1388,7 +1388,8 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
 
         menu.addSeparator()
 
-        a_build_till = menu.addAction("🚀 Build Till Here")
+        a_build_till = menu.addAction("🚀 Build Till Here (run every step)")
+        a_build_till_cached = menu.addAction("⚡ Build Till Here (resume from newest cache)")
         a_load_cache = menu.addAction("📂 Load Cached Scene")
         a_build_from = menu.addAction("⏩ Build FROM Here (load cache + continue)")
         if not self.has_cache():
@@ -1470,8 +1471,11 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         elif action == paste_above: self.paste_panel(0)
         elif action == paste_below: self.paste_panel(1)
         elif action == a_build_till:
-            print("[KRT] menu: Build Till Here ->", self.title_edit.text())
-            self.workspace.build_till_panel(self)
+            print("[KRT] menu: Build Till Here (full) ->", self.title_edit.text())
+            self.workspace.build_till_panel(self, resume_from_cache=False)
+        elif action == a_build_till_cached:
+            print("[KRT] menu: Build Till Here (cached) ->", self.title_edit.text())
+            self.workspace.build_till_panel(self, resume_from_cache=True)
         elif action == a_load_cache: self.run_from_cache()
         elif action == a_build_from: self.build_from_cache()
         elif action == a_replace_paths: self.workspace.open_path_replace_dialog()

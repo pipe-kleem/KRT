@@ -173,7 +173,20 @@ class WorkspaceBuildMixin(object):
         try: cmds.refresh(force=True)
         except Exception: pass
 
-    def build_till_panel(self, target_panel):
+    def build_till_panel(self, target_panel, resume_from_cache=False):
+        """Run the current LOD's steps from the top down to `target_panel`.
+
+        resume_from_cache=False (the default, and what the menu's plain
+        'Build Till Here' does): wipe the scene and actually RUN every step
+        up to the target. This is what the name promises.
+
+        resume_from_cache=True: skip straight to the newest cached step
+        before the target and run only what's left - fast, but it trusts
+        that cache. This used to be the ONLY behaviour, silently: a build
+        would report 'Partial Build Finished' in 0.00s having run two steps
+        off a cache made at some earlier point, so the model/skin steps
+        never re-ran and the scene didn't match the panels.
+        """
         # print() as well as cmds.warning: warnings can be suppressed by
         # other tools (scriptEditorInfo), and a silent method looks like a
         # dead button. This line proves the method was entered.
@@ -199,12 +212,15 @@ class WorkspaceBuildMixin(object):
             return
 
         # Find the newest cached step BEFORE the target and resume from it,
-        # instead of rebuilding everything from scratch.
+        # instead of rebuilding everything from scratch. Only when asked.
         start_k = -1
-        for i in range(tgt - 1, -1, -1):
-            p = container.layout.itemAt(i).widget()
-            if hasattr(p, 'has_cache') and p.has_cache():
-                start_k = i; break
+        if resume_from_cache:
+            for i in range(tgt - 1, -1, -1):
+                p = container.layout.itemAt(i).widget()
+                if hasattr(p, 'has_cache') and p.has_cache():
+                    start_k = i; break
+            if start_k < 0:
+                cmds.warning("[KRT] No cache exists before this step - running every step from the top.")
 
         if start_k >= 0:
             cached_panel = container.layout.itemAt(start_k).widget()
@@ -215,6 +231,8 @@ class WorkspaceBuildMixin(object):
                 start_k = -1
                 self.reset_scene_and_ui()
         else:
+            cmds.warning(f"[KRT] Building from scratch: running steps 1-{tgt + 1} "
+                         f"(target: '{target_panel.title_edit.text()}').")
             self.reset_scene_and_ui()
 
         begin = start_k + 1  # start_k == -1 -> begin at 0

@@ -959,7 +959,8 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         if self.btn_run.text() == "SHOW ERROR":
             self.show_error_popup()
         else:
-            self.execute(None)
+            # Manual click: run regardless of the active checkbox.
+            self.execute(None, force=True)
 
     def _normal_run_text(self):
         return panel_run_label(self.p_type)
@@ -1032,6 +1033,13 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         op_effect = QtWidgets.QGraphicsOpacityEffect(self)
         op_effect.setOpacity(opacity)
         self.setGraphicsEffect(op_effect)
+        # The RUN button stays clickable while the panel is off - see
+        # execute(force=True). Only the tooltip changes, so it is obvious
+        # that clicking runs a step the full build will skip.
+        if hasattr(self, 'btn_run'):
+            self.btn_run.setToolTip(
+                "" if state else
+                "This panel is OFF - the full build skips it.\nClicking RUN still executes it, once, by hand.")
 
     def _get_selection_into(self, field):
         """Generic 'Get Selected' for the Delete/Zero Out/Parent panels'
@@ -1586,8 +1594,15 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         res = cmds.fileDialog2(**kwargs)
         if res: self.field.setText(self.workspace.relativize_path(res[0]))
 
-    def execute(self, progress_ui=None):
-        if not self.is_active: return True
+    def execute(self, progress_ui=None, force=False):
+        """`force=True` runs even when the panel's checkbox is OFF.
+
+        Stage 45: an inactive panel is skipped by the full build (that's what
+        the checkbox is for), but its own RUN button should still work - it
+        is how you test one step by hand without switching the step back on
+        and forgetting to switch it off again. Only the build passes
+        force=False."""
+        if not self.is_active and not force: return True
         # A NOTE panel is never a build step - it has no RUN button to
         # click (hidden in __init__) and nothing to run even if something
         # called this directly, so always succeed without doing anything.

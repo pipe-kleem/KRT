@@ -21,18 +21,70 @@ class WorkspaceProjectInitMixin(object):
         "playblasts", "rig", "scripts", "skinCluster",
     ]
 
-    # (panel title, panel type, path relative to the rig root)
-    # A path is pre-filled even when the file doesn't exist yet: it is where
-    # that step will read from, and where its "Save (New Version)" writes to.
+    # Inline scripts below build their paths from RIG_ROOT, which
+    # WorkspaceExecutorsMixin.run_script() injects into the shared namespace.
+    # That keeps them correct if the rig folder is ever moved or renamed -
+    # unlike the hardcoded absolute paths these were copied from.
+    LOAD_GUIDE_CODE = (
+        "from mgear.shifter import io\n"
+        "import os\n"
+        "io.import_guide_template(os.path.join(RIG_ROOT, \"guides\", \"{rig}.sgt\"))\n"
+    )
+    EXPORT_GUIDE_CODE = (
+        "from mgear.shifter import io\n"
+        "import os\n"
+        "io.export_guide_template(os.path.join(RIG_ROOT, \"guides\", \"{rig}.sgt\"))\n"
+    )
+    ORGANIZE_LOD_CODE = 'organize_and_convert_lod("{rig}", delete_ai_lod=True)\n0'
+    PARENT_RIG_CODE = 'cmds.parent("rig", "{rig}")\ncmds.setAttr("rig.jnt_vis", 0)'
+    DISPLAY_SWITCH_CODE = (
+        'import maya.cmds as cmds\n'
+        '\n'
+        'ctrl = "global_C0_ctl"\n'
+        'attr = "Display"\n'
+        '\n'
+        '# add enum attr\n'
+        'if not cmds.attributeQuery(attr, node=ctrl, exists=True):\n'
+        '    cmds.addAttr(ctrl, ln=attr, at="enum", en="Normal:Template:Reference", k=True)\n'
+        '\n'
+        'src = ctrl + "." + attr\n'
+        '\n'
+        '# connect to all *_a_geo\n'
+        'for geo in cmds.ls("*_a_geo", type="transform"):\n'
+        '    cmds.setAttr(geo + ".overrideEnabled", 1)\n'
+        '\n'
+        '    dst = geo + ".overrideDisplayType"\n'
+        '\n'
+        '    old = cmds.listConnections(dst, s=True, d=False, p=True) or []\n'
+        '    for o in old:\n'
+        '        cmds.disconnectAttr(o, dst)\n'
+        '\n'
+        '    cmds.connectAttr(src, dst, f=True)\n'
+        '\n'
+        'cmds.select(ctrl)\n'
+        'print("Done: global_C0_ctl.Display connected to *_a_geo overrideDisplayType")\n'
+        'cmds.setAttr(ctrl + ".Display", 2)\n'
+    )
+
+    # (title, type, path-or-code, active)
+    # "{rig}" is replaced with the rig name. A path is pre-filled even when
+    # the file doesn't exist yet: it is where that step reads from, and where
+    # its "Save (New Version)" writes to. The two guide panels ship OFF -
+    # they are manual tools (and now runnable by their own button while off,
+    # see SortablePanel.execute(force=True)).
     DEFAULT_PANELS = [
-        ("MAYA GLOBAL SCRIPT", "GLOBAL_SCRIPT", ""),
-        ("LOAD SCRIPT PANEL",  "SCRIPT",        "scripts/utils.py"),
-        ("LOAD MODEL (3D file)", "IMPORT_3D",   "model/export.abc"),
-        ("LOAD MODULE",        "MODULE",        None),        # bubble panel
-        ("LOAD SKINCLUSTER",   "JSON",          "skinCluster/skinCluster.jSkin"),
-        ("CONTROL SHAPES",     "SHAPES",        "controlShape/controlShapes.json"),
-        ("CUSTOM SCRIPT",      "SCRIPT",        ""),
-        ("PUBLISH PATH",       "PUBLISH",       "rig"),
+        ("MAYA GLOBAL SCRIPT",   "GLOBAL_SCRIPT", "",                                True),
+        ("LOAD SCRIPT PANEL",    "SCRIPT",        "scripts/utils.py",                True),
+        ("LOAD MODEL (.ma file)", "IMPORT_3D",    "model/export.abc",                True),
+        ("CUSTOM SCRIPT",        "SCRIPT",        ORGANIZE_LOD_CODE,                 True),
+        ("LOAD MODULE",          "MODULE",        None,                              True),
+        ("Load_Guide",           "SCRIPT",        LOAD_GUIDE_CODE,                   False),
+        ("Export_Guide",         "SCRIPT",        EXPORT_GUIDE_CODE,                 False),
+        ("LOAD SKINCLUSTER",     "JSON",          "skinCluster/skinCluster.jSkin",   True),
+        ("CONTROL SHAPES",       "SHAPES",        "controlShape/controlShapes.json", True),
+        ("CUSTOM SCRIPT",        "SCRIPT",        PARENT_RIG_CODE,                   True),
+        ("Display Switch",       "SCRIPT",        DISPLAY_SWITCH_CODE,               True),
+        ("PUBLISH PATH",         "PUBLISH",       ".",                               True),
     ]
 
     def _krt_package_dir(self):
@@ -108,7 +160,7 @@ class WorkspaceProjectInitMixin(object):
             self.edit_rig_name.setText("{}_rig".format(rig_name))
 
         if make_panels:
-            self._create_default_project_panels()
+            self._create_default_project_panels(rig_name=rig_name)
         self._refresh_path_mode_button()
 
         # Playblast output, if that tab has been built in this session.
@@ -125,7 +177,17 @@ class WorkspaceProjectInitMixin(object):
                 pass
         return True
 
-    def _create_default_project_panels(self):
+    def default_rig_token(self):
+        """What "{rig}" becomes in the default panels' inline scripts.
+
+        The rig folder's own name when there is a Rig Root (that is what the
+        top group is called in every one of these rigs); "**" as a visible
+        placeholder on a brand-new empty session, so it is obvious the name
+        still has to be filled in."""
+        root = self.rig_root()
+        return os.path.basename(root.rstrip("/")) if root else "**"
+
+    def _create_default_project_panels(self, rig_name=None):
         """Replace the current LOD's panels with the standard stack."""
         container = self.get_current_lod_container()
         if not container:
@@ -135,10 +197,13 @@ class WorkspaceProjectInitMixin(object):
             item = container.layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        for title, p_type, rel in self.DEFAULT_PANELS:
+        rig = rig_name or self.default_rig_token()
+        for title, p_type, value, active in self.DEFAULT_PANELS:
             if p_type == "MODULE":
-                self.add_module_panel(title)
+                pan = self.add_module_panel(title)
             else:
-                self.add_panel(title, p_type, rel)
-        cmds.warning("[KRT] Default panel stack created ({} panels), paths relative to the Rig Root.".format(
-            len(self.DEFAULT_PANELS)))
+                pan = self.add_panel(title, p_type, (value or "").format(rig=rig))
+            if pan is not None and not active and hasattr(pan, "checkbox"):
+                pan.checkbox.setChecked(False)
+        cmds.warning("[KRT] Default panel stack created ({} panels) for '{}'.".format(
+            len(self.DEFAULT_PANELS), rig))

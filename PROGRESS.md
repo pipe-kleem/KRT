@@ -307,3 +307,31 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - Fixes:
   - `setup_default_panels()` now delegates to `_create_default_project_panels()` — the same project-relative list Initialize Project uses (`workspace/project_init.py::DEFAULT_PANELS`), so there is one source of truth. Added a `CUSTOM SCRIPT` row to that list to match how the real pipelines are laid out. **No hardcoded personal paths remain anywhere in the codebase** (verified by grep).
   - `browse_pipeline_json()` now only trusts the publish dir if it **exists on this machine**; otherwise it falls back to `default_browse_dir()` (Rig Root → rigs share). That also covers loading a pipeline JSON authored on someone else's drive.
+
+### 2026-09-19 — Stage 45 (v42.4): full default panel stack + RUN works on an OFF panel
+**1. Default stack now matches a real production pipeline** (taken from `horseRath_a_rig_A_A_v001.json`). `workspace/project_init.py::DEFAULT_PANELS` is now 12 rows of `(title, type, value, active)`, with `{rig}` substituted from the rig name:
+
+| # | panel | type | value |
+|---|---|---|---|
+| 1 | MAYA GLOBAL SCRIPT | GLOBAL_SCRIPT | — |
+| 2 | LOAD SCRIPT PANEL | SCRIPT | `scripts/utils.py` |
+| 3 | LOAD MODEL (.ma file) | IMPORT_3D | `model/export.abc` |
+| 4 | CUSTOM SCRIPT | SCRIPT | `organize_and_convert_lod("{rig}", delete_ai_lod=True)` |
+| 5 | LOAD MODULE | MODULE | (bubbles) |
+| 6 | Load_Guide | SCRIPT **off** | `io.import_guide_template(os.path.join(RIG_ROOT, "guides", "{rig}.sgt"))` |
+| 7 | Export_Guide | SCRIPT **off** | `io.export_guide_template(...)` |
+| 8 | LOAD SKINCLUSTER | JSON | `skinCluster/skinCluster.jSkin` |
+| 9 | CONTROL SHAPES | SHAPES | `controlShape/controlShapes.json` |
+| 10 | CUSTOM SCRIPT | SCRIPT | `cmds.parent("rig", "{rig}")` + `jnt_vis 0` |
+| 11 | Display Switch | SCRIPT | the enum-attr → `*_a_geo` overrideDisplayType script |
+| 12 | PUBLISH PATH | PUBLISH | `.` (the rig root — matches the JSON; supersedes the earlier `rig` guess) |
+
+- The two guide panels build their paths from **`RIG_ROOT`** (injected into the shared namespace by `run_script`) rather than the hardcoded absolute paths they were copied from, so they survive the rig folder being moved or renamed.
+- `{rig}` comes from the rig name given to Initialize Project; on a brand-new empty session it is `**`, a visible placeholder.
+- Folder names follow the parshuram_a listing (`skinCluster/`, `controlShape/`), not the older potli_a JSON (`skin/`, `ctrls/`).
+- Verified offline: the rendered stack and that every generated inline script compiles.
+
+**2. An OFF panel's RUN button now works**
+- `execute(progress_ui=None, force=False)` on `SortablePanel`, `SortableBubblePanel` (and `execute_single_module`) and `LodLoaderPanel`. The full build still passes `force=False`, so an unchecked panel is skipped exactly as before; clicking RUN/LOAD passes `force=True` and runs it once by hand.
+- The button stays enabled and gains a tooltip while off: *"This panel is OFF — the full build skips it. Clicking RUN still executes it, once, by hand."*
+- This is what makes the Load_Guide / Export_Guide panels useful: they ship off so the build ignores them, and are run on demand.

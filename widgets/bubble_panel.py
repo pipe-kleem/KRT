@@ -518,7 +518,8 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
         if self.btn_run.text() == "SHOW ERROR":
             self.show_error_popup()
         else:
-            self.execute(None)
+            # Manual click: run regardless of the active checkbox.
+            self.execute(None, force=True)
 
     def show_error_popup(self):
         msg = f"Panel: {self.title_edit.text()}"
@@ -651,6 +652,12 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
         op_effect = QtWidgets.QGraphicsOpacityEffect(self)
         op_effect.setOpacity(opacity)
         self.setGraphicsEffect(op_effect)
+        # The LOAD button stays clickable while the panel is off - see
+        # execute(force=True).
+        if hasattr(self, 'btn_run'):
+            self.btn_run.setToolTip(
+                "" if state else
+                "This panel is OFF - the full build skips it.\nClicking LOAD still executes it, once, by hand.")
 
     def _show_drop_gap(self, drop_area, size, target_widget):
         """Move the live drop-placeholder to sit immediately before
@@ -949,8 +956,8 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
             gw.guide_settings_panel.refresh_from_scene()
         self.workspace.refresh_module_list()
 
-    def execute_single_module(self, bubble):
-        if not self.is_active or not bubble.is_active: return True, ""
+    def execute_single_module(self, bubble, force=False):
+        if not force and (not self.is_active or not bubble.is_active): return True, ""
         path = bubble.full_path
         success = False
         error_msg = ""
@@ -979,8 +986,15 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
         else: bubble.set_error()
         return success, error_msg
 
-    def execute(self, progress_ui=None):
-        if not self.is_active: return True
+    def execute(self, progress_ui=None, force=False):
+        """`force=True` runs even when the panel's checkbox is OFF.
+
+        Stage 45: an inactive panel is skipped by the full build (that's what
+        the checkbox is for), but its own RUN button should still work - it
+        is how you test one step by hand without switching the step back on
+        and forgetting to switch it off again. Only the build passes
+        force=False."""
+        if not self.is_active and not force: return True
         all_success = True
         error_msgs = []
 

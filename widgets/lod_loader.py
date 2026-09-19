@@ -496,7 +496,8 @@ class LodLoaderPanel(QtWidgets.QFrame):
         if self.btn_run.text() == "SHOW ERROR":
             self.show_error_popup()
         else:
-            self.execute(None)
+            # Manual click: run regardless of the active checkbox.
+            self.execute(None, force=True)
 
     def show_error_popup(self):
         msg = f"Panel: {self.title_edit.text()}"
@@ -507,8 +508,15 @@ class LodLoaderPanel(QtWidgets.QFrame):
         if getattr(dialog, "retry", False):
             self.execute(None)
 
-    def execute(self, progress_ui=None):
-        if not self.is_active: return True
+    def execute(self, progress_ui=None, force=False):
+        """`force=True` runs even when the panel's checkbox is OFF.
+
+        Stage 45: an inactive panel is skipped by the full build (that's what
+        the checkbox is for), but its own RUN button should still work - it
+        is how you test one step by hand without switching the step back on
+        and forgetting to switch it off again. Only the build passes
+        force=False."""
+        if not self.is_active and not force: return True
         names = self.checked_lod_names()
         if not names:
             cmds.warning("No LODs added to this LOD Loader panel yet - use + Add LOD.")

@@ -16,6 +16,7 @@ import re
 import time
 from maya.app.general.mayaMixin import MayaQWidgetBaseMixin
 from .compat import QtWidgets, QtCore, QtGui, IS_PYSIDE6
+from . import __version__ as KRT_VERSION, __build__ as KRT_BUILD
 from .session import SessionManager
 from .dialogs import AdvancedSaveDialog
 from .workspace import SessionWorkspace, CurrentPageStackedWidget
@@ -26,7 +27,9 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         # Initialize Maya's native workspace mixin layer safely
         super(KRT_Tool, self).__init__(parent=parent)
 
-        self.setWindowTitle("KRT | Procedural Builder")
+        # Version in the title: the fastest way to tell whether the copy
+        # Maya actually loaded is the one you just installed.
+        self.setWindowTitle(f"KRT {KRT_VERSION} | Procedural Builder")
         # Kept low on purpose: with CurrentPageStackedWidget in place, the
         # real practical floor is whichever tab is currently visible (its
         # own layout-computed minimum), not a fixed number here. This is

@@ -31,6 +31,13 @@ def _run_installer():
     installer_dir = os.path.dirname(os.path.abspath(__file__)).replace("\\", "/")
     package_src = installer_dir
 
+    # Say out loud which folder this installer is copying FROM, and what
+    # version lives there. Dragging an old copy of this file (e.g. from a
+    # network share that mirrors a different folder) is the single most
+    # common reason an "update" appears to do nothing.
+    src_version = _read_source_version(package_src)
+    cmds.warning(f"[KRT] Installing FROM: {package_src}  (version {src_version})")
+
     # ── 2. Destination = Maya's user scripts folder / KRT ────────────────────
     user_scripts = cmds.internalVar(userScriptDir=True).replace("\\", "/").rstrip("/")
     install_dest = os.path.join(user_scripts, PACKAGE_NAME).replace("\\", "/")
@@ -90,7 +97,8 @@ def _run_installer():
             cmds.warning(f"[KRT] WARNING: 'import KRT' loaded from {loaded_from}, NOT the fresh install at {install_dest}. "
                          "Remove/rename that other KRT folder (or its sys.path entry in userSetup.py) so updates take effect.")
         else:
-            cmds.warning(f"[KRT] Package imported successfully from {loaded_from}")
+            cmds.warning(f"[KRT] Package imported successfully from {loaded_from} "
+                         f"(version {getattr(pkg, '__version__', '?')})")
     except Exception as e:
         cmds.error(f"[KRT] Import test failed: {e}")
         return
@@ -186,6 +194,18 @@ def _safe_copy_tree(src, dst):
             except Exception:
                 skipped += 1
     return copied, skipped
+
+
+def _read_source_version(src):
+    """Pull __version__ out of the source package's __init__.py by reading
+    the text - no import, so a broken/partial package still reports."""
+    import os, re
+    try:
+        with open(os.path.join(src, "__init__.py"), encoding="utf-8") as f:
+            m = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', f.read())
+            return m.group(1) if m else "unknown"
+    except Exception:
+        return "unreadable"
 
 
 def _close_running_krt():

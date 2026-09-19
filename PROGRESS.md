@@ -366,3 +366,15 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - Same bug swept from `dialogs/path_tools.py` (Replace All Paths / Create Folder Structure): `_autofill`, `_guess_old_prefix` and `_replace_paths` resolved nothing, so the tool silently did nothing. They now match on the absolute path and write back through `relativize_path()` so fields keep the tab's display style.
 - `get_publishable_files()` was already correct (patched in Stage 41).
 - Verified offline: 5/5 in-rig files found where all 6 previously reported missing, and the rewrite map matches the JSON's own relative string.
+
+### 2026-09-19 — v43.2: publish dialog — asset search, rigMain gate, image reviewable, per-product publish
+1. **Asset (folder) search did nothing.** `cmb_folder` was an editable QComboBox, whose *default* completer matches from the **start** of the string and is case-sensitive. The values are full paths (`/assets/characters/pole_a`), so typing an asset name never matched. Added a `QCompleter` with `MatchContains` + `CaseInsensitive` + `PopupCompletion`, fed from the same folder list (and a count is printed on load).
+
+2. **`rigMain` set is now required for the rig product.** ayon-maya derives a rig product's contents from an objectSet named after it. New `_ensure_rig_set(name)`: creates the set if missing, and if it is empty fills it the way the "Rig Sets" panel does (`char_*_a`, else a top-level `rig`/asset group). If nothing can go in it, the **rig product is skipped** with a clear message — the other products still publish.
+   - **Ordering matters:** this runs as *Step 3b*, **before** the scene is saved (Step 4). The set has to be inside the saved `.ma`; doing it at publish time would have written the file first and been useless.
+
+3. **Image reviewable never uploaded (movies worked).** `upload_reviewable()` was called without `content_type`, leaving the server to infer one — fine for `.mp4`, not for stills. Now sends an explicit MIME type from `mimetypes`, falling back to a small `REVIEW_MIME` map (`mimetypes` has no `.webp` entry on some Python builds), plus `filename=`. An unknown extension warns instead of guessing wrong, and the type being sent is printed.
+
+4. **Publish one product at a time.** The three checkboxes were already independent, but nothing made that obvious. Added a **Quick select** row: `Rig only` / `Work folder only` / `Review only` / `All`. (The `.ma` save was already gated on the rig checkbox, so a work-folder-only publish doesn't touch the scene — untick "Rebuild scene" too and it publishes what is on disk.)
+
+**Still unverified against a live server:** the reviewable upload (both kinds), the representation `tags` field, and `review` product creation.

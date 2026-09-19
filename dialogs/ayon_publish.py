@@ -1,5 +1,6 @@
 """Auto-split from dialogs.py."""
 from ._shared import *
+import mimetypes
 from .path_tools import CreateFolderStructureDialog, collect_json_file_paths, replace_json_file_paths
 
 
@@ -66,6 +67,13 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # NOT transcode on upload - an unsupported file shows as unplayable.
     REVIEW_MOVIE_EXTS = (".mp4", ".mov", ".avi")
     REVIEW_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+    # mimetypes has no entry for .webp on some Python builds, and guessing
+    # wrong is worse than not guessing - the server stores what it is told.
+    REVIEW_MIME = {
+        "mp4": "video/mp4", "mov": "video/quicktime", "avi": "video/x-msvideo",
+        "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "webp": "image/webp",
+    }
 
     # ── Stylesheet ────────────────────────────────────────────────────
     _STYLE = """
@@ -133,6 +141,17 @@ class AyonPublishDialog(QtWidgets.QDialog):
         self.cmb_project  = QtWidgets.QComboBox()
         self.cmb_folder   = QtWidgets.QComboBox()
         self.cmb_folder.setEditable(True)
+        self.cmb_folder.setInsertPolicy(QtWidgets.QComboBox.NoInsert)
+        # An editable QComboBox's default completer matches from the START of
+        # the string and is case-sensitive. Folder values here are full paths
+        # ("/assets/characters/pole_a"), so typing an asset name matched
+        # nothing and the search looked broken. Contains + case-insensitive,
+        # shown as a popup list.
+        self._folder_completer = QtWidgets.QCompleter(self)
+        self._folder_completer.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self._folder_completer.setFilterMode(QtCore.Qt.MatchContains)
+        self._folder_completer.setCompletionMode(QtWidgets.QCompleter.PopupCompletion)
+        self.cmb_folder.setCompleter(self._folder_completer)
         self.cmb_task     = QtWidgets.QComboBox()
 
         ctx_form.addRow("Project:",             self.cmb_project)
@@ -214,6 +233,23 @@ class AyonPublishDialog(QtWidgets.QDialog):
         self.btn_make_qc.clicked.connect(self._make_qc_now)
         review_row.addWidget(self.btn_make_qc)
         prod_form.addRow("", review_row)
+
+        # Quick picks - publishing only one product is a common case
+        # (re-publish just the work folder after editing paths, say).
+        quick_row = QtWidgets.QHBoxLayout()
+        quick_row.addWidget(QtWidgets.QLabel("Quick select:"))
+        for label, flags in (
+            ("Rig only",        (True,  False, False)),
+            ("Work folder only",(False, True,  False)),
+            ("Review only",     (False, False, True)),
+            ("All",             (True,  True,  True)),
+        ):
+            b = QtWidgets.QPushButton(label)
+            b.setStyleSheet("padding: 3px 8px; font-weight: normal;")
+            b.clicked.connect(lambda _=False, f=flags: self._set_product_selection(*f))
+            quick_row.addWidget(b)
+        quick_row.addStretch()
+        prod_form.addRow("", quick_row)
 
         self.chk_ignore_rigutils = QtWidgets.QCheckBox(
             "Ignore 'RigUtils' folder  (keep original server paths)"
@@ -317,6 +353,13 @@ class AyonPublishDialog(QtWidgets.QDialog):
                 if path:
                     self.folder_data[path] = f["id"]
             self.cmb_folder.addItems(sorted(self.folder_data.keys()))
+            # Feed the same list to the completer so typing filters it.
+            try:
+                model = QtCore.QStringListModel(sorted(self.folder_data.keys()), self)
+                self._folder_completer.setModel(model)
+            except Exception:
+                traceback.print_exc()
+            print(f"[AYON] {len(self.folder_data)} folder(s) loaded for '{project_name}'.")
         except Exception as e:
             cmds.warning(f"[AYON] Could not load folders: {e}")
 
@@ -357,6 +400,12 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # ══════════════════════════════════════════════════════════════════
     # Work-folder preview
     # ══════════════════════════════════════════════════════════════════
+    def _set_product_selection(self, rig, work, review):
+        """Quick-pick buttons - tick exactly one product (or all)."""
+        self.chk_publish_rig.setChecked(rig)
+        self.chk_publish_work.setChecked(work)
+        self.chk_publish_review.setChecked(review)
+
     def _abs(self, path):
         """Resolve a path taken from the pipeline JSON.
 
@@ -593,6 +642,16 @@ class AyonPublishDialog(QtWidgets.QDialog):
 
         self.progress_bar.setValue(2)
         QtWidgets.QApplication.processEvents()
+
+        # ── Step 3b: the rig set, BEFORE the scene is saved ────────────
+        # ayon-maya identifies what belongs to a rig product by an objectSet
+        # named after it. It has to exist in the SAVED .ma, so this runs
+        # before the save below, not at publish time.
+        if do_rig and not self._ensure_rig_set(prod_rig):
+            cmds.warning(f"[AYON PUBLISH] '{prod_rig}' set could not be created or is empty - "
+                         "skipping the rig product.")
+            self._set_status(f"❌ No '{prod_rig}' set in the scene - rig not published.", color="#f44336")
+            do_rig = False
 
         # ── Step 4: Save the built Maya scene locally ──────────────────
         ma_path = ""
@@ -926,6 +985,53 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # Path helpers
     # ══════════════════════════════════════════════════════════════════
     # ══════════════════════════════════════════════════════════════════
+    def _ensure_rig_set(self, set_name):
+        """Make sure an objectSet named `set_name` (e.g. "rigMain") exists and
+        has something in it. Returns True when the scene is publishable.
+
+        ayon-maya works out a rig product's contents from an objectSet named
+        after the product. KRT's own "Rig Sets" default panel already creates
+        `rigMain` - this is the safety net for a scene built without it, and
+        the gate that stops a rig product being published with nothing in it.
+        """
+        try:
+            if not cmds.objExists(set_name):
+                cmds.sets(empty=True, name=set_name)
+                print(f"  [rig set] Created '{set_name}'.")
+
+            members = cmds.sets(set_name, query=True) or []
+            if members:
+                print(f"  [rig set] '{set_name}' already holds {len(members)} member(s).")
+                return True
+
+            # Empty - fill it the same way organize_rig_sets() does, then fall
+            # back to the obvious top-level rig groups.
+            candidates = cmds.ls("char_*_a", type="transform", long=True) or []
+            if not candidates:
+                for name in ("rig", self.rig_name, self.rig_name.replace("_rig", "")):
+                    if name and cmds.objExists(name):
+                        candidates += cmds.ls(name, type="transform", long=True) or []
+                # only keep top-level nodes, so we don't add a child of one
+                candidates = [c for c in candidates if c.count("|") == 1]
+            candidates = list(dict.fromkeys(candidates))
+
+            if not candidates:
+                cmds.warning(
+                    f"[AYON PUBLISH] '{set_name}' is empty and nothing matching 'char_*_a' or a "
+                    "top-level 'rig' group was found to put in it. Run the 'Rig Sets' panel (or "
+                    "build the rig) first."
+                )
+                return False
+
+            cmds.sets(candidates, forceElement=set_name)
+            print(f"  [rig set] Added {len(candidates)} node(s) to '{set_name}': "
+                  f"{[c.split('|')[-1] for c in candidates]}")
+            return True
+        except Exception:
+            traceback.print_exc()
+            return False
+
+    # ══════════════════════════════════════════════════════════════════
     # Product 3 — the reviewable (QC movie or still)
     # ══════════════════════════════════════════════════════════════════
     def _publish_review(self, ctx, prod_name, media_path):
@@ -977,7 +1083,20 @@ class AyonPublishDialog(QtWidgets.QDialog):
             if hasattr(ayon_api, "upload_reviewable"):
                 try:
                     label = f"{prod_name} v{ver_num:03d}"
-                    ayon_api.upload_reviewable(project_name, ver_id, dest, label=label)
+                    # Send the MIME type explicitly. Without it the server has
+                    # to infer one, and an image (png/jpg) was being rejected
+                    # or stored unplayable while movies happened to work.
+                    content_type = mimetypes.guess_type(dest)[0] or self.REVIEW_MIME.get(ext)
+                    if not content_type:
+                        cmds.warning(f"[AYON PUBLISH] Unknown media type for '.{ext}' - "
+                                     "uploading without a content type; it may not play.")
+                    print(f"  [review] Uploading {os.path.basename(dest)} as {content_type} …")
+                    ayon_api.upload_reviewable(
+                        project_name, ver_id, dest,
+                        label=label,
+                        content_type=content_type,
+                        filename=os.path.basename(dest),
+                    )
                     print(f"  [review] Uploaded reviewable: {os.path.basename(dest)}")
                 except Exception:
                     traceback.print_exc()

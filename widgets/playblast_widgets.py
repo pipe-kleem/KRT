@@ -314,9 +314,56 @@ class PBCameraViewWidget(QtWidgets.QWidget):
                 pass
 
     # -- cleanup --------------------------------------------------------------
+    PANEL_PREFIX = "KRT_pbCamView"
+
     def stop(self):
-        if self._timer.isActive():
-            self._timer.stop()
+        """Stop polling AND destroy the Maya-side modelPanel.
+
+        A cmds.modelPanel is a Maya UI object, NOT a Qt child of this widget:
+        deleting/hiding the Qt widget does not remove it. Every KRT relaunch
+        therefore used to leave a live orphan panel behind, and Maya keeps
+        calling updateModelPanelBar on each one forever - which is exactly
+        the '|||...|KRT_pbCamViewNNN' spam (the empty '|' segments are its
+        vanished Qt ancestors, and the count grew with each orphan). So the
+        panel must be deleted explicitly, here."""
+        try:
+            if self._timer.isActive():
+                self._timer.stop()
+        except Exception:
+            pass
+        panel = self._model_panel or self._panel_name
+        self._model_panel = None
+        if not panel:
+            return
+        try:
+            if cmds.modelPanel(panel, query=True, exists=True):
+                cmds.deleteUI(panel, panel=True)
+        except Exception:
+            try:
+                cmds.deleteUI(panel, panel=True)
+            except Exception:
+                pass
+
+    @classmethod
+    def cleanup_stale_panels(cls):
+        """Delete every leftover KRT camera-view modelPanel. Called on launch
+        and on window close, so panels orphaned by a crash (or by a KRT
+        version that predates stop() deleting them) are swept up too.
+        Returns how many were removed."""
+        removed = 0
+        try:
+            panels = cmds.getPanel(type="modelPanel") or []
+        except Exception:
+            return 0
+        for p in panels:
+            if not p.startswith(cls.PANEL_PREFIX):
+                continue
+            try:
+                cmds.deleteUI(p, panel=True)
+                removed += 1
+            except Exception:
+                pass
+        return removed
 
     def closeEvent(self, event):
         self.stop()

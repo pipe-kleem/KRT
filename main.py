@@ -20,6 +20,7 @@ from . import __version__ as KRT_VERSION, __build__ as KRT_BUILD
 from .session import SessionManager
 from .dialogs import AdvancedSaveDialog
 from .workspace import SessionWorkspace, CurrentPageStackedWidget
+from .widgets import PBCameraViewWidget
 from .utils import log_crash, mark_session_start, mark_session_clean_exit, check_last_session_health
 
 class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
@@ -57,6 +58,12 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         """Native Qt intercept to kill background timers before C++ deletion."""
         if hasattr(self, 'autosave_timer') and self.autosave_timer.isActive():
             self.autosave_timer.stop()
+        # Maya modelPanels are not Qt children - they outlive this window
+        # unless explicitly deleted. See PBCameraViewWidget.stop().
+        try:
+            PBCameraViewWidget.cleanup_stale_panels()
+        except Exception:
+            pass
         # Stage 16, request #4: this is what tells the NEXT launch that this
         # one ended normally - see mark_session_start()/check_last_session_health()
         # in utils.py. Only reached on a real close, so a hard crash (Maya
@@ -244,6 +251,14 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
             ws.set_session_path("", refresh_guide_default=True)
         else:
             ws = self.session_stack.widget(index)
+            # Kill this session's embedded Maya viewport before the Qt widget
+            # goes - otherwise its modelPanel is orphaned in Maya.
+            try:
+                view = getattr(ws, "pb_camera_view", None)
+                if view is not None:
+                    view.stop()
+            except Exception:
+                pass
             self.session_stack.removeWidget(ws)
             self.tab_bar.removeTab(index)
             ws.deleteLater()
@@ -322,6 +337,17 @@ def run_tool():
         if w.objectName() == "KRT_Window":
             w.close()
             w.deleteLater()
+
+    # Sweep any embedded-viewport modelPanels left over from a previous run
+    # (crash, or a KRT old enough that closing didn't delete them). Each
+    # orphan is a live Maya UI object that keeps emitting
+    # 'updateModelPanelBar ... Syntax error' for the rest of the session.
+    try:
+        n_stale = PBCameraViewWidget.cleanup_stale_panels()
+        if n_stale:
+            cmds.warning(f"[KRT] Removed {n_stale} leftover camera-view panel(s) from a previous run.")
+    except Exception:
+        pass
 
     # Stage 16, request #4: read (and consume) whatever the PREVIOUS run
     # left behind - a logged error, and/or an unclean-exit marker - before

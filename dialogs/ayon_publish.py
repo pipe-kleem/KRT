@@ -357,6 +357,19 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # ══════════════════════════════════════════════════════════════════
     # Work-folder preview
     # ══════════════════════════════════════════════════════════════════
+    def _abs(self, path):
+        """Resolve a path taken from the pipeline JSON.
+
+        Since Stage 41 the JSON stores paths RELATIVE to the Rig Root
+        ("scripts/utils.py"). Everything on disk here - os.path.isfile,
+        shutil.copy2 - needs the real absolute path, or every file reports
+        "missing, skipped" while sitting happily on the server.
+        """
+        try:
+            return (self.workspace.resolve_path(path) or path).replace("\\", "/")
+        except Exception:
+            return path
+
     def refresh_package_files(self):
         """Show exactly what the work-folder extraction will do, using the
         same JSON scan the extraction itself runs."""
@@ -376,7 +389,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
         copied = ignored = missing = 0
 
         for path in paths:
-            norm   = os.path.normpath(path)
+            norm   = os.path.normpath(self._abs(path))
             parts  = norm.replace("\\", "/").split("/")
             parent = os.path.basename(os.path.dirname(norm))
             label  = f"{parent}/{os.path.basename(norm)}"
@@ -392,7 +405,8 @@ class AyonPublishDialog(QtWidgets.QDialog):
             else:
                 copied += 1
                 item = QtWidgets.QListWidgetItem(f"✅  {label}   → {self.rig_name}/{parent}/")
-            item.setToolTip(path)
+            item.setToolTip("{}\n(as stored in the JSON: {})".format(norm.replace("\\", "/"), path)
+                            if norm.replace("\\", "/") != path else path)
             self.list_pkg_files.addItem(item)
 
         summary = QtWidgets.QListWidgetItem(
@@ -853,10 +867,12 @@ class AyonPublishDialog(QtWidgets.QDialog):
         copied = ignored = missing = 0
 
         for src in raw_paths:
-            norm = os.path.normpath(src)
+            # `src` is what the JSON holds (relative since Stage 41); `norm`
+            # is the real file on disk.
+            norm = os.path.normpath(self._abs(src))
             if not os.path.isfile(norm):
                 missing += 1
-                print(f"  [pkg] SKIP (missing): {src}")
+                print(f"  [pkg] SKIP (missing): {src}  ->  {norm}")
                 continue
 
             parts = norm.replace("\\", "/").split("/")
@@ -881,7 +897,11 @@ class AyonPublishDialog(QtWidgets.QDialog):
                 shutil.copy2(norm, target)
                 copied += 1
                 taken[target.lower()] = norm
+                # Key the rewrite map by BOTH spellings: replace_json_file_paths
+                # matches on the exact string in the JSON (relative), while
+                # other callers may hold the absolute one.
                 path_mapping[norm] = target
+                path_mapping[os.path.normpath(src)] = target
                 collected.append(target)
                 print(f"  [pkg] {parent_name}/{os.path.basename(norm)}  →  {target}")
             except Exception as e:

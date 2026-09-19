@@ -357,3 +357,12 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 **Also:** `get_playblast_dir()` now prefers `<Rig Root>/playblasts` (the folder Initialize Project creates) and only falls back to "beside the session JSON" when there is no Rig Root.
 
 **Unverified** — none of the AYON calls can be exercised from here: the reviewable upload, the `tags` field on the representation POST, and `review` product/version creation all need a live server test.
+
+### 2026-09-19 — v43.1: publish work-folder scan didn't resolve relative paths
+- Symptom: the AYON publish dialog's "Rigging Work Folder" list showed every file as `⚠️ … — missing, skipped`, even though they all exist. Only the graph guide JSON (still an absolute `C:/Users/sid2/…` path) was found — which is the tell.
+- Cause: Stage 41 made the pipeline JSON store paths **relative** to the Rig Root. `refresh_package_files()` and `_extract_work_folder()` both take their paths straight from that JSON via `collect_json_file_paths()` and call `os.path.isfile()` on them unresolved. A relative path is tested against Maya's CWD, so nothing is ever found — and the extraction would have published an **empty work folder** without erroring.
+- Fix: new `AyonPublishDialog._abs()` wraps `workspace.resolve_path()`; used by both the preview and the extractor. The preview tooltip now shows the resolved path plus the stored spelling when they differ.
+- **Subtle second half:** `_extract_work_folder` builds `path_mapping` used by `replace_json_file_paths()` to re-path the published JSON, and that matches on the *exact string in the JSON*. Keying the map only by the absolute path would have copied the files correctly but left the published JSON pointing at the old locations. The map is now keyed by **both** spellings.
+- Same bug swept from `dialogs/path_tools.py` (Replace All Paths / Create Folder Structure): `_autofill`, `_guess_old_prefix` and `_replace_paths` resolved nothing, so the tool silently did nothing. They now match on the absolute path and write back through `relativize_path()` so fields keep the tab's display style.
+- `get_publishable_files()` was already correct (patched in Stage 41).
+- Verified offline: 5/5 in-rig files found where all 6 previously reported missing, and the rewrite map matches the JSON's own relative string.

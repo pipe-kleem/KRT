@@ -353,7 +353,9 @@ class CreateFolderStructureDialog(QtWidgets.QDialog):
         for i in range(container.layout.count()):
             panel = container.layout.itemAt(i).widget()
             if getattr(panel, 'p_type', None) == "PUBLISH":
-                p = panel.field.text().strip().replace("\\", "/").rstrip("/")
+                # Stage 47: panel fields hold RELATIVE paths now (PUBLISH is
+                # often just "."), so resolve before deriving folders from it.
+                p = self.workspace.resolve_path(panel.field.text()).strip().replace("\\", "/").rstrip("/")
                 if p:
                     # PUBLISH panel = <char>/Rig  →  root=<workspace>, char=<char_name>
                     char_dir  = os.path.dirname(p)
@@ -435,7 +437,7 @@ class CreateFolderStructureDialog(QtWidgets.QDialog):
                 panel = page.panels_container.layout.itemAt(pi).widget()
                 pt = getattr(panel, 'p_type', None)
                 if pt in {"SCRIPT", "MA", "JSON", "SHAPES", "IMPORT_3D"}:
-                    p = panel.field.text().strip().replace("\\", "/")
+                    p = self.workspace.resolve_path(panel.field.text()).strip().replace("\\", "/")
                     if p and os.path.isfile(p):
                         dirs.append(os.path.dirname(p).replace("\\", "/"))
         if not dirs:
@@ -460,9 +462,13 @@ class CreateFolderStructureDialog(QtWidgets.QDialog):
                 panel = page.panels_container.layout.itemAt(pi).widget()
                 pt = getattr(panel, 'p_type', None)
                 if pt in {"SCRIPT", "MA", "JSON", "SHAPES", "IMPORT_3D", "PUBLISH"}:
-                    cur = panel.field.text().strip().replace("\\", "/")
+                    # Match on the ABSOLUTE path (the field may hold a
+                    # relative one), then write back through relativize_path
+                    # so the field keeps the tab's current display style.
+                    cur = self.workspace.resolve_path(panel.field.text()).strip().replace("\\", "/")
                     if cur.lower().startswith(old_norm):
-                        panel.field.setText(new_norm + cur[len(old_norm):])
+                        panel.field.setText(
+                            self.workspace.relativize_path(new_norm + cur[len(old_norm):]))
                         replaced += 1
                 elif pt == "MODULE":
                     bl = getattr(panel, 'bubble_layout', None)
@@ -470,9 +476,11 @@ class CreateFolderStructureDialog(QtWidgets.QDialog):
                         for b in range(bl.count()):
                             bubble = bl.itemAt(b).widget()
                             if bubble:
-                                bp = getattr(bubble, 'full_path', '').replace("\\", "/")
+                                raw = getattr(bubble, 'full_path', '')
+                                bp = self.workspace.resolve_path(raw).replace("\\", "/")
                                 if bp.lower().startswith(old_norm):
-                                    bubble.full_path = new_norm + bp[len(old_norm):]
+                                    bubble.full_path = self.workspace.relativize_path(
+                                        new_norm + bp[len(old_norm):])
                                     bubble.btn_text.setText(os.path.basename(bubble.full_path))
                                     replaced += 1
         cmds.warning(f"[CreateFolders] Replaced {replaced} path(s): {old_prefix} → {new_prefix}")

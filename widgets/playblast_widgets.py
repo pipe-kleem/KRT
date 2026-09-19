@@ -70,6 +70,7 @@ class PBCameraViewWidget(QtWidgets.QWidget):
         outer.addWidget(self._viewport_container)
 
         self._built = False
+        self._name_ancestor_chain()
         try:
             self._build_model_panel(vlayout)
         except Exception as e:
@@ -101,9 +102,51 @@ class PBCameraViewWidget(QtWidgets.QWidget):
         self._timer.start()
 
     # -- construction -----------------------------------------------------
+    def _name_ancestor_chain(self):
+        """Give an objectName to every UNNAMED Qt widget between this one and
+        the top-level window.
+
+        Maya addresses UI with a '|'-joined path built from those object
+        names, so one unnamed ancestor contributes an EMPTY segment. KRT
+        embeds this viewport ~9 layers deep (window > session stack >
+        workspace > page stack > playblast page > scroll area > viewport >
+        containers), which produced paths like
+
+            KRT_Window||||||||||KRT_pbCamViewNNNLayout|...
+
+        and Maya's own createModelPanelBar / updateModelPanelBar /
+        cleanupModelPanelBar MEL procs cannot parse that ("Line 1.22:
+        Syntax error"). Naming the whole chain makes the path well-formed.
+
+        Setting an objectName that was empty is safe: a Qt stylesheet only
+        matches on '#name', and these generated names are unique per widget,
+        so nothing can start matching by accident. Run again on show,
+        because this widget is created BEFORE it is added to its parent
+        layout - at __init__ time the chain above it is still incomplete
+        (which is why the first error showed 3 pipes and later ones 10)."""
+        try:
+            w = self
+            while w is not None:
+                if not w.objectName():
+                    w.setObjectName("KRT_uiNode{}".format(id(w)))
+                if w.isWindow():
+                    break          # stop at the top-level window; never rename Maya's own UI
+                w = w.parentWidget()
+        except Exception:
+            pass
+
+    def showEvent(self, event):
+        # By now the widget really is inside its parent layout, so the chain
+        # above it is complete - name whatever appeared since __init__.
+        self._name_ancestor_chain()
+        super(PBCameraViewWidget, self).showEvent(event)
+
     def _build_model_panel(self, vlayout):
         cmds.setParent(vlayout.objectName())
-        self._model_panel = cmds.modelPanel(self._panel_name, label="KRT Playblast Camera View")
+        # Creation triggers Maya's own createModelPanelBar; keep its noise
+        # out of the Script Editor even if a path is still malformed.
+        self._model_panel = self._quiet_script_editor(
+            cmds.modelPanel, self._panel_name, label="KRT Playblast Camera View")
         self._configure_model_panel()
         self._disable_cached_playback()
         self._built = True

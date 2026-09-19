@@ -248,3 +248,9 @@ Request (verbatim): *"I want to make this relative … in the ui 1 path and ever
   - `🚀 Build Till Here (run every step)` — default; wipes the scene and runs steps 1..target.
   - `⚡ Build Till Here (resume from newest cache)` — the old fast behaviour, now explicit; says so when no cache exists before the target.
 - Also from the same log: the user was still running a build **older than 41.7** (none of the new `print()` diagnostics appeared, and the same two orphan `KRT_pbCamView` ids persisted) — the v41.6 orphan sweep never ran.
+
+### 2026-09-19 — v41.9: the `createModelPanelBar / updateModelPanelBar ... Syntax error` noise
+- After v41.6 swept the orphans (log shows `cleanupModelPanelBar` firing on the old ones), a **single** live panel still errored — so orphan accumulation was only half the story.
+- Real cause: Maya builds a UI path by joining the Qt **objectNames** of the whole ancestor chain with `|`. Every *unnamed* widget contributes an empty segment. KRT embeds the viewport ~9 layers deep, giving `KRT_Window||||||||||KRT_pbCamViewNNNLayout|…`, which Maya's own `createModelPanelBar` / `updateModelPanelBar` / `cleanupModelPanelBar` MEL procs can't parse. (v41.3 named only 2 widgets of the chain — that's why the pipe count changed but the error didn't go away.)
+- Fix: `_name_ancestor_chain()` walks from the widget up to the top-level window and gives every unnamed widget a unique objectName, stopping at the window so Maya's own UI is never renamed. Run at construction **and** in `showEvent` — the widget is built before it is added to its parent layout, so at `__init__` the chain is still short (that is why the first error showed 3 pipes and later ones 10). Panel creation is also wrapped in `_quiet_script_editor`.
+- Safe by construction: setting a previously-empty objectName can only add matches for `#name` stylesheet selectors, and the generated names are unique per widget.

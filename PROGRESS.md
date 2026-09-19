@@ -300,3 +300,10 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - `copy_panel()` now stores the **absolute** path (`self.path()` / `resolve_path()` for module bubbles; `GRAPH::` ids pass through untouched).
 - `paste_panel()` runs it through the **target tab's** `relativize_path()`: pasting into the same rig gives the short path back, pasting into a different rig keeps it absolute so it still points at the original file.
 - Verified offline across two rig roots, including `GRAPH::` bubble ids and inline script code.
+
+### 2026-09-19 — v42.3: Load JSON Pipeline opened on another artist's E: drive
+- Symptom: "Load JSON Pipeline" opened at `E:\Pipe_Storage\Vishal_workspace\All_Doc\My\script\My_Temp`.
+- The dialog wasn't the problem — it starts at the **PUBLISH panel's folder**, which is correct. The problem was §5 item 1 from the first review, finally biting: `setup_default_panels()` seeded every new session with hardcoded absolute paths on one artist's E: drive, including `PUBLISH PATH`. So a fresh session pointed the loader there.
+- Fixes:
+  - `setup_default_panels()` now delegates to `_create_default_project_panels()` — the same project-relative list Initialize Project uses (`workspace/project_init.py::DEFAULT_PANELS`), so there is one source of truth. Added a `CUSTOM SCRIPT` row to that list to match how the real pipelines are laid out. **No hardcoded personal paths remain anywhere in the codebase** (verified by grep).
+  - `browse_pipeline_json()` now only trusts the publish dir if it **exists on this machine**; otherwise it falls back to `default_browse_dir()` (Rig Root → rigs share). That also covers loading a pipeline JSON authored on someone else's drive.

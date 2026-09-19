@@ -170,13 +170,16 @@ class WorkspacePipelineIoMixin(object):
         # Open the load dialog at the PUBLISH PATH panel's directory so the user
         # lands where their published pipeline JSONs live, instead of a default.
         kwargs = {'fm': 1, 'ff': "JSON (*.json)", 'caption': "Load Pipeline JSON"}
-        start_dir = self.get_current_publish_dir()
+        start_dir = (self.get_current_publish_dir() or "").replace("\\", "/")
+        if start_dir and os.path.isfile(start_dir):
+            start_dir = os.path.dirname(start_dir)
+        # A PUBLISH path that does not exist on this machine (a default, or a
+        # pipeline from someone else's drive) must NOT decide where the
+        # browser opens - fall back to the Rig Root, then the rigs share.
+        if not start_dir or not os.path.isdir(start_dir):
+            start_dir = self.default_browse_dir()
         if start_dir:
-            start_dir = start_dir.replace("\\", "/")
-            if os.path.isdir(start_dir):
-                kwargs['dir'] = start_dir
-            elif os.path.isfile(start_dir):
-                kwargs['dir'] = os.path.dirname(start_dir)
+            kwargs['dir'] = start_dir
         res = cmds.fileDialog2(**kwargs)
         if not res: return
         self.load_pipeline_from_file(res[0])

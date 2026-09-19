@@ -31,6 +31,7 @@ class WorkspaceProjectInitMixin(object):
         ("LOAD MODULE",        "MODULE",        None),        # bubble panel
         ("LOAD SKINCLUSTER",   "JSON",          "skinCluster/skinCluster.jSkin"),
         ("CONTROL SHAPES",     "SHAPES",        "controlShape/controlShapes.json"),
+        ("CUSTOM SCRIPT",      "SCRIPT",        ""),
         ("PUBLISH PATH",       "PUBLISH",       "rig"),
     ]
 

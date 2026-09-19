@@ -176,14 +176,12 @@ class WorkspaceLodsMixin(object):
             item = container.layout.takeAt(0)
             if item.widget(): item.widget().deleteLater()
             
-        self.add_panel("MAYA GLOBAL SCRIPT", "GLOBAL_SCRIPT", "")
-        self.add_panel("LOAD SCRIPT PANEL", "SCRIPT", r"E:\Pipe_Storage\Vishal_workspace\All_Doc\My\script\Kleem_Rigging_Tool\scripts\Utils.py")
-        self.add_panel("LOAD MODEL (3D file)", "IMPORT_3D", r"E:/Pipe_Storage/Vishal_workspace/All_Doc/My/script/My_Temp/hand_final.ma")
-        self.add_module_panel("LOAD MODULE")
-        self.add_panel("LOAD SKINCLUSTER", "JSON", r"E:\Pipe_Storage\Vishal_workspace\All_Doc\My\script\My_Temp\Hand2.jSkin")
-        self.add_panel("CUSTOM SCRIPT", "SCRIPT", r"E:\Pipe_Storage\Vishal_workspace\All_Doc\My\script\Kleem_Rigging_Tool\scripts\post_script.py")
-        self.add_panel("CONTROL SHAPES", "SHAPES", r"E:\Pipe_Storage\Vishal_workspace\All_Doc\My\script\My_Temp\Shapes.json")
-        self.add_panel("PUBLISH PATH", "PUBLISH", r"E:\Pipe_Storage\Vishal_workspace\All_Doc\My\script\My_Temp")
+        # Stage 44: these used to be hardcoded absolute paths on one
+        # artist's E: drive. They seeded every new session, which then made
+        # "Load JSON Pipeline" open there (it starts at the PUBLISH panel's
+        # folder). Now the same project-relative defaults Initialize Project
+        # uses - one list, in workspace/project_init.py.
+        self._create_default_project_panels()
 
     def clear_all_panels(self):
         while self.lod_stack.count() > 0:

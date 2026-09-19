@@ -174,18 +174,29 @@ class WorkspaceBuildMixin(object):
         except Exception: pass
 
     def build_till_panel(self, target_panel):
+        # print() as well as cmds.warning: warnings can be suppressed by
+        # other tools (scriptEditorInfo), and a silent method looks like a
+        # dead button. This line proves the method was entered.
+        print("[KRT] build_till_panel: entered")
         cmds.warning("--- Starting Partial Procedural Build ---")
         container = self.get_current_lod_container()
-        if not container: return
+        if not container:
+            cmds.warning("[KRT] Build Till Here: no LOD is selected - pick a LOD in the LOD MANAGER first.")
+            return
         total_panels = container.layout.count()
-        if total_panels == 0: return
+        if total_panels == 0:
+            cmds.warning("[KRT] Build Till Here: this LOD has no panels.")
+            return
 
         # Locate the target step.
         tgt = -1
         for i in range(total_panels):
             if container.layout.itemAt(i).widget() is target_panel:
                 tgt = i; break
-        if tgt < 0: return
+        if tgt < 0:
+            cmds.warning("[KRT] Build Till Here: that panel is not in the LOD that's currently selected "
+                         "(switch to its LOD, then try again).")
+            return
 
         # Find the newest cached step BEFORE the target and resume from it,
         # instead of rebuilding everything from scratch.
@@ -209,14 +220,20 @@ class WorkspaceBuildMixin(object):
         begin = start_k + 1  # start_k == -1 -> begin at 0
         do_cache = self.cache_steps_enabled()
         ignore = self.ignore_errors_enabled()
-        self.main_window.setEnabled(False)
-        progress_ui = BuildProgressDialog(self, total_steps=total_panels)
-        progress_ui.progress_bar.setValue(begin)
-        progress_ui.show(); start_t = time.time()
+        start_t = time.time()
         timings = []
-
-        fast = self._begin_fast_build()
+        progress_ui = None
+        fast = None
+        # Everything from here is inside try/finally. Previously the
+        # setEnabled(False) + dialog construction sat OUTSIDE it, so if
+        # either raised, the whole KRT window stayed permanently disabled -
+        # every button, including this one, silently did nothing afterwards.
+        self.main_window.setEnabled(False)
         try:
+            progress_ui = BuildProgressDialog(self, total_steps=total_panels)
+            progress_ui.progress_bar.setValue(begin)
+            progress_ui.show()
+            fast = self._begin_fast_build()
             for i in range(begin, total_panels):
                 QtWidgets.QApplication.processEvents()
                 if progress_ui.is_cancelled: break
@@ -243,10 +260,15 @@ class WorkspaceBuildMixin(object):
                         progress_ui.progress_bar.setValue(total_panels)
                         cmds.warning("Partial Build Finished.")
                         break
+        except Exception:
+            cmds.warning("[KRT] Build Till Here failed:\n{}".format(traceback.format_exc()))
+            log_crash("Build Till Here", RuntimeError("build_till_panel"))
         finally:
-            self._end_fast_build(fast)
+            if fast is not None:
+                self._end_fast_build(fast)
             elapsed = time.time() - start_t
-            progress_ui.close()
+            if progress_ui is not None:
+                progress_ui.close()
             self.main_window.setEnabled(True)
             self._report_build_timings(timings, elapsed)
 

@@ -1469,7 +1469,9 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         elif action == a_cut: self.cut_panel()
         elif action == paste_above: self.paste_panel(0)
         elif action == paste_below: self.paste_panel(1)
-        elif action == a_build_till: self.workspace.build_till_panel(self)
+        elif action == a_build_till:
+            print("[KRT] menu: Build Till Here ->", self.title_edit.text())
+            self.workspace.build_till_panel(self)
         elif action == a_load_cache: self.run_from_cache()
         elif action == a_build_from: self.build_from_cache()
         elif action == a_replace_paths: self.workspace.open_path_replace_dialog()

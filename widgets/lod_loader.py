@@ -391,7 +391,9 @@ class LodLoaderPanel(QtWidgets.QFrame):
         elif action == a_cut: self.cut_panel()
         elif action == paste_above: self.paste_panel(0)
         elif action == paste_below: self.paste_panel(1)
-        elif action == a_build_till: self.workspace.build_till_panel(self)
+        elif action == a_build_till:
+            print("[KRT] menu: Build Till Here ->", self.title_edit.text())
+            self.workspace.build_till_panel(self)
         elif action == a_dup: self.workspace.duplicate_panel(self)
         elif action == a_del: self._on_delete_clicked()
 

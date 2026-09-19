@@ -1326,9 +1326,13 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
     def path(self):
         """Stage 41: the field's text resolved against the Rig Root - use
         THIS whenever the text is about to be opened/run/checked on disk.
-        Inline code and empty text come back unchanged. self.path()
-        stays the raw (possibly relative) value for display and saving."""
-        return self.workspace.resolve_path(self.path())
+        Inline code and empty text come back unchanged. self.field.text()
+        stays the raw (possibly relative) value for display and saving.
+
+        NOTE: this method must read self.field.text() directly - calling
+        self.path() here would recurse forever (it did, once).
+        """
+        return self.workspace.resolve_path(self.field.text())
 
     def get_start_dir(self):
         current_path = self.path().strip()

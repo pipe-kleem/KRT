@@ -46,6 +46,15 @@ class PBCameraViewWidget(QtWidgets.QWidget):
 
         uniqueName = "KRT_pbCamView" + str(id(self))
         self._panel_name = uniqueName
+        # Maya addresses embedded UI by a '|'-joined path built from the Qt
+        # objectNames of every widget in the chain. An UNNAMED widget in that
+        # chain contributes an empty segment, producing paths like
+        # '|||KRT_pbCamViewNNNLayout|...' - which Maya's own createModelPanelBar
+        # MEL then fails to parse ("Line 1.22: Syntax error"). Studio Library's
+        # ModelPanelWidget (this class's reference implementation) names both
+        # the widget and its layout for exactly that reason; only the layout
+        # was named here. Naming the whole chain is the fix.
+        self.setObjectName(uniqueName + "Outer")
 
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -53,6 +62,7 @@ class PBCameraViewWidget(QtWidgets.QWidget):
         self.setLayout(outer)
 
         self._viewport_container = QtWidgets.QWidget(self)
+        self._viewport_container.setObjectName(uniqueName + "Widget")
         vlayout = QtWidgets.QVBoxLayout(self._viewport_container)
         vlayout.setContentsMargins(0, 0, 0, 0)
         vlayout.setObjectName(uniqueName + "Layout")

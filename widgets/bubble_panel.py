@@ -435,8 +435,10 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
 
     def copy_panel(self):
         data = {"type": self.p_type, "title": self.title_edit.text(), "active": self.is_active, "bg_color": self.bg_color}
+        # Absolute on the clipboard - see SortablePanel.copy_panel for why.
+        # GRAPH:: bubble ids pass through resolve_path() unchanged.
         if self.p_type == "MODULE":
-            mods = [{"path": self.bubble_layout.itemAt(b).widget().full_path, "active": self.bubble_layout.itemAt(b).widget().is_active} for b in range(self.bubble_layout.count())]
+            mods = [{"path": self.workspace.resolve_path(self.bubble_layout.itemAt(b).widget().full_path), "active": self.bubble_layout.itemAt(b).widget().is_active} for b in range(self.bubble_layout.count())]
             data["modules"] = mods
         self.workspace.main_window.clipboard_panel_data = data
         cmds.warning(f"Panel '{self.title_edit.text()}' copied to clipboard.")
@@ -465,10 +467,14 @@ class SortableBubblePanel(CacheMixin, QtWidgets.QFrame):
             pan.bg_color = bg_col
             pan.update_style()
             for m in data.get("modules", []):
-                pan.add_module_bubble(pre_path=m.get("path"), is_active=m.get("active", True))
+                # relativize against THIS tab's root: same rig -> short path
+                # again; different rig -> stays absolute and still resolves.
+                pan.add_module_bubble(pre_path=self.workspace.relativize_path(m.get("path")),
+                                      is_active=m.get("active", True))
             if not is_act: pan.checkbox.setChecked(False)
         else:
-            pan = self.workspace.add_panel(title, p_type, data.get("path", ""), index=idx)
+            pan = self.workspace.add_panel(
+                title, p_type, self.workspace.relativize_path(data.get("path", "")), index=idx)
             pan.bg_color = bg_col
             pan.update_style()
             if not is_act: pan.checkbox.setChecked(False)

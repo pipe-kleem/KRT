@@ -288,3 +288,15 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - `paths_are_relative()` decides the label from **what is actually in the fields**, not a stored flag — so it stays correct after a JSON load, Initialize Project, or the user typing a path by hand. The label is refreshed from `set_rig_root`, `load_pipeline_from_file` and `initialize_project`.
 - **Storage is unchanged and deliberately so:** the pipeline JSON always saves paths relative to the Rig Root regardless of what the toggle is showing, so a saved pipeline keeps working when the rig folder moves. The tooltip says this.
 - Round-trip verified offline on the blindfold paths: relative → absolute → relative is stable, inline script code and `GRAPH::` ids pass through untouched, and paths outside the root stay absolute in both modes.
+
+### 2026-09-19 — v42.2: browse opens inside the rig; clipboard carries absolute paths
+**1. File browsers open in the rig, not the rigs share**
+- `SortablePanel.get_start_dir()` order is now: folder of whatever the field points at (existing file *or* a not-yet-created file's parent) → **the project subfolder for this panel type inside the Rig Root** → the Rig Root → `DEFAULT_RIGS_ROOT`.
+- New `SortablePanel.TYPE_SUBDIR`: SCRIPT/GLOBAL_SCRIPT→`scripts`, IMPORT_3D/IMPORT_LOD→`model`, JSON/TWEAKER→`skinCluster`, SHAPES/MATERIAL→`controlShape`, PUBLISH→`rig`, MODULE→`guides`. So Browse on a skin panel opens straight in `skinCluster/`.
+- The studio rigs share is now a last resort only — landing there means scrolling past every rig in the studio.
+
+**2. Copy/paste between session tabs keeps the file**
+- The clipboard (`main_window.clipboard_panel_data`) is shared by every tab, but each tab has its **own** Rig Root — so a relative path copied out of rig A used to resolve against rig B when pasted there, silently pointing at a different (often non-existent) file.
+- `copy_panel()` now stores the **absolute** path (`self.path()` / `resolve_path()` for module bubbles; `GRAPH::` ids pass through untouched).
+- `paste_panel()` runs it through the **target tab's** `relativize_path()`: pasting into the same rig gives the short path back, pasting into a different rig keeps it absolute so it still points at the original file.
+- Verified offline across two rig roots, including `GRAPH::` bubble ids and inline script code.

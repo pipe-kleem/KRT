@@ -844,11 +844,15 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
 
     def copy_panel(self):
         data = {"type": self.p_type, "title": self.title_edit.text(), "active": self.is_active, "bg_color": self.bg_color}
+        # The clipboard is shared by every session tab, and each tab has its
+        # own Rig Root - so a relative path copied out of rig A would silently
+        # point at rig B's folder when pasted there. Store ABSOLUTE; paste
+        # shortens it again only if it happens to sit under the target's root.
         if self.p_type == "MODULE":
-            mods = [{"path": self.bubble_layout.itemAt(b).widget().full_path, "active": self.bubble_layout.itemAt(b).widget().is_active} for b in range(self.bubble_layout.count())]
+            mods = [{"path": self.workspace.resolve_path(self.bubble_layout.itemAt(b).widget().full_path), "active": self.bubble_layout.itemAt(b).widget().is_active} for b in range(self.bubble_layout.count())]
             data["modules"] = mods
         else:
-            data["path"] = self.field.text()
+            data["path"] = self.path()
             if self.p_type == "SHAPES": data["pattern"] = self.pattern_field.text()
             if self.p_type == "JSON":
                 data["meshes"] = self.mesh_field.text()
@@ -904,10 +908,14 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             pan.bg_color = bg_col
             pan.update_style()
             for m in data.get("modules", []):
-                pan.add_module_bubble(pre_path=m.get("path"), is_active=m.get("active", True))
+                # relativize against THIS tab's root: same rig -> short path
+                # again; different rig -> stays absolute and still resolves.
+                pan.add_module_bubble(pre_path=self.workspace.relativize_path(m.get("path")),
+                                      is_active=m.get("active", True))
             if not is_act: pan.checkbox.setChecked(False)
         else:
-            pan = self.workspace.add_panel(title, p_type, data.get("path", ""), index=idx)
+            pan = self.workspace.add_panel(
+                title, p_type, self.workspace.relativize_path(data.get("path", "")), index=idx)
             pan.bg_color = bg_col
             pan.update_style()
             if not is_act: pan.checkbox.setChecked(False)
@@ -1334,10 +1342,50 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         """
         return self.workspace.resolve_path(self.field.text())
 
+    # Which project folder each panel type reads from / writes to. Used to
+    # open a file browser in the right place instead of at the top of the
+    # rigs share (see get_start_dir).
+    TYPE_SUBDIR = {
+        "SCRIPT": "scripts",
+        "GLOBAL_SCRIPT": "scripts",
+        "IMPORT_3D": "model",
+        "IMPORT_LOD": "model",
+        "JSON": "skinCluster",
+        "TWEAKER": "skinCluster",
+        "SHAPES": "controlShape",
+        "MATERIAL": "controlShape",
+        "PUBLISH": "rig",
+        "MODULE": "guides",
+    }
+
     def get_start_dir(self):
+        """Where this panel's file browser should open.
+
+        Order: the folder of whatever the field points at (if it exists) ->
+        the project subfolder for this panel type inside the Rig Root ->
+        the Rig Root itself -> the studio rigs share. The rigs share is a
+        last resort only: opening there means scrolling past every rig in
+        the studio to reach the one you are working on.
+        """
         current_path = self.path().strip()
-        if os.path.isdir(current_path): return current_path
-        elif os.path.isfile(current_path): return os.path.dirname(current_path)
+        if os.path.isdir(current_path):
+            return current_path
+        if os.path.isfile(current_path):
+            return os.path.dirname(current_path)
+        # The field may name a file that does not exist YET (a skin/shapes
+        # path about to be saved) - its folder is still the right place.
+        if current_path:
+            parent = os.path.dirname(current_path)
+            if parent and os.path.isdir(parent):
+                return parent
+        root = self.workspace.rig_root()
+        if root and os.path.isdir(root):
+            sub = self.TYPE_SUBDIR.get(self.p_type)
+            if sub:
+                candidate = os.path.join(root, sub).replace("\\", "/")
+                if os.path.isdir(candidate):
+                    return candidate
+            return root
         return self.workspace.default_browse_dir()
 
     def show_context_menu(self):

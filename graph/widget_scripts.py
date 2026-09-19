@@ -1,5 +1,7 @@
 """ModuleGraphWidget - scripts methods (mixin, auto-split from graph.py)."""
 from ._shared import *
+from .dialogs import AutoScriptEditDialog, CustomScriptDialog
+from .items import RigNode
 
 
 class GraphScriptsMixin(object):

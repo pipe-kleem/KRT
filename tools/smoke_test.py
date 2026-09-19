@@ -5,9 +5,16 @@ module level, mixin MROs resolve). It does not run any Maya logic.
 
 Usage (from C:\pipeline\KRT_02):   python tools\smoke_test.py
 """
-import importlib.util, os, sys
+import importlib.util, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 1) Static undefined-name check FIRST. Importing a module only executes its
+# top level, so a name missing inside a method body (the classic fallout of
+# splitting a file) imports fine and blows up later in Maya. This catches it.
+print("--- undefined-name check ---")
+rc = subprocess.call([sys.executable, os.path.join(ROOT, "tools", "check_names.py"), ROOT])
+print("--- import check ---")
 sys.path.insert(0, os.path.join(ROOT, "tools", "smoke_stubs"))
 
 # Load the folder as package "KRT" no matter what the folder is called.
@@ -23,3 +30,4 @@ from KRT.graph import ModuleGraphWidget
 print("SessionWorkspace MRO :", [c.__name__ for c in SessionWorkspace.__mro__ if c.__name__.endswith("Mixin")])
 print("ModuleGraphWidget MRO:", [c.__name__ for c in ModuleGraphWidget.__mro__ if c.__name__.endswith("Mixin")])
 print("IMPORT OK")
+print("\nRun the undefined-name section above: 'files with holes: 0' is what you want.")

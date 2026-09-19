@@ -1,5 +1,7 @@
 """ModuleGraphWidget - build methods (mixin, auto-split from graph.py)."""
 from ._shared import *
+from .catalog import _find_guide_root
+from .items import RigNode
 
 
 class GraphBuildMixin(object):

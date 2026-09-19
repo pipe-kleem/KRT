@@ -1,5 +1,6 @@
 """ModuleGraphWidget - undo methods (mixin, auto-split from graph.py)."""
 from ._shared import *
+from .items import RigNode
 
 
 class GraphUndoMixin(object):

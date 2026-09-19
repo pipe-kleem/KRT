@@ -1,5 +1,6 @@
 """ModuleGraphWidget - io methods (mixin, auto-split from graph.py)."""
 from ._shared import *
+from .items import RigNode, RigWire
 
 
 class GraphIoMixin(object):

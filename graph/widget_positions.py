@@ -1,5 +1,6 @@
 """ModuleGraphWidget - positions methods (mixin, auto-split from graph.py)."""
 from ._shared import *
+from .items import RigNode
 
 
 class GraphPositionsMixin(object):

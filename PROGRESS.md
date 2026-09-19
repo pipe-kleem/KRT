@@ -156,7 +156,9 @@ for f in ['graph.py','widgets.py','workspace.py','dialogs.py','utils.py','main.p
                     s[m.name]=m.lineno
 print('scan done')"
 
-:: 3) Import smoke test - loads the whole package with fake Maya/Qt, catches circular imports / missing names
+:: 3) Undefined-name check + import smoke test (run this after ANY edit)
+::    - undefined-name check: names a module uses but never binds (NameError waiting to happen)
+::    - import test: loads the whole package with fake Maya/Qt stubs
 python tools\smoke_test.py
 ```
 
@@ -219,3 +221,10 @@ Request (verbatim): *"I want to make this relative … in the ui 1 path and ever
 ### 2026-09-19 — Stage 41 hotfix (v41.3)
 - **`SortablePanel.path()` recursed infinitely** → "maximum recursion depth exceeded" on launch. Cause: the bulk edit that routed 22 `self.field.text()` reads through the new `path()` helper also rewrote the helper's own body. Fixed + added an AST self-call scan to the checks. Lesson: after a bulk rename, exclude the newly-added definition.
 - **Playblast live-viewport MEL errors** (`createModelPanelBar |||KRT_pbCamView…` / `Line 1.22: Syntax error`): the Qt widgets wrapping the embedded Maya modelPanel had no `objectName`, so Maya built a UI path with empty segments (`|||`). Named the widget chain (`…Outer`, `…Widget`) to match Studio Library's ModelPanelWidget. **Hypothesis — needs confirming in Maya.**
+
+### 2026-09-19 — Stage 41 hotfix 2 (v41.4): graph mixins were missing sibling imports
+- Symptom: loading any pipeline JSON with graph nodes → `NameError: name 'RigNode' is not defined` in `graph/widget_io.py::deserialize_node`.
+- Cause: the restructure splitter computed cross-file imports for every file but **never wrote them into the mixin files**. All six `graph/widget_*.py` mixins were affected (`RigNode`, `RigWire`, `_find_guide_root`, `list_plebe_templates`, `PlebeTemplateDialog`, `CustomScriptDialog`, `AutoScriptEditDialog`). `workspace/` mixins were unaffected — they get those names from `_shared.py`.
+- Why the earlier checks missed it: `py_compile` and the import smoke test only execute a module's **top level**. A missing name inside a method body is invisible until that method runs in Maya.
+- New guard: **`tools/check_names.py`** — static free-name analysis per module, reporting anything used but never bound, plus which sibling module defines it. Now runs automatically at the start of `tools/smoke_test.py`. Target output: `files with holes: 0`. (Limitation: it treats a name bound anywhere in a module as bound everywhere, so it under-reports rather than false-alarms.)
+- Also seen in the log and harmless: `Warning: Invalid Path provided.` is `main.py::load_path_from_field` — the Load button beside Current Path with an empty/invalid path.

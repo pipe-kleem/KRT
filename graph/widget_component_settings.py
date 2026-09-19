@@ -1,5 +1,8 @@
 """ModuleGraphWidget - component_settings methods (mixin, auto-split from graph.py)."""
 from ._shared import *
+from .catalog import list_plebe_templates
+from .dialogs import PlebeTemplateDialog
+from .items import RigNode
 
 
 class GraphComponentSettingsMixin(object):

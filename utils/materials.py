@@ -283,13 +283,22 @@ def export_material_data(file_path, meshes=None):
 
     out = {"meshes": mesh_data, "nodes": node_dump, "connections": connections}
 
-    versioned_file_path = get_versioned_path(file_path, get_latest=False)
-    directory = os.path.dirname(versioned_file_path)
+    # Stage 48: write EXACTLY where the caller asked.
+    #
+    # This used to call get_versioned_path(file_path, get_latest=False) and
+    # write to the bumped path instead, which quietly broke
+    # "Save (Overwrite)": the panel passed the current file, this bumped it
+    # to the next _vNNN, and the file the user meant to overwrite was never
+    # touched. "Save (New Version)" appeared to work only because bumping an
+    # already-bumped path still produces a new file (it just skipped a
+    # number). Versioning is the caller's decision - SortablePanel.
+    # save_versioned_data() already makes it.
+    directory = os.path.dirname(file_path)
     if directory and not os.path.exists(directory): os.makedirs(directory)
 
-    with open(versioned_file_path, 'w') as f: json.dump(out, f, indent=4)
-    cmds.warning("SUCCESS: Exported materials for {} mesh(es) to '{}'".format(len(mesh_data), versioned_file_path))
-    return versioned_file_path
+    with open(file_path, 'w') as f: json.dump(out, f, indent=4)
+    cmds.warning("SUCCESS: Exported materials for {} mesh(es) to '{}'".format(len(mesh_data), file_path))
+    return file_path
 
 def _ensure_material_node(name, node_type):
     """Reuse a live node of the same name if it's already the right type;
@@ -349,7 +358,8 @@ def _resolve_mesh_by_short_name(mesh_key, candidates=None):
     return pool[0] if pool else None
 
 def import_material_data(file_path, meshes=None):
-    latest_file_path = get_versioned_path(file_path, get_latest=True)
+    # Exact path first - see import_control_shapes().
+    latest_file_path = file_path if os.path.isfile(file_path) else get_versioned_path(file_path, get_latest=True)
     if not os.path.exists(latest_file_path):
         om.MGlobal.displayError(f"File does not exist: {latest_file_path}")
         return False

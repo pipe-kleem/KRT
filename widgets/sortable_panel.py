@@ -693,9 +693,16 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         elif self.p_type == "SHAPES":
             pattern = self.pattern_field.text()
             try:
-                export_control_shapes(save_path, search_pattern=pattern)
-                self.field.setText(self.workspace.relativize_path(save_path))
-                cmds.warning(f"Shapes exported successfully to: {save_path}")
+                # Use the path the exporter reports it wrote, not the one we
+                # asked for - they are the same now, but the field must never
+                # drift from the file on disk again.
+                written = export_control_shapes(save_path, search_pattern=pattern)
+                if not written:
+                    om.MGlobal.displayError(
+                        f"Failed to export shapes - nothing matched the pattern '{pattern}'.")
+                    return
+                self.field.setText(self.workspace.relativize_path(written))
+                cmds.warning(f"Shapes exported successfully to: {written}")
             except Exception as e:
                 om.MGlobal.displayError(f"Failed to export shapes: {e}")
 
@@ -704,8 +711,9 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             try:
                 result = export_material_data(save_path, meshes=meshes if meshes else None)
                 if result:
-                    self.field.setText(self.workspace.relativize_path(save_path))
-                    cmds.warning(f"Material exported successfully to: {save_path}")
+                    written = result if isinstance(result, str) else save_path
+                    self.field.setText(self.workspace.relativize_path(written))
+                    cmds.warning(f"Material exported successfully to: {written}")
                 else:
                     om.MGlobal.displayError("Failed to export material - nothing to save (select mesh(es) or fill the Meshes field first).")
             except Exception as e:

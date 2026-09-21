@@ -63,16 +63,29 @@ def export_control_shapes(file_path, controls=None, search_pattern=None):
                 'color': color_data,
             }
 
-    versioned_file_path = get_versioned_path(file_path, get_latest=False)
-    directory = os.path.dirname(versioned_file_path)
+    # Stage 48: write EXACTLY where the caller asked.
+    #
+    # This used to call get_versioned_path(file_path, get_latest=False) and
+    # write to the bumped path instead, which quietly broke
+    # "Save (Overwrite)": the panel passed the current file, this bumped it
+    # to the next _vNNN, and the file the user meant to overwrite was never
+    # touched. "Save (New Version)" appeared to work only because bumping an
+    # already-bumped path still produces a new file (it just skipped a
+    # number). Versioning is the caller's decision - SortablePanel.
+    # save_versioned_data() already makes it.
+    directory = os.path.dirname(file_path)
     if directory and not os.path.exists(directory): os.makedirs(directory)
 
-    with open(versioned_file_path, 'w') as f: json.dump(shape_dict, f, indent=4)
-    cmds.warning("SUCCESS: Exported {} controls to '{}'".format(len(shape_dict), versioned_file_path))
-    return versioned_file_path
+    with open(file_path, 'w') as f: json.dump(shape_dict, f, indent=4)
+    cmds.warning("SUCCESS: Exported {} controls to '{}'".format(len(shape_dict), file_path))
+    return file_path
 
 def import_control_shapes(file_path):
-    latest_file_path = get_versioned_path(file_path, get_latest=True)
+    # An exact path wins over version-hunting: now that Save (Overwrite)
+    # really overwrites, loading has to read back the file that was written
+    # rather than skipping to a higher _vNNN sitting next to it. Only when
+    # the named file is absent do we fall back to the newest version.
+    latest_file_path = file_path if os.path.isfile(file_path) else get_versioned_path(file_path, get_latest=True)
     if not os.path.exists(latest_file_path):
         om.MGlobal.displayError(f"File does not exist: {latest_file_path}")
         return False

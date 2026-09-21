@@ -404,3 +404,13 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - Verified offline against a sample folder tree.
 
 **Unverified:** every AYON call here needs a live session — creator identifier availability, `CreateContext.create()` arguments in the installed ayon-core, and whether the four sets come back as direct members of the instance node.
+
+### 2026-09-21 — v43.5: Save Control Shapes (Overwrite) never overwrote
+- Symptom: "Save Shapes (Overwrite)" did nothing visible; "Save Shapes (New Version)" worked.
+- Cause: `utils/control_shapes.py::export_control_shapes()` called `get_versioned_path(file_path, get_latest=False)` **itself** and wrote to the bumped path, ignoring the path it was handed. So:
+  - *Overwrite* → panel passes `controlShapes.json`, exporter writes `controlShapes_v002.json`; the file the user meant to overwrite is untouched (and the panel field still points at it).
+  - *New Version* → panel computes `_v002`, exporter bumps that to `_v003`; a file appears, so it looked like it worked — it was just silently skipping a version number.
+- `utils/materials.py::export_material_data()` had the identical bug. Skin export never versioned internally, which is why only shapes were reported.
+- Fix: both exporters now write **exactly** where told and return that path; versioning stays the caller's decision (`SortablePanel.save_versioned_data()` already makes it). The panel sets its field from the **returned** path so the field can't drift from what is on disk, and a shapes export that matches nothing now reports an error instead of claiming success.
+- **Matching change on load:** `import_control_shapes()` / `import_material_data()` used `get_versioned_path(get_latest=True)`, which prefers the highest `_vNNN`. Left alone, a real overwrite of `controlShapes.json` would be ignored at load time in favour of an older `_v001` — a half-fix. They now use the exact path when it exists and only fall back to the newest version when it doesn't.
+- Verified offline against the real `get_versioned_path`: old vs new behaviour for both save modes and the load-back.

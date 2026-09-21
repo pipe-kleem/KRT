@@ -378,3 +378,13 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 4. **Publish one product at a time.** The three checkboxes were already independent, but nothing made that obvious. Added a **Quick select** row: `Rig only` / `Work folder only` / `Review only` / `All`. (The `.ma` save was already gated on the rig checkbox, so a work-folder-only publish doesn't touch the scene — untick "Rebuild scene" too and it publishes what is on disk.)
 
 **Still unverified against a live server:** the reviewable upload (both kinds), the representation `tags` field, and `review` product creation.
+
+### 2026-09-21 — v43.3: the rig SET is a gate, not something to create
+- Correction to v43.2: `_ensure_rig_set()` **created and populated** the set when missing. Wrong — the set is the rigger's statement of what the rig *is*; inventing one at publish time would ship whatever happened to match a `char_*_a` wildcard.
+- Replaced with **`_validate_rig_set(prod_name)`** → `(ok, set_name)`. It creates nothing. The rig product publishes only when an objectSet is already in the scene, and:
+  - it must be a real **objectSet** — a transform *group* of the same name is rejected explicitly (`'rigMain' exists but is a transform, not a SET`), since ayon-maya will not read a group as a product definition;
+  - it must have members — an empty set is rejected;
+  - it looks for the product name first, then falls back to `rigMain`, and the warning lists everything it tried and why each failed.
+- Still runs as **Step 3b, before the scene is saved**, so a scene that isn't ready is never written or published. If the rig was the only selected product, the whole publish aborts; otherwise the work folder / review still go.
+- KRT's own "Rig Sets" default panel creates `rigMain` during the build, so the normal flow passes. A failure here means that step didn't run.
+- Decision table verified offline (set with members → publish; group / empty set / missing → refuse; custom product name resolves to its own set or falls back to `rigMain`).

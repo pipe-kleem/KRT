@@ -643,15 +643,20 @@ class AyonPublishDialog(QtWidgets.QDialog):
         self.progress_bar.setValue(2)
         QtWidgets.QApplication.processEvents()
 
-        # ── Step 3b: the rig set, BEFORE the scene is saved ────────────
+        # ── Step 3b: require the rig SET, before the scene is saved ────
         # ayon-maya identifies what belongs to a rig product by an objectSet
-        # named after it. It has to exist in the SAVED .ma, so this runs
-        # before the save below, not at publish time.
-        if do_rig and not self._ensure_rig_set(prod_rig):
-            cmds.warning(f"[AYON PUBLISH] '{prod_rig}' set could not be created or is empty - "
-                         "skipping the rig product.")
-            self._set_status(f"❌ No '{prod_rig}' set in the scene - rig not published.", color="#f44336")
-            do_rig = False
+        # named after it. Checked before the save below so a scene that is
+        # not ready is never written or published.
+        if do_rig:
+            set_ok, rig_set_name = self._validate_rig_set(prod_rig)
+            if not set_ok:
+                self._set_status(
+                    f"❌ No '{prod_rig}' SET in the scene - rig not published.", color="#f44336")
+                do_rig = False
+                if not (do_work or do_review):
+                    cmds.warning("[AYON PUBLISH] Nothing left to publish - aborting.")
+                    self.btn_publish.setEnabled(True)
+                    return
 
         # ── Step 4: Save the built Maya scene locally ──────────────────
         ma_path = ""
@@ -985,51 +990,55 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # Path helpers
     # ══════════════════════════════════════════════════════════════════
     # ══════════════════════════════════════════════════════════════════
-    def _ensure_rig_set(self, set_name):
-        """Make sure an objectSet named `set_name` (e.g. "rigMain") exists and
-        has something in it. Returns True when the scene is publishable.
+    def _validate_rig_set(self, prod_name):
+        """The rig product is only published when its objectSet is ALREADY in
+        the scene. Returns (ok, set_name).
 
-        ayon-maya works out a rig product's contents from an objectSet named
-        after the product. KRT's own "Rig Sets" default panel already creates
-        `rigMain` - this is the safety net for a scene built without it, and
-        the gate that stops a rig product being published with nothing in it.
+        Deliberately does NOT create or populate anything. ayon-maya reads a
+        rig product's contents from an objectSet named after it, and that set
+        is the rigger's statement of what the rig IS - inventing one at
+        publish time would happily ship whatever happened to match a wildcard.
+        KRT's own "Rig Sets" default panel creates it during the build; if it
+        is missing here, that step did not run and the scene is not ready.
+
+        Note this must be an objectSet (Create > Sets), not a transform group
+        of the same name - a group is not a product definition, and ayon-maya
+        will not read one.
         """
-        try:
-            if not cmds.objExists(set_name):
-                cmds.sets(empty=True, name=set_name)
-                print(f"  [rig set] Created '{set_name}'.")
+        candidates = [prod_name]
+        if prod_name != self.DEFAULT_RIG_PRODUCT:
+            candidates.append(self.DEFAULT_RIG_PRODUCT)
 
-            members = cmds.sets(set_name, query=True) or []
-            if members:
-                print(f"  [rig set] '{set_name}' already holds {len(members)} member(s).")
-                return True
-
-            # Empty - fill it the same way organize_rig_sets() does, then fall
-            # back to the obvious top-level rig groups.
-            candidates = cmds.ls("char_*_a", type="transform", long=True) or []
-            if not candidates:
-                for name in ("rig", self.rig_name, self.rig_name.replace("_rig", "")):
-                    if name and cmds.objExists(name):
-                        candidates += cmds.ls(name, type="transform", long=True) or []
-                # only keep top-level nodes, so we don't add a child of one
-                candidates = [c for c in candidates if c.count("|") == 1]
-            candidates = list(dict.fromkeys(candidates))
-
-            if not candidates:
+        tried = []
+        for name in candidates:
+            if not name or not cmds.objExists(name):
+                tried.append(f"'{name}' (not in scene)")
+                continue
+            try:
+                node_type = cmds.nodeType(name)
+            except Exception:
+                node_type = "?"
+            if node_type != "objectSet":
+                tried.append(f"'{name}' (is a {node_type}, not an objectSet)")
                 cmds.warning(
-                    f"[AYON PUBLISH] '{set_name}' is empty and nothing matching 'char_*_a' or a "
-                    "top-level 'rig' group was found to put in it. Run the 'Rig Sets' panel (or "
-                    "build the rig) first."
+                    f"[AYON PUBLISH] '{name}' exists but is a {node_type}, not a SET. "
+                    "The rig product needs an objectSet of that name."
                 )
-                return False
+                continue
+            members = cmds.sets(name, query=True) or []
+            if not members:
+                tried.append(f"'{name}' (objectSet, but empty)")
+                cmds.warning(f"[AYON PUBLISH] The '{name}' set is empty - nothing to publish.")
+                continue
+            print(f"  [rig set] Using '{name}' ({len(members)} member(s)).")
+            return True, name
 
-            cmds.sets(candidates, forceElement=set_name)
-            print(f"  [rig set] Added {len(candidates)} node(s) to '{set_name}': "
-                  f"{[c.split('|')[-1] for c in candidates]}")
-            return True
-        except Exception:
-            traceback.print_exc()
-            return False
+        cmds.warning(
+            "[AYON PUBLISH] No usable rig set found - checked: " + ", ".join(tried) + ". "
+            "Run the 'Rig Sets' panel (or build the rig) so the set exists in the scene, "
+            "then publish again."
+        )
+        return False, None
 
     # ══════════════════════════════════════════════════════════════════
     # Product 3 — the reviewable (QC movie or still)

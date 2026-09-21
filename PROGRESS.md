@@ -388,3 +388,19 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - Still runs as **Step 3b, before the scene is saved**, so a scene that isn't ready is never written or published. If the rig was the only selected product, the whole publish aborts; otherwise the work folder / review still go.
 - KRT's own "Rig Sets" default panel creates `rigMain` during the build, so the normal flow passes. A failure here means that step didn't run.
 - Decision table verified offline (set with members → publish; group / empty set / missing → refuse; custom product name resolves to its own set or falls back to `rigMain`).
+
+### 2026-09-21 — v43.4: AYON-native rig sets + automatic asset/task selection
+**1. "Rig Sets" panel now goes through AYON's own creator.**
+- Root cause of "our manual sets are not detected by the AYON publisher": the publisher looks for an **instance node** carrying AYON attributes (creator identifier, product type/name, folder, task), not an objectSet with the right name. A hand-made `cmds.sets(name="rigMain")` has none of those.
+- ayon-maya's `CreateRig` (`identifier = "io.openpype.creators.maya.rig"`, `product_type = "rig"`) creates the instance node **and** puts four companion sets inside it: `<product>_controls_SET`, `_out_SET`, `_skeletonAnim_SET`, `_skeletonMesh_SET` — the same layout the old script built by hand.
+- The panel script now calls `CreateContext(registered_host()).create("io.openpype.creators.maya.rig", "Main", pre_create_data={"use_selection": False})` + `save_changes()`, reuses an existing instance if one is there, then finds the four child sets by suffix and fills them with KRT's rules: `*ctl` → controls, `geo*` → out, `*geo` → skeletonMesh, all joints → skeletonAnim, `char_*_a` → the instance node.
+- If `ayon_core` can't be imported or no host is registered it **creates nothing** and says why — plain sets would just reproduce the original problem.
+- `_validate_rig_set()` additionally warns when the set exists but has no `creator_identifier` attribute: KRT will still publish it, but the official Publisher won't list it.
+
+**2. Asset folder and task are selected automatically.**
+- `_asset_name_guess()` strips a trailing `_rig` from the Rig Name (`pole_a_rig` → `pole_a`), falling back to the Rig Root folder name.
+- `_auto_select_folder()` matches the AYON folder by leaf name — exact, then prefix, then contains — and logs what it chose, or that nothing matched.
+- `_auto_select_task()` defaults the task to **`rigging`** (`DEFAULT_TASK`) when the folder has one, exact match first then substring.
+- Verified offline against a sample folder tree.
+
+**Unverified:** every AYON call here needs a live session — creator identifier availability, `CreateContext.create()` arguments in the installed ayon-core, and whether the four sets come back as direct members of the instance node.

@@ -66,67 +66,128 @@ class WorkspaceProjectInitMixin(object):
         'cmds.setAttr(ctrl + ".Display", 2)\n'
     )
 
-    # Verbatim from the user's own script (2026-09-19). Kept as-is on purpose
-    # so it matches what they have already tested in Maya. Note it contains
-    # "{}" .format placeholders of its own - that is why _create_default_
-    # project_panels() only applies .format() to values that actually
-    # contain "{rig}".
-    RIG_SETS_CODE = '''import maya.cmds as cmds
-def organize_rig_sets():
-    # Define set names based on the updated requirements
-    controls_set = "rigMain_controls_SET"
-    out_set = "rigMain_out_SET"
-    skeleton_anim_set = "rigMain_skeletonMesh_SET"
-    skeleton_mesh_set = "rigMain_skeletonAnim_SET"
-    rig_main_set = "rigMain"
+    # Rewritten 2026-09-21 to go through AYON's own creator.
+    #
+    # A hand-made objectSet named "rigMain" is invisible to the official AYON
+    # publisher: it looks for an INSTANCE NODE carrying AYON attributes
+    # (creator identifier, product type/name, folder, task...), not just a set
+    # with the right name. ayon-maya's CreateRig
+    # (io.openpype.creators.maya.rig) makes that node and puts four companion
+    # sets inside it - _controls_SET, _out_SET, _skeletonAnim_SET,
+    # _skeletonMesh_SET - which is exactly the layout this script used to
+    # build by hand. So: let AYON create the structure, then fill it.
+    RIG_SETS_CODE = '''"""Create the AYON rig instance, then fill its sets.
 
-    # Helper function to create sets safely if they don't exist
-    def create_set_if_missing(set_name):
-        if not cmds.objExists(set_name):
-            cmds.sets(empty=True, name=set_name)
+Sets are created by ayon-maya's own creator so the official AYON publisher
+detects the instance. Membership rules are KRT's:
+    *ctl      -> <product>_controls_SET
+    geo*      -> <product>_out_SET
+    *geo      -> <product>_skeletonMesh_SET
+    joints    -> <product>_skeletonAnim_SET
+    char_*_a  -> the instance node itself
+"""
+import maya.cmds as cmds
 
-    # Initialize all sets
-    create_set_if_missing(controls_set)
-    create_set_if_missing(out_set)
-    create_set_if_missing(skeleton_anim_set)
-    create_set_if_missing(skeleton_mesh_set)
-    create_set_if_missing(rig_main_set)
+CREATOR_ID = "io.openpype.creators.maya.rig"
+VARIANT = "Main"          # product name becomes "rigMain"
 
-    # Helper function to process and add transform items
-    def add_transforms_to_set(search_pattern, target_set):
-        # Query items based on pattern, specifically looking for transform nodes
-        items = cmds.ls(search_pattern, type="transform", long=True) or []
 
-        if items:
-            # forceElement adds items even if they belong to other exclusive sets
-            cmds.sets(items, forceElement=target_set)
-            print("Success: Added {} items matching '{}' to {}".format(len(items), search_pattern, target_set))
-        else:
-            print("Warning: No transforms found matching '{}'.".format(search_pattern))
+def _find_ayon_rig_instance(create_context):
+    for inst in list(create_context.instances):
+        try:
+            if inst.creator_identifier == CREATOR_ID:
+                return inst
+        except Exception:
+            continue
+    return None
 
-    # 1. Select all *ctl and put inside rigMain_controls_SET
-    add_transforms_to_set("*ctl", controls_set)
 
-    # 2. Select all geo* and put inside rigMain_out_SET
-    add_transforms_to_set("geo*", out_set)
+def create_ayon_rig_instance(variant=VARIANT):
+    """Return the instance node name, or None if AYON is not available."""
+    try:
+        from ayon_core.pipeline import registered_host
+        from ayon_core.pipeline.create import CreateContext
+    except ImportError:
+        cmds.warning("[KRT] ayon_core not importable - is Maya running inside AYON?")
+        return None
 
-    # 3. Select all *geo and put inside rigMain_skeletonAnim_SET
-    add_transforms_to_set("*geo", skeleton_anim_set)
+    host = registered_host()
+    if host is None:
+        cmds.warning("[KRT] No AYON host registered - launch Maya through AYON so the "
+                     "rig instance can be created properly.")
+        return None
 
-    # 4. Select all joints in the scene and put inside rigMain_skeletonMesh_SET
-    joints = cmds.ls(type="joint", long=True) or []
-    if joints:
-        cmds.sets(joints, forceElement=skeleton_mesh_set)
-        print("Success: Added {} joints to {}".format(len(joints), skeleton_mesh_set))
+    context = CreateContext(host)
+
+    existing = _find_ayon_rig_instance(context)
+    if existing is not None:
+        node = existing.get("instance_node")
+        print("Reusing existing AYON rig instance: {}".format(node))
+        return node
+
+    instance = context.create(CREATOR_ID, variant, pre_create_data={"use_selection": False})
+    context.save_changes()
+    node = instance.get("instance_node") if instance else None
+    print("Created AYON rig instance: {}".format(node))
+    return node
+
+
+def _child_sets(instance_node):
+    """The four companion sets AYON's CreateRig puts inside the instance."""
+    found = {}
+    for member in (cmds.sets(instance_node, query=True) or []):
+        short = member.split("|")[-1].split(":")[-1]
+        for suffix in ("_controls_SET", "_out_SET", "_skeletonAnim_SET", "_skeletonMesh_SET"):
+            if short.endswith(suffix):
+                found[suffix] = member
+    return found
+
+
+def _add(pattern, target_set, node_type="transform"):
+    if not target_set:
+        print("Skipped '{}' - target set missing.".format(pattern))
+        return
+    if node_type == "joint":
+        items = cmds.ls(type="joint", long=True) or []
     else:
-        print("Warning: No joints found in the scene.")
+        items = cmds.ls(pattern, type=node_type, long=True) or []
+    if not items:
+        print("Warning: nothing matched '{}'.".format(pattern))
+        return
+    cmds.sets(items, forceElement=target_set)
+    print("Added {} item(s) matching '{}' to {}".format(len(items), pattern, target_set))
 
-    # 5. Select all char_*_a and put inside rigMain
-    add_transforms_to_set("char_*_a", rig_main_set)
 
-    print("--- Rig set organization complete! ---")
+def organize_rig_sets():
+    instance_node = create_ayon_rig_instance()
+    if not instance_node:
+        cmds.warning("[KRT] Rig sets NOT created - without the AYON instance the publisher "
+                     "would not see them. Fix the AYON session and run this step again.")
+        return None
 
-# Execute the function
+    sets = _child_sets(instance_node)
+    missing = [s for s in ("_controls_SET", "_out_SET", "_skeletonAnim_SET", "_skeletonMesh_SET")
+               if s not in sets]
+    if missing:
+        cmds.warning("[KRT] AYON instance '{}' is missing: {}".format(instance_node, missing))
+
+    _add("*ctl", sets.get("_controls_SET"))
+    _add("geo*", sets.get("_out_SET"))
+    _add("*geo", sets.get("_skeletonMesh_SET"))
+    _add("(all joints)", sets.get("_skeletonAnim_SET"), node_type="joint")
+
+    # The rig content itself goes in the instance node.
+    roots = cmds.ls("char_*_a", type="transform", long=True) or []
+    if roots:
+        cmds.sets(roots, forceElement=instance_node)
+        print("Added {} root(s) to {}".format(len(roots), instance_node))
+    else:
+        print("Warning: no 'char_*_a' root found to add to {}.".format(instance_node))
+
+    print("--- Rig set organization complete ({}) ---".format(instance_node))
+    return instance_node
+
+
 organize_rig_sets()
 '''
 

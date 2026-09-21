@@ -48,6 +48,10 @@ class AyonPublishDialog(QtWidgets.QDialog):
     """
 
     # ── Defaults ──────────────────────────────────────────────────────
+    # The task a rig publish belongs to; picked automatically when the
+    # chosen folder has one.
+    DEFAULT_TASK = "rigging"
+
     DEFAULT_RIG_PRODUCT  = "rigMain"
     DEFAULT_RIG_TYPE     = "rig"
     RIG_REPRE_NAME       = "ma"
@@ -360,6 +364,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
             except Exception:
                 traceback.print_exc()
             print(f"[AYON] {len(self.folder_data)} folder(s) loaded for '{project_name}'.")
+            self._auto_select_folder()
         except Exception as e:
             cmds.warning(f"[AYON] Could not load folders: {e}")
 
@@ -379,7 +384,9 @@ class AyonPublishDialog(QtWidgets.QDialog):
             tasks = list(
                 ayon_api.get_tasks(project_name, folder_ids=[folder_id], fields=["name", "id"])
             )
-            self.cmb_task.addItems([t["name"] for t in tasks])
+            task_names = [t["name"] for t in tasks]
+            self.cmb_task.addItems(task_names)
+            self._auto_select_task(task_names)
 
             # Offer existing product names for convenience, then reset defaults
             products = list(
@@ -400,6 +407,61 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # ══════════════════════════════════════════════════════════════════
     # Work-folder preview
     # ══════════════════════════════════════════════════════════════════
+    # ── Context auto-selection ────────────────────────────────────────
+    def _asset_name_guess(self):
+        """The asset this rig belongs to, derived from the Rig Name.
+
+        Rig names here are "<asset>_rig" (pole_a_rig, horseRath_a_rig), and
+        the AYON folder is the asset itself, so the trailing "_rig" comes
+        off. Falls back to the Rig Root folder name.
+        """
+        name = (self.rig_name or "").strip()
+        for suffix in ("_rig", "_Rig", "_RIG"):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+                break
+        if not name:
+            try:
+                root = self.workspace.rig_root()
+                name = os.path.basename(root.rstrip("/")) if root else ""
+            except Exception:
+                name = ""
+        return name
+
+    def _auto_select_folder(self):
+        """Pick the AYON folder that matches this rig, so the artist doesn't
+        have to find it in a list of every asset in the project."""
+        target = self._asset_name_guess().lower()
+        if not target or not self.folder_data:
+            return
+        paths = sorted(self.folder_data.keys())
+        # Most specific first: exact folder name, then prefix, then contains.
+        for test in (lambda leaf: leaf == target,
+                     lambda leaf: leaf.startswith(target),
+                     lambda leaf: target in leaf):
+            for path in paths:
+                leaf = path.rstrip("/").split("/")[-1].lower()
+                if test(leaf):
+                    self.cmb_folder.setCurrentText(path)
+                    print(f"[AYON] Auto-selected folder for '{target}': {path}")
+                    return
+        print(f"[AYON] No folder matched the rig name '{target}' - pick one manually.")
+
+    def _auto_select_task(self, task_names):
+        """Default the task to rigging when the folder has one."""
+        if not task_names:
+            return
+        for name in task_names:
+            if name.strip().lower() == self.DEFAULT_TASK:
+                self.cmb_task.setCurrentText(name)
+                print(f"[AYON] Auto-selected task: {name}")
+                return
+        for name in task_names:
+            if self.DEFAULT_TASK in name.strip().lower():
+                self.cmb_task.setCurrentText(name)
+                print(f"[AYON] Auto-selected task: {name}")
+                return
+
     def _set_product_selection(self, rig, work, review):
         """Quick-pick buttons - tick exactly one product (or all)."""
         self.chk_publish_rig.setChecked(rig)
@@ -1030,6 +1092,19 @@ class AyonPublishDialog(QtWidgets.QDialog):
                 tried.append(f"'{name}' (objectSet, but empty)")
                 cmds.warning(f"[AYON PUBLISH] The '{name}' set is empty - nothing to publish.")
                 continue
+            # A hand-made objectSet publishes fine through KRT but is invisible
+            # to the official AYON publisher, which looks for the creator's
+            # instance attributes. Worth saying out loud rather than letting
+            # someone discover it in the Publisher's empty list.
+            if not cmds.attributeQuery("creator_identifier", node=name, exists=True):
+                cmds.warning(
+                    f"[AYON PUBLISH] '{name}' is an objectSet but was not made by AYON's creator "
+                    "(no 'creator_identifier' attribute). KRT will publish it, but the official "
+                    "AYON Publisher will not list it - run the 'Rig Sets' panel to create a "
+                    "proper instance."
+                )
+            else:
+                print(f"  [rig set] '{name}' is an AYON instance node.")
             print(f"  [rig set] Using '{name}' ({len(members)} member(s)).")
             return True, name
 

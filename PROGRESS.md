@@ -7,6 +7,29 @@
 
 ---
 
+## 0. START HERE (state as of 2026-09-23)
+
+| | |
+|---|---|
+| **Version** | `43.9` (`__init__.py`: `__version__` / `__build__`) — the window title shows it; if Maya shows an older number you are running a different copy of the folder. |
+| **Location** | `C:\pipeline\KRT_02` on device **kla04**. Package name `KRT`. |
+| **Git** | Repo initialised; branch **`pipe`**; last commit `e40d0bb` "v43.9: white panel titles + collapsible LOD Manager sidebar". **No remote configured** — `git push` fails until one is added. |
+| **Size** | ~24,000 lines, 87 `.py` files (excluding `archive/`). |
+| **Last stages** | 49 panel collapse · 50 white titles · 51 LOD sidebar collapse. |
+
+**Bump `__version__` on every change** — it is the only way to tell from inside Maya whether the running code is the code we just edited.
+
+**Still untested in a live Maya / live AYON session** (nothing here can be verified from a chat session):
+- AYON publish: reviewable upload (movie *and* image), representation `tags`, `review` product creation, `CreateContext.create()` arguments in the installed ayon-core, whether the four companion sets come back as direct members of the instance node, and whether `rigMain` now shows up in the official AYON Publisher.
+- Guessed defaults to confirm: product name `reviewRigging` vs `reviewMain`; folder names `skinCluster` / `controlShape` vs the older `skin` / `ctrls`.
+
+**Open decisions (not actioned, waiting on you):**
+1. **KRISHNA rename** of user-facing "AYON" text in `dialogs/ayon_publish.py` — window title, "AYON Context" group box, "AYON API is not connected", `[AYON PUBLISH]` prints. Internals (`ayon_api`, env vars, `ayon:5000`) stay. See §5.4.
+2. Whether the package stays `KRT` or moves to the `ssd_` convention. See §5.5.
+3. Git remote: GitHub URL, or a bare repo on the network (`git init --bare`).
+
+---
+
 ## 1. What this project is
 
 **KRT (Kleem Rigging Tool)** — a PySide2/PySide6 Maya tool for procedural biped/creature rig building on top of
@@ -30,12 +53,12 @@ Playblast tab with ffmpeg encode + wipe-compare player, fast skin export/import 
 - **Qt:** `compat.py` picks PySide6 (Maya 2025+) or PySide2. Multimedia + wipe-compare degrade gracefully if Qt lacks them.
 - **Dependencies:** Maya (`maya.cmds`, OpenMaya 1.0 + 2.0 API), mGear (Shifter, io, plebe), `ayon_api` (publish), ffmpeg (playblast encode).
 - **Original author header:** `main.py` docstring names Vishal Nagpal as owner/POC.
-- **No git repo yet.** Strongly recommended: `git init` in `KRT_02` so every session's change is diffable/revertable.
+- **Git:** repo initialised 2026-09-18, branch `pipe`, one commit per stage. No remote yet, so nothing is pushed anywhere — the history lives only on kla04.
 - **Cannot run Maya from Claude.** Verification = `py_compile` + AST duplicate-method scan + reading mGear source. Every change
   must be tested by the user in a real Maya session. Maya caches modules — **relaunch via the KRT menu (it reloads) or restart Maya**
   before reporting a fix "didn't work".
 
-## 3. Codebase map (as of 2026-09-18, after restructure — ~20,300 lines, 45 files)
+## 3. Codebase map (restructured 2026-09-18 — now ~24,000 lines, 87 files)
 
 Package name is still `KRT`; **every public import path is unchanged** (`from .widgets import SortablePanel`, `from .graph import ModuleGraphWidget` …)
 because each package's `__init__.py` re-exports everything. Inside a package, `_shared.py` holds the original module's imports + constants + small helpers,
@@ -121,8 +144,8 @@ Health: all files compile (`py_compile` clean); **no duplicate method definition
 
 Observations / candidates for future work (not yet done — decide together):
 
-1. **Hardcoded personal dev paths** in `workspace.py::setup_default_panels` (lines ~770–776, `E:\Pipe_Storage\Vishal_workspace\...`) — defaults for a
-   new LOD point at another artist's disk. Should become blank or a configurable studio default.
+1. ~~**Hardcoded personal dev paths** (`E:\Pipe_Storage\Vishal_workspace\...`) in the default panels~~ — **done**: Stage 42 (v42.0) made
+   `P:\rigging_team\Rigging_local_share\all_Rigs` the studio default and Stage 41 made every panel path relative to the Rig Root.
 2. **Hardcoded network defaults**: `P:\pipeline_database\Maya\Scripts\ONE` (workspace.py:27, session.py:35), `P:\rigging_team\...studiolibrary`,
    `R:\Pipeline_Share\...\controlShapes.ma` (graph.py:53), ffmpeg/font search paths (workspace.py:3450–3464). Fine for now; consider a `config.json`.
 3. ~~`SessionWorkspace` is 5k lines / 159 methods~~ — **done 2026-09-18** (split into 8 files via mixins, see §3). Biggest remaining files: `workspace/playblast.py` (1844), `widgets/sortable_panel.py` (1662).
@@ -138,29 +161,26 @@ Observations / candidates for future work (not yet done — decide together):
 
 ## 6. How we verify a change (you can run these yourself)
 
-Open a terminal in `C:\pipeline\KRT_02` and run:
+Open a terminal in `C:\pipeline\KRT_02` and run these three, in order. They are cheap and have caught every
+regression this project has had, so run all three after **any** edit:
 
 ```bat
-:: 1) Syntax check — catches typos/indent errors instantly, no Maya needed
-python -m py_compile graph.py widgets.py workspace.py dialogs.py utils.py main.py
+:: 1) Syntax check - catches typos and indent errors instantly, no Maya needed
+python -m compileall -q workspace widgets dialogs graph utils tools *.py
 
-:: 2) Duplicate-method scan — a second `def foo` in the same class silently replaces the first
-python -c "import ast,sys
-for f in ['graph.py','widgets.py','workspace.py','dialogs.py','utils.py','main.py']:
-    for c in ast.walk(ast.parse(open(f,encoding='utf-8').read())):
-        if isinstance(c,ast.ClassDef):
-            s={}
-            for m in c.body:
-                if isinstance(m,ast.FunctionDef):
-                    if m.name in s: print('DUP',f,c.name,m.name,s[m.name],m.lineno)
-                    s[m.name]=m.lineno
-print('scan done')"
+:: 2) Undefined names + relative imports - want "files with holes: 0" AND "broken relative imports: 0"
+python tools\check_names.py .
 
-:: 3) Undefined-name check + import smoke test (run this after ANY edit)
-::    - undefined-name check: names a module uses but never binds (NameError waiting to happen)
-::    - import test: loads the whole package with fake Maya/Qt stubs
+:: 3) Import smoke test - loads the whole package against fake Maya/Qt stubs; want "IMPORT OK"
 python tools\smoke_test.py
 ```
+
+**What each one can and cannot see.** Importing a module only executes its *top level*, so steps 1 and 3 prove the
+files parse and the imports resolve — they say nothing about code **inside method bodies**. That is what
+`check_names.py` is for: it walks every function for names that are used but never bound (a `NameError` waiting to
+happen) and validates the depth of every relative import, including the ones written inside function bodies.
+Two real bugs from this project that only step 2 caught: the `NameError: RigNode` after the graph split, and 17
+`.utils` imports that should have been `..utils`.
 
 Then in Maya: **KRT menu → launch** (reloads modules) and test the actual behaviour. Report back what happened.
 

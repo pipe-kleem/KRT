@@ -443,3 +443,4 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - `workspace/lods.py` gains `sidebar_is_collapsed()` / `set_sidebar_collapsed(state)` / `toggle_sidebar_collapsed()`.
 - Persisted in the pipeline JSON as top-level `"sidebar_collapsed"` (saved in `get_current_pipeline_data`, restored in `load_pipeline_from_file` right after the root path). Older files have no key → the sidebar opens, as before.
 - Verified: `compileall` clean, `check_names.py` 0 holes / 0 broken relative imports, `smoke_test.py` IMPORT OK.
+SID

@@ -140,6 +140,8 @@ class WorkspacePanelsMixin(object):
             data["lod_names"] = panel.checked_lod_names() if hasattr(panel, 'checked_lod_names') else []
         else:
             data["path"] = panel.field.text() if hasattr(panel, 'field') else ""
+            if hasattr(panel, 'chk_share_global'):
+                data["share_global"] = panel.chk_share_global.isChecked()
             if p_type == "JSON":
                 if hasattr(panel, 'mesh_field'): data["meshes"] = panel.mesh_field.text()
                 if hasattr(panel, 'joints_field'): data["joints"] = panel.joints_field.text()
@@ -209,6 +211,8 @@ class WorkspacePanelsMixin(object):
                 pan.mesh_field.setText(data.get("meshes"))
             if p_type in ("SCRIPT", "GLOBAL_SCRIPT", "INSTANCE_OBJ") and data.get("func_call") and hasattr(pan, 'func_field'):
                 pan.func_field.setText(data.get("func_call"))
+            if "share_global" in data and hasattr(pan, 'chk_share_global'):
+                pan.chk_share_global.setChecked(bool(data.get("share_global")))
             if p_type == "TWEAKER":
                 pan.load_tweaker_groups_data(data.get("groups"), legacy_item=data)
                 if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))

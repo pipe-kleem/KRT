@@ -47,6 +47,8 @@ class WorkspacePipelineIoMixin(object):
                     if panel.p_type == "MATERIAL": data["meshes"] = panel.mesh_field.text()
                     if panel.p_type in ("SCRIPT", "GLOBAL_SCRIPT", "INSTANCE_OBJ") and hasattr(panel, 'func_field'):
                         data["func_call"] = panel.func_field.text()
+                    if hasattr(panel, 'chk_share_global'):
+                        data["share_global"] = panel.chk_share_global.isChecked()
                     if panel.p_type == "TWEAKER":
                         data["groups"] = panel.get_tweaker_groups_data()
                         data["meshes"] = panel.mesh_field.text()
@@ -309,6 +311,8 @@ class WorkspacePipelineIoMixin(object):
                             if p_type == "SHAPES" and item.get("pattern"): pan.pattern_field.setText(item.get("pattern"))
                             if p_type in ("SCRIPT", "GLOBAL_SCRIPT", "INSTANCE_OBJ") and item.get("func_call") and hasattr(pan, 'func_field'):
                                 pan.func_field.setText(item.get("func_call"))
+                            if "share_global" in item and hasattr(pan, 'chk_share_global'):
+                                pan.chk_share_global.setChecked(bool(item.get("share_global")))
                             if p_type == "TWEAKER":
                                 pan.load_tweaker_groups_data(item.get("groups"), legacy_item=item)
                                 if item.get("meshes"): pan.mesh_field.setText(item.get("meshes"))

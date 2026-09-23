@@ -104,6 +104,21 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
                     "itself can also set directly).")
             body_layout.addWidget(self.func_field)
 
+            if self.p_type == "SCRIPT":
+                # A SCRIPT panel runs inside KRT's own namespace, so anything
+                # it defines/imports is invisible to Maya's Script Editor.
+                # Tick this on a helper-library panel (utils.py) to copy the
+                # names into Maya's global namespace after it runs.
+                self.chk_share_global = QtWidgets.QCheckBox("🌐")
+                self.chk_share_global.setToolTip(
+                    "Share with Maya's global namespace.\n\n"
+                    "A script panel normally runs in KRT's own namespace, so what it\n"
+                    "defines or imports (UniUtils, helper functions...) cannot be seen\n"
+                    "from Maya's Script Editor. Tick this on a helper-library panel and\n"
+                    "everything it sets up becomes available there too, exactly as if\n"
+                    "you had run the file in the Script Editor yourself.")
+                body_layout.addWidget(self.chk_share_global)
+
         self._build_cache_controls(body_layout)
         body_layout.addWidget(self.btn_run)
 
@@ -871,6 +886,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             if self.p_type == "MATERIAL":
                 data["meshes"] = self.mesh_field.text()
             if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"): data["func_call"] = self.func_field.text()
+            if hasattr(self, 'chk_share_global'): data["share_global"] = self.chk_share_global.isChecked()
             if self.p_type == "TWEAKER":
                 data["groups"] = self.get_tweaker_groups_data()
                 data["meshes"] = self.mesh_field.text()
@@ -937,6 +953,8 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             if p_type == "MATERIAL" and data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
             if p_type == "SHAPES" and data.get("pattern"): pan.pattern_field.setText(data.get("pattern"))
             if p_type in ("SCRIPT", "GLOBAL_SCRIPT") and data.get("func_call"): pan.func_field.setText(data.get("func_call"))
+            if "share_global" in data and hasattr(pan, 'chk_share_global'):
+                pan.chk_share_global.setChecked(bool(data.get("share_global")))
             if p_type == "TWEAKER":
                 pan.load_tweaker_groups_data(data.get("groups"), legacy_item=data)
                 if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
@@ -1637,7 +1655,10 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             else:
                 if self.p_type == "SCRIPT":
                     func_call_txt = self.func_field.text().strip()
-                    success, error_msg = self.workspace.run_script(self.path(), func_call=func_call_txt)
+                    success, error_msg = self.workspace.run_script(
+                        self.path(), func_call=func_call_txt,
+                        share_global=(hasattr(self, 'chk_share_global')
+                                      and self.chk_share_global.isChecked()))
                 elif self.p_type == "GLOBAL_SCRIPT":
                     func_call_txt = self.func_field.text().strip()
                     success, error_msg = self.workspace.run_script_global(self.path(), func_call=func_call_txt)

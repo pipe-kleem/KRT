@@ -42,7 +42,29 @@ class WorkspaceExecutorsMixin(object):
         if IS_PYSIDE6: dialog.exec()
         else: dialog.exec_()
 
-    def run_script(self, path_or_code, func_call=""):
+    def publish_namespace_to_maya(self):
+        """Copy KRT's shared script namespace into Maya's real global one.
+
+        A SCRIPT panel runs with `exec(code, self.shared_namespace)` - a dict
+        private to this KRT session tab. That is deliberate (one pipeline's
+        helpers can't collide with another's), but it means anything the
+        script defines or imports is invisible to Maya's Script Editor:
+        typing `UniUtils` there gives NameError even though the panel ran
+        fine. This copies the names across so the Script Editor sees exactly
+        what the panel set up. Opt-in per panel - see the 🌐 checkbox.
+        """
+        import __main__ as maya_main
+        published = 0
+        for key, value in list(self.shared_namespace.items()):
+            if key.startswith("__"):
+                continue
+            maya_main.__dict__[key] = value
+            published += 1
+        print(f"[KRT] Published {published} name(s) to Maya's global namespace "
+              f"(Script Editor can now see them).")
+        return published
+
+    def run_script(self, path_or_code, func_call="", share_global=False):
         try:
             # Stage 41: inline scripts can build paths off the Rig Root
             # instead of hardcoding P:/... -> e.g. os.path.join(RIG_ROOT, "guides/x.sgt")
@@ -61,10 +83,12 @@ class WorkspaceExecutorsMixin(object):
                     with open(path_or_code, 'r') as f: script_code = f.read()
                     exec(script_code, self.shared_namespace)
                     if func_call: exec(func_call, self.shared_namespace)
+                if share_global: self.publish_namespace_to_maya()
                 return True, ""
             else:
                 exec(path_or_code, self.shared_namespace)
                 if func_call: exec(func_call, self.shared_namespace)
+                if share_global: self.publish_namespace_to_maya()
                 return True, ""
         except Exception as e:
             log_crash("Custom script: {}".format(path_or_code[:120]), e)
@@ -122,14 +146,31 @@ class WorkspaceExecutorsMixin(object):
                     with open(path_or_code, 'r') as f: script_code = f.read()
                     exec(script_code, maya_main.__dict__)
                     if func_call: exec(func_call, maya_main.__dict__)
+                self._mirror_maya_globals_into_shared(maya_main)
                 return True, ""
             else:
                 exec(path_or_code, maya_main.__dict__)
                 if func_call: exec(func_call, maya_main.__dict__)
+                self._mirror_maya_globals_into_shared(maya_main)
                 return True, ""
         except Exception as e:
             log_crash("Default script (Maya global): {}".format(path_or_code[:120]), e)
             return False, traceback.format_exc()
+
+    def _mirror_maya_globals_into_shared(self, maya_main):
+        """After a GLOBAL_SCRIPT runs, make its names visible to the ordinary
+        SCRIPT panels too.
+
+        Without this, moving a helper library to a "Maya Global" panel put it
+        in __main__ but NOT in shared_namespace, so the very next CUSTOM
+        SCRIPT panel calling one of its functions died with NameError. A
+        global script is meant to be a superset of a normal one, not a
+        separate island.
+        """
+        for key, value in list(maya_main.__dict__.items()):
+            if key.startswith("__"):
+                continue
+            self.shared_namespace[key] = value
 
     def import_3d_logic(self, path):
         if not os.path.exists(path): return False, f"File not found: {path}"

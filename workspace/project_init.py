@@ -199,7 +199,7 @@ organize_rig_sets()
     # see SortablePanel.execute(force=True)).
     DEFAULT_PANELS = [
         ("MAYA GLOBAL SCRIPT",   "GLOBAL_SCRIPT", "",                                True),
-        ("LOAD SCRIPT PANEL",    "SCRIPT",        "scripts/utils.py",                True),
+        ("LOAD SCRIPT PANEL",    "SCRIPT",        "scripts/utils.py",                True),   # share_global forced on below
         ("LOAD MODEL (.ma file)", "IMPORT_3D",    "model/export.abc",                True),
         ("CUSTOM SCRIPT",        "SCRIPT",        ORGANIZE_LOD_CODE,                 True),
         ("LOAD MODULE",          "MODULE",        None,                              True),
@@ -337,5 +337,11 @@ organize_rig_sets()
                 pan = self.add_panel(title, p_type, text)
             if pan is not None and not active and hasattr(pan, "checkbox"):
                 pan.checkbox.setChecked(False)
+            # The utils library panel shares its namespace with Maya by
+            # default: it exists to provide helpers, and a helper you cannot
+            # call from the Script Editor is half a helper.
+            if (pan is not None and title == "LOAD SCRIPT PANEL"
+                    and hasattr(pan, "chk_share_global")):
+                pan.chk_share_global.setChecked(True)
         cmds.warning("[KRT] Default panel stack created ({} panels) for '{}'.".format(
             len(self.DEFAULT_PANELS), rig))

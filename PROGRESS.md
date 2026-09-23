@@ -422,3 +422,12 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
 - Initialize Project now ticks it on the **LOAD SCRIPT PANEL** row by default — a helper library you can't call from the Script Editor is half a helper.
 - **Bug found while here:** `run_script_global()` (the "MAYA GLOBAL SCRIPT" panel) wrote only to `__main__` and never back to `shared_namespace`. So moving a helper library to a Global panel put it in Maya's namespace but *removed* it from KRT's — the next CUSTOM SCRIPT panel calling one of its functions died with `NameError`. A global script is meant to be a superset, not a separate island; it now mirrors back via `_mirror_maya_globals_into_shared()`.
 - Mechanism demonstrated offline (isolation → NameError; publish → visible; global-without-mirror → later panels broken; with mirror → fine).
+
+### 2026-09-23 — Stage 49 (v43.7): panel collapse, saved in the JSON
+- New `widgets/collapse.py::CollapseMixin`, mixed into **`SortablePanel`, `SortableBubblePanel` and `LodLoaderPanel`**. A ▾/▸ button sits at the far left of the header; collapsed shows only the checkbox, icon and title.
+- How it works: every panel is a `QVBoxLayout` whose **first item is the header row**, so collapsing = hide every item after index 0 (walking into nested layouts). Widgets are *hidden*, never removed, so field contents, signals and state survive a collapse/expand round trip; the frame shrinks by itself because the layout re-measures.
+- `_init_collapse(main_layout, header_layout)` is called at the **end** of each `__init__`, after every panel-type-specific row has been added — otherwise later rows would not be part of the body it hides.
+- Persisted as `"collapsed"` in the pipeline JSON, and carried through **copy/paste, duplicate and undo** — the same five paths `share_global` uses:
+  `pipeline_io` save (field / MODULE / LOD_LOADER rows) and load, `sortable_panel.copy_panel`/`paste_panel`, `bubble_panel.copy_panel`/`paste_panel`, `panels.serialize_panel_data`/`restore_panel_from_data`.
+  - The JSON **load** restore was deliberately moved to where all three branches rejoin: putting it in the `else` branch (as first written) would have silently skipped module and LOD-loader panels.
+- Rig header "..." menu gains **▸ Collapse All Panels** / **▾ Expand All Panels** for the current LOD — useful now the default stack is 13 panels.

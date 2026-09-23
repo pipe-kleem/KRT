@@ -1,5 +1,6 @@
 """Auto-split from widgets.py."""
 from ._shared import *
+from .collapse import CollapseMixin
 from .dialogs import ErrorDialog
 from .flow_layout import FlowLayout
 from .style import type_accent, type_bg_tint, type_icon
@@ -40,7 +41,7 @@ class LodLoaderBubble(QtWidgets.QFrame):
         layout.addWidget(self.close_btn)
 
 
-class LodLoaderPanel(QtWidgets.QFrame):
+class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
     """A panel type that builds ENTIRE LODs, one RUN click at a time - the
     corrected form of Stage 19's "LOD Build Manager" request (Stage 20).
     Stage 23: its button reads RUN, not LOAD - it's a normal step that
@@ -160,6 +161,10 @@ class LodLoaderPanel(QtWidgets.QFrame):
         if hasattr(self.workspace, "lod_list"):
             self.workspace.lod_list.itemChanged.connect(self._on_lod_manager_changed)
             self.workspace.lod_list.model().rowsRemoved.connect(self._on_lod_manager_changed)
+
+        # Stage 49: collapse toggle - must run last, once every row
+        # this panel type adds has been put into main_layout.
+        self._init_collapse(main_layout, header_layout)
 
     # -- bubble management -------------------------------------------------
     def add_lod_bubble_picker(self):

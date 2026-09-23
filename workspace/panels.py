@@ -168,6 +168,8 @@ class WorkspacePanelsMixin(object):
                 data["child"] = panel.child_field.text()
                 data["parent"] = panel.parent_field.text()
         return data
+        if hasattr(panel, "is_collapsed"):
+            data["collapsed"] = panel.is_collapsed()
 
     def restore_panel_from_data(self, data, lod_row=None, index=-1):
         """Reconstruct a panel from serialize_panel_data()'s dict shape -
@@ -232,6 +234,8 @@ class WorkspacePanelsMixin(object):
         if hasattr(pan, 'set_cache_marked'): pan.set_cache_marked(data.get("cache_enabled", False))
         if hasattr(pan, 'refresh_cache_ui'): pan.refresh_cache_ui()
         return pan
+        if data.get("collapsed") and hasattr(pan, "set_collapsed"):
+            pan.set_collapsed(True)
 
     def undo_last_panel_delete(self):
         """The "↩ Undo" panel-menu action - pops the most recently

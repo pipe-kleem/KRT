@@ -1,12 +1,13 @@
 """Auto-split from widgets.py."""
 from ._shared import *
+from .collapse import CollapseMixin
 from .cache_mixin import CacheMixin
 from .dialogs import ErrorDialog
 from .style import is_script_file_ref, panel_run_label, prompt_skincluster_naming_check, style_readonly_path_field, type_accent, type_bg_tint, type_icon
 from .tweaker_group import TweakerVertexGroup, _NoteVerticalResizeHandle
 
 
-class SortablePanel(CacheMixin, QtWidgets.QFrame):
+class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
     def __init__(self, title, p_type, default_val, workspace):
         super(SortablePanel, self).__init__()
         self.p_type = p_type
@@ -536,6 +537,10 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
         self.btn_run.clicked.connect(self.on_btn_run_clicked)
         self.btn_del.clicked.connect(lambda: self.workspace.delete_panel(self))
 
+        # Stage 49: collapse toggle - must run last, once every row
+        # this panel type adds has been put into main_layout.
+        self._init_collapse(main_layout, header_layout)
+
     def update_style(self):
         accent = getattr(self, 'accent', '#2bb5a8')
         self.setStyleSheet(
@@ -905,6 +910,7 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
             if self.p_type == "PARENT_OBJ":
                 data["child"] = self.child_field.text()
                 data["parent"] = self.parent_field.text()
+        data["collapsed"] = self.is_collapsed()
         self.workspace.main_window.clipboard_panel_data = data
         cmds.warning(f"Panel '{self.title_edit.text()}' copied to clipboard.")
 
@@ -980,6 +986,10 @@ class SortablePanel(CacheMixin, QtWidgets.QFrame):
                 if data.get("target"): pan.target_field.setText(data.get("target"))
                 if data.get("func_call") and hasattr(pan, 'func_field'): pan.func_field.setText(data.get("func_call"))
         cmds.warning(f"Panel pasted.")
+        # A collapsed panel pastes collapsed - the flag travels with the
+        # panel like every other bit of its state.
+        if data.get("collapsed") and hasattr(pan, "set_collapsed"):
+            pan.set_collapsed(True)
 
     def on_btn_run_clicked(self):
         if self.btn_run.text() == "SHOW ERROR":

@@ -342,6 +342,20 @@ class WorkspacePagesMixin(object):
         if cv is not None:
             cv.setText(getattr(self, 'pipeline_comment', "") or "")
 
+    def set_all_panels_collapsed(self, state):
+        """Collapse/expand every panel in the CURRENT LOD."""
+        container = self.get_current_lod_container()
+        if not container:
+            return 0
+        n = 0
+        for i in range(container.layout.count()):
+            panel = container.layout.itemAt(i).widget()
+            if panel is not None and hasattr(panel, "set_collapsed"):
+                panel.set_collapsed(state)
+                n += 1
+        cmds.warning("[KRT] {} {} panel(s).".format("Collapsed" if state else "Expanded", n))
+        return n
+
     def show_rig_header_menu(self):
         """The "..." button next to Rig Name (Stage 36): right now this is
         just "Switch Version" for the whole loaded pipeline JSON, but lives
@@ -351,9 +365,18 @@ class WorkspacePagesMixin(object):
         menu = QtWidgets.QMenu(self)
         switch_menu = menu.addMenu("🔄 Switch Version")
         v_actions = self.populate_pipeline_versions_menu(switch_menu)
+        menu.addSeparator()
+        a_collapse_all = menu.addAction("▸ Collapse All Panels")
+        a_expand_all = menu.addAction("▾ Expand All Panels")
 
         action = menu.exec(QtGui.QCursor.pos()) if IS_PYSIDE6 else menu.exec_(QtGui.QCursor.pos())
         if not action:
+            return
+        if action == a_collapse_all:
+            self.set_all_panels_collapsed(True)
+            return
+        if action == a_expand_all:
+            self.set_all_panels_collapsed(False)
             return
         if action in v_actions:
             target_path = v_actions[action]

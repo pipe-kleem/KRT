@@ -32,9 +32,9 @@ class WorkspacePipelineIoMixin(object):
                 panel = container.layout.itemAt(j).widget()
                 if panel.p_type == "MODULE":
                     mods = [{"path": self.relativize_path(panel.bubble_layout.itemAt(b).widget().full_path), "active": panel.bubble_layout.itemAt(b).widget().is_active} for b in range(panel.bubble_layout.count())]
-                    seq.append({"title": panel.title_edit.text(), "type": "MODULE", "modules": mods, "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', ''), "cache_enabled": panel.cache_marked() if hasattr(panel, 'cache_marked') else False})
+                    seq.append({"title": panel.title_edit.text(), "type": "MODULE", "modules": mods, "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', ''), "cache_enabled": panel.cache_marked() if hasattr(panel, 'cache_marked') else False, "collapsed": panel.is_collapsed() if hasattr(panel, "is_collapsed") else False})
                 elif panel.p_type == "LOD_LOADER":
-                    seq.append({"title": panel.title_edit.text(), "type": "LOD_LOADER", "lod_names": panel.checked_lod_names(), "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', '')})
+                    seq.append({"title": panel.title_edit.text(), "type": "LOD_LOADER", "lod_names": panel.checked_lod_names(), "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', ''), "collapsed": panel.is_collapsed() if hasattr(panel, "is_collapsed") else False})
                 else:
                     data = {"title": panel.title_edit.text(), "type": panel.p_type, "path": self.relativize_path(panel.field.text()), "active": panel.is_active, "bg_color": getattr(panel, 'bg_color', '#252526'), "uuid": getattr(panel, 'uuid', ''), "cache_enabled": panel.cache_marked() if hasattr(panel, 'cache_marked') else False}
                     if panel.p_type == "SHAPES": data["pattern"] = panel.pattern_field.text()
@@ -49,6 +49,8 @@ class WorkspacePipelineIoMixin(object):
                         data["func_call"] = panel.func_field.text()
                     if hasattr(panel, 'chk_share_global'):
                         data["share_global"] = panel.chk_share_global.isChecked()
+                    if hasattr(panel, 'is_collapsed'):
+                        data["collapsed"] = panel.is_collapsed()
                     if panel.p_type == "TWEAKER":
                         data["groups"] = panel.get_tweaker_groups_data()
                         data["meshes"] = panel.mesh_field.text()
@@ -337,6 +339,13 @@ class WorkspacePipelineIoMixin(object):
                             if item.get("uuid"): pan.uuid = item.get("uuid")
                             if hasattr(pan, 'set_cache_marked'): pan.set_cache_marked(item.get("cache_enabled", False))
                             pan.refresh_cache_ui()
+
+                        # Collapse last, and for EVERY panel type - doing it
+                        # inside one branch would have missed module and
+                        # LOD-loader panels. Hiding widgets after they are
+                        # populated also avoids any layout work on hidden rows.
+                        if pan is not None and item.get("collapsed") and hasattr(pan, "set_collapsed"):
+                            pan.set_collapsed(True)
                 # Now that every LOD in this file exists, sync each LOD
                 # Loader panel's list (adds all LODs, keeps only the ones
                 # actually saved as checked) and restore its checked set.

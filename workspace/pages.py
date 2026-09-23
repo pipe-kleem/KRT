@@ -126,7 +126,7 @@ class WorkspacePagesMixin(object):
         header_layout.addWidget(lbl_rig)
         
         self.edit_rig_name = QtWidgets.QLineEdit("Unnamed_Rig")
-        self.edit_rig_name.setToolTip("This name will automatically be used in the AYON Publisher.")
+        self.edit_rig_name.setToolTip("This name will automatically be used in the KRISHNA Publisher.")
         self.edit_rig_name.setStyleSheet("""
             QLineEdit { background: #1e1e1e; border: 1px solid #2bb5a8; color: white; padding: 6px; font-size: 15px; font-weight: bold; border-radius: 3px; }
         """)
@@ -279,7 +279,7 @@ class WorkspacePagesMixin(object):
         btn_save_json.setStyleSheet("background: #444; color: white; border: 1px solid #2bb5a8; font-weight: bold;")
         btn_save_json.clicked.connect(self.save_json_file_logic)
 
-        btn_publish_ayon = QtWidgets.QPushButton("🚀 PUBLISH AYON")
+        btn_publish_ayon = QtWidgets.QPushButton("🚀 PUBLISH KRISHNA")
         btn_publish_ayon.setFixedHeight(50)
         btn_publish_ayon.setStyleSheet("background: #2196F3; color: white; font-weight: bold; border: 1px solid #1976D2;")
         btn_publish_ayon.clicked.connect(self.open_ayon_publish_dialog)

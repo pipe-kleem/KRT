@@ -11,9 +11,9 @@
 
 | | |
 |---|---|
-| **Version** | `43.9` (`__init__.py`: `__version__` / `__build__`) — the window title shows it; if Maya shows an older number you are running a different copy of the folder. |
+| **Version** | `44.0` (`__init__.py`: `__version__` / `__build__`) — the window title shows it; if Maya shows an older number you are running a different copy of the folder. |
 | **Location** | `C:\pipeline\KRT_02` on device **kla04**. Package name `KRT`. |
-| **Git** | Repo initialised; branch **`pipe`**; last commit `e40d0bb` "v43.9: white panel titles + collapsible LOD Manager sidebar". **No remote configured** — `git push` fails until one is added. |
+| **Git** | Branch **`pipe`**, remote `origin` = `https://github.com/pipe-kleem/KRT.git` (also has `master`). Push with `git push origin pipe`. |
 | **Size** | ~24,000 lines, 87 `.py` files (excluding `archive/`). |
 | **Last stages** | 49 panel collapse · 50 white titles · 51 LOD sidebar collapse. |
 
@@ -23,10 +23,10 @@
 - AYON publish: reviewable upload (movie *and* image), representation `tags`, `review` product creation, `CreateContext.create()` arguments in the installed ayon-core, whether the four companion sets come back as direct members of the instance node, and whether `rigMain` now shows up in the official AYON Publisher.
 - Guessed defaults to confirm: product name `reviewRigging` vs `reviewMain`; folder names `skinCluster` / `controlShape` vs the older `skin` / `ctrls`.
 
-**Open decisions (not actioned, waiting on you):**
-1. **KRISHNA rename** of user-facing "AYON" text in `dialogs/ayon_publish.py` — window title, "AYON Context" group box, "AYON API is not connected", `[AYON PUBLISH]` prints. Internals (`ayon_api`, env vars, `ayon:5000`) stay. See §5.4.
-2. Whether the package stays `KRT` or moves to the `ssd_` convention. See §5.5.
-3. Git remote: GitHub URL, or a bare repo on the network (`git init --bare`).
+**Decisions made 2026-09-23:**
+1. **KRISHNA rename** — labels only (done in v44.0). Script Editor log prefixes (`[AYON]`, `[AYON PUBLISH]`), warnings, comments and all internals stay "AYON".
+2. **Package name stays `KRT`** — do not move it to the `ssd_` convention.
+3. **Git remote** = `https://github.com/pipe-kleem/KRT.git`, work happens on branch `pipe`.
 
 ---
 
@@ -194,6 +194,12 @@ Then in Maya: **KRT menu → launch** (reloads modules) and test the actual beha
 ---
 
 ## 8. Work Log (newest first)
+
+### 2026-09-23 — v44.0: KRISHNA labels + decisions settled
+- Request (verbatim): "KRISHNA rename ... - only labels", "stay krt", "this si a branch pipe of repo url is - https://github.com/pipe-kleem/KRT.git".
+- Changed only on-screen text (six strings): publish dialog window title, "KRISHNA Context" group box, Review checkbox tooltip, the "Resolving KRISHNA server publish path …" status line (`dialogs/ayon_publish.py`); the "🚀 PUBLISH KRISHNA" button and the rig-name tooltip (`workspace/pages.py`).
+- Left as AYON on purpose: `[AYON]` / `[AYON PUBLISH]` Script Editor prints and `cmds.warning` messages, the file name `ayon_publish.py`, variable names like `btn_publish_ayon`, `ayon_api`, env vars, `ayon:5000`.
+- Remote `origin` was already configured; `pipe` was 1 commit ahead of `origin/pipe` before this change.
 
 ### 2026-09-18 — Session 2: restructure into packages + mixins  (commit `0301516`)
 - Request: *"lets restructure all the code first divide in multiple files so its faster to edit and work in it"*. Chosen style: folders + mixins.

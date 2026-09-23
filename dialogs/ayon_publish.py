@@ -122,7 +122,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
         self._root_value = None
         self.last_work_folder = ""
 
-        self.setWindowTitle("Publish Rig to AYON — KRT")
+        self.setWindowTitle("Publish Rig to KRISHNA — KRT")
         self.setMinimumWidth(620)
         self.setStyleSheet(self._STYLE)
 
@@ -139,7 +139,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
             )
 
         # ── Section 1: AYON Context ───────────────────────────────────
-        grp_ctx = QtWidgets.QGroupBox("AYON Context")
+        grp_ctx = QtWidgets.QGroupBox("KRISHNA Context")
         ctx_form = QtWidgets.QFormLayout(grp_ctx)
 
         self.cmb_project  = QtWidgets.QComboBox()
@@ -203,7 +203,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
         self.chk_publish_review.setChecked(False)
         self.chk_publish_review.setToolTip(
             "product_type: review  —  publishes QC media and uploads it as a\n"
-            "reviewable, so it plays in the AYON web player."
+            "reviewable, so it plays in the KRISHNA web player."
         )
         self.cmb_prod_review = QtWidgets.QComboBox()
         self.cmb_prod_review.setEditable(True)
@@ -743,7 +743,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
         self.workspace.main_window.refresh_all_session_lists()
 
         # ── Resolve server side context ────────────────────────────────
-        self._set_status("Resolving AYON server publish path …")
+        self._set_status("Resolving KRISHNA server publish path …")
         server_root = self._resolve_root(project_name)
 
         folder_entity = None

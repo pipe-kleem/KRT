@@ -75,6 +75,11 @@ class CurrentPageStackedWidget(QtWidgets.QStackedWidget):
         super(CurrentPageStackedWidget, self).setCurrentWidget(widget)
         self._after_switch()
 class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
+    # Stage 51: sidebar widths - expanded, and the thin rail that is all
+    # that remains when the LOD Manager is collapsed to the left.
+    SIDEBAR_WIDTH = 230
+    SIDEBAR_COLLAPSED_WIDTH = 16
+
     def __init__(self, main_window):
         super(SessionWorkspace, self).__init__()
         self.main_window = main_window
@@ -178,14 +183,38 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
         for b in [self.btn_file, self.btn_rig, self.btn_node, self.btn_scripts, self.btn_playblast, self.btn_docs]: act_layout.addWidget(b)
         act_layout.addStretch(); act_layout.addWidget(self.btn_prof)
 
+        # Stage 51: the sidebar (LOD MANAGER / SESSION GRAPH) collapses to
+        # the left.  The frame keeps a permanent thin rail on its right
+        # edge; clicking it hides the stacked pages and shrinks the frame
+        # to SIDEBAR_COLLAPSED_WIDTH, handing the space to the workspace.
         self.sidebar = QtWidgets.QFrame()
-        self.sidebar.setFixedWidth(230)
+        self.sidebar.setFixedWidth(self.SIDEBAR_WIDTH)
         self.sidebar.setObjectName("SidebarFrame")
-        side_layout = QtWidgets.QVBoxLayout(self.sidebar)
+        side_layout = QtWidgets.QHBoxLayout(self.sidebar)
         side_layout.setContentsMargins(0,0,0,0)
-        
+        side_layout.setSpacing(0)
+
+        self.sidebar_body = QtWidgets.QWidget()
+        side_body_layout = QtWidgets.QVBoxLayout(self.sidebar_body)
+        side_body_layout.setContentsMargins(0,0,0,0)
+
         self.sidebar_stack = CurrentPageStackedWidget()
-        side_layout.addWidget(self.sidebar_stack)
+        side_body_layout.addWidget(self.sidebar_stack)
+        side_layout.addWidget(self.sidebar_body)
+
+        self.btn_sidebar_collapse = QtWidgets.QToolButton()
+        self.btn_sidebar_collapse.setObjectName("SidebarCollapseRail")
+        self.btn_sidebar_collapse.setText("\u25c0")
+        self.btn_sidebar_collapse.setToolTip("Collapse the LOD Manager sidebar")
+        self.btn_sidebar_collapse.setCursor(QtCore.Qt.PointingHandCursor)
+        self.btn_sidebar_collapse.setFixedWidth(self.SIDEBAR_COLLAPSED_WIDTH)
+        self.btn_sidebar_collapse.setSizePolicy(QtWidgets.QSizePolicy.Fixed,
+                                                QtWidgets.QSizePolicy.Expanding)
+        self.btn_sidebar_collapse.setStyleSheet(
+            "QToolButton{background-color:#2d2d30;border:none;color:#cccccc;"
+            "font-size:10px;}QToolButton:hover{background-color:#3e3e42;}")
+        self.btn_sidebar_collapse.clicked.connect(self.toggle_sidebar_collapsed)
+        side_layout.addWidget(self.btn_sidebar_collapse)
 
         self.sidebar_empty = QtWidgets.QWidget()
         self.sidebar_stack.addWidget(self.sidebar_empty)

@@ -274,3 +274,31 @@ class WorkspaceLodsMixin(object):
             msg += " Failed/skipped: {}".format(", ".join(failed))
         cmds.warning("[KRT] LOD Loader panel: {}/{} LOD(s) built successfully.".format(built_ok, len(names)))
         return all_ok, msg
+
+    # ------------------------------------------------------------------
+    # Stage 51: sidebar collapse
+    # ------------------------------------------------------------------
+    def sidebar_is_collapsed(self):
+        """True when the LOD Manager sidebar is folded away to the left."""
+        return bool(getattr(self, "_sidebar_collapsed", False))
+
+    def set_sidebar_collapsed(self, state):
+        """Fold the sidebar to a thin rail (state=True) or restore it.
+
+        Only the stacked pages are hidden; the rail button stays visible so
+        there is always something to click to bring the sidebar back.
+        """
+        state = bool(state)
+        self._sidebar_collapsed = state
+        if not hasattr(self, "sidebar"):
+            return
+        self.sidebar_body.setVisible(not state)
+        self.sidebar.setFixedWidth(
+            self.SIDEBAR_COLLAPSED_WIDTH if state else self.SIDEBAR_WIDTH)
+        self.btn_sidebar_collapse.setText("\u25b6" if state else "\u25c0")
+        self.btn_sidebar_collapse.setToolTip(
+            "Show the LOD Manager sidebar" if state
+            else "Collapse the LOD Manager sidebar")
+
+    def toggle_sidebar_collapsed(self):
+        self.set_sidebar_collapsed(not self.sidebar_is_collapsed())

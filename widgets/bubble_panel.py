@@ -333,7 +333,12 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
 
         self.title_edit = QtWidgets.QLineEdit(title)
         self.title_edit.setToolTip("Double-click to rename (Click and Drag here to reorder)")
-        self.title_edit.setStyleSheet(f"background: transparent; border: none; font-weight: bold; color: {self.accent}; font-size: 13px;")
+        # Stage 50: panel titles are WHITE, not the panel-type accent.
+        # The accent colours (green/purple/orange...) sit at 40-60% contrast
+        # against the dark card and are hard to read at 13px; the type is
+        # still signalled by the icon and the left border stripe, so the
+        # title itself does not need to carry it.
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
         self.title_edit.editingFinished.connect(self.finish_editing_title)
 
@@ -548,7 +553,7 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
 
     def finish_editing_title(self):
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
-        self.title_edit.setStyleSheet(f"background: transparent; border: none; font-weight: bold; color: {getattr(self, 'accent', '#2bb5a8')}; font-size: 13px;")
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
         self.title_edit.clearFocus()
 
     def mousePressEvent(self, event):

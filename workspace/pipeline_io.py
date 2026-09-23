@@ -11,6 +11,8 @@ class WorkspacePipelineIoMixin(object):
         if hasattr(self, 'edit_rig_name'): pipeline_data["rig_name"] = self.edit_rig_name.text().strip()
         pipeline_data["comment"] = getattr(self, 'pipeline_comment', "")
         pipeline_data["root_path"] = self.rig_root()   # Stage 41
+        # Stage 51: remember whether the LOD Manager sidebar was folded away.
+        pipeline_data["sidebar_collapsed"] = self.sidebar_is_collapsed()
 
         # Stage 38, request #2: everything set on the Playblast tab now
         # travels with the pipeline JSON too, same as every other KRT
@@ -199,6 +201,8 @@ class WorkspacePipelineIoMixin(object):
             # rewritten here (they come in from the file as saved).
             self._pending_legacy_root = "root_path" not in data
             self.set_rig_root(data.get("root_path", ""), relativize_existing=False)
+            # Stage 51: restore the sidebar collapse state (older files: open).
+            self.set_sidebar_collapsed(data.get("sidebar_collapsed", False))
 
             # Stage 38, request #2: restore the Playblast tab's settings,
             # if this pipeline JSON has them (older files won't - the tab

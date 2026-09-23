@@ -431,3 +431,15 @@ Request: default path everywhere should be `P:\rigging_team\Rigging_local_share\
   `pipeline_io` save (field / MODULE / LOD_LOADER rows) and load, `sortable_panel.copy_panel`/`paste_panel`, `bubble_panel.copy_panel`/`paste_panel`, `panels.serialize_panel_data`/`restore_panel_from_data`.
   - The JSON **load** restore was deliberately moved to where all three branches rejoin: putting it in the `else` branch (as first written) would have silently skipped module and LOD-loader panels.
 - Rig header "..." menu gains **▸ Collapse All Panels** / **▾ Expand All Panels** for the current LOD — useful now the default stack is 13 panels.
+
+### 2026-09-23 — Stage 50 (v43.8): panel titles are white
+- All six `title_edit.setStyleSheet(...)` sites (`sortable_panel.py`, `bubble_panel.py`, `lod_loader.py` — three at construction, three in `finish_editing_title`) now use `color: white` instead of the panel-type accent.
+- Reason: the accents (green/purple/orange) sit at 40–60% contrast against the dark card and are hard to read at 13px. Panel type is still signalled by the **icon** and the **left border stripe**, so the title itself does not need to carry it.
+
+### 2026-09-23 — Stage 51 (v43.9): LOD Manager sidebar collapses to the left
+- The sidebar frame (LOD MANAGER / SESSION GRAPH pages) was a fixed 230px and always open. It now has a permanent 16px **rail** button on its right edge: click ◀ to fold it away, ▶ to bring it back.
+- Layout change in `workspace/core.py::setup_ui()`: the sidebar's own layout became a `QHBoxLayout` of `[sidebar_body][rail]`, with the old `QVBoxLayout` (holding `sidebar_stack`) moved inside `sidebar_body`. Collapsing hides **only** `sidebar_body` and sets the frame to `SIDEBAR_COLLAPSED_WIDTH`; the rail always stays visible, so there is always something to click to get the sidebar back.
+- Widths are class constants on `SessionWorkspace` (`SIDEBAR_WIDTH = 230`, `SIDEBAR_COLLAPSED_WIDTH = 16`) rather than the magic 230 that was inline before.
+- `workspace/lods.py` gains `sidebar_is_collapsed()` / `set_sidebar_collapsed(state)` / `toggle_sidebar_collapsed()`.
+- Persisted in the pipeline JSON as top-level `"sidebar_collapsed"` (saved in `get_current_pipeline_data`, restored in `load_pipeline_from_file` right after the root path). Older files have no key → the sidebar opens, as before.
+- Verified: `compileall` clean, `check_names.py` 0 holes / 0 broken relative imports, `smoke_test.py` IMPORT OK.

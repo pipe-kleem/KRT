@@ -1,4 +1,4 @@
-"""Import smoke test - runs OUTSIDE Maya with fake maya/PySide2/ayon_api stubs.
+r"""Import smoke test - runs OUTSIDE Maya with fake maya/PySide2/ayon_api stubs.
 
 It only proves the package IMPORTS (no circular imports, no missing names at
 module level, mixin MROs resolve). It does not run any Maya logic.
@@ -16,6 +16,9 @@ print("--- undefined-name check ---")
 rc = subprocess.call([sys.executable, os.path.join(ROOT, "tools", "check_names.py"), ROOT])
 print("--- import check ---")
 sys.path.insert(0, os.path.join(ROOT, "tools", "smoke_stubs"))
+# Hide any real PySide6/shiboken6 in this Python so compat.py falls back to the PySide2 stubs.
+for _name in ("PySide6", "shiboken6"):
+    sys.modules[_name] = None
 
 # Load the folder as package "KRT" no matter what the folder is called.
 spec = importlib.util.spec_from_file_location("KRT", os.path.join(ROOT, "__init__.py"),

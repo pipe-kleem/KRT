@@ -50,14 +50,35 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         self.autosave_timer.timeout.connect(self.trigger_global_autosave)
         self.autosave_timer.start(300000) # 5 minutes
 
+        # Stage 58: log the Python stack whenever the UI freezes > 8 s.
+        try:
+            from .utils.hang_watch import HangWatch
+            self.hang_watch = HangWatch(threshold=8, parent=self)
+            self.hang_watch.start()
+        except Exception:
+            self.hang_watch = None
+
     def trigger_global_autosave(self):
         for i in range(self.session_stack.count()):
             self.session_stack.widget(i).perform_autosave()
+
+    def on_tab_moved(self, from_index, to_index):
+        """Keep session_stack in the same order as the tab bar."""
+        ws = self.session_stack.widget(from_index)
+        if ws is None:
+            return
+        self.session_stack.blockSignals(True)
+        self.session_stack.removeWidget(ws)
+        self.session_stack.insertWidget(to_index, ws)
+        self.session_stack.blockSignals(False)
+        self.session_stack.setCurrentIndex(self.tab_bar.currentIndex())
 
     def closeEvent(self, event):
         """Native Qt intercept to kill background timers before C++ deletion."""
         if hasattr(self, 'autosave_timer') and self.autosave_timer.isActive():
             self.autosave_timer.stop()
+        if getattr(self, 'hang_watch', None) is not None:
+            self.hang_watch.stop()
         # Maya modelPanels are not Qt children - they outlive this window
         # unless explicitly deleted. See PBCameraViewWidget.stop().
         try:
@@ -85,6 +106,11 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         self.tab_bar = QtWidgets.QTabBar()
         self.tab_bar.setTabsClosable(True)
         self.tab_bar.setExpanding(False)
+        # Stage 54: drag tabs to reorder them. The tab bar and the stack of
+        # workspaces are separate widgets, so on_tab_moved() moves the
+        # matching workspace too - otherwise tab N would show workspace M.
+        self.tab_bar.setMovable(True)
+        self.tab_bar.tabMoved.connect(self.on_tab_moved)
         self.tab_bar.currentChanged.connect(self.on_tab_changed)
         self.tab_bar.tabCloseRequested.connect(self.close_session)
         
@@ -104,16 +130,24 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         sc_layout.setSpacing(8)
         sc_layout.setAlignment(QtCore.Qt.AlignRight)
 
-        self.btn_load_json = QtWidgets.QPushButton("📂 Load JSON Pipeline")
-        self.btn_load_json.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px 10px;")
+        # Stage 54: icon-only buttons (full name in the tooltip) - leaves the
+        # top bar's width to the session tabs.
+        self.btn_load_json = QtWidgets.QPushButton("📂")
+        self.btn_load_json.setToolTip("Load JSON Pipeline")
+        self.btn_load_json.setFixedWidth(34)
+        self.btn_load_json.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px;")
         self.btn_load_json.clicked.connect(self.trigger_browse_pipeline)
 
-        self.btn_reset = QtWidgets.QPushButton("🔄 Reset Scene & UI")
-        self.btn_reset.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px 10px;")
+        self.btn_reset = QtWidgets.QPushButton("🔄")
+        self.btn_reset.setToolTip("Reset Scene & UI")
+        self.btn_reset.setFixedWidth(34)
+        self.btn_reset.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px;")
         self.btn_reset.clicked.connect(self.trigger_reset_scene)
 
-        self.btn_save_session = QtWidgets.QPushButton("💾 Save Session")
-        self.btn_save_session.setStyleSheet("background-color: #2bb5a8; font-weight: bold; color: white; padding: 5px 10px;")
+        self.btn_save_session = QtWidgets.QPushButton("💾")
+        self.btn_save_session.setToolTip("Save Session")
+        self.btn_save_session.setFixedWidth(34)
+        self.btn_save_session.setStyleSheet("background-color: #2bb5a8; font-weight: bold; color: white; padding: 5px;")
         self.btn_save_session.clicked.connect(self.open_advanced_save_dialog)
 
         self.btn_browse_path = QtWidgets.QPushButton("📂")

@@ -1,13 +1,14 @@
 """Auto-split from widgets.py."""
 from ._shared import *
 from .collapse import CollapseMixin
+from .selection import SelectableMixin
 from .cache_mixin import CacheMixin
 from .dialogs import ErrorDialog
 from .style import is_script_file_ref, panel_run_label, prompt_skincluster_naming_check, style_readonly_path_field, type_accent, type_bg_tint, type_icon
 from .tweaker_group import TweakerVertexGroup, _NoteVerticalResizeHandle
 
 
-class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
+class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame):
     def __init__(self, title, p_type, default_val, workspace):
         super(SortablePanel, self).__init__()
         self.p_type = p_type
@@ -41,7 +42,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         # against the dark card and are hard to read at 13px; the type is
         # still signalled by the icon and the left border stripe, so the
         # title itself does not need to carry it.
-        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 15px;")
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
         self.title_edit.editingFinished.connect(self.finish_editing_title)
 
@@ -50,6 +51,12 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         header_layout.addWidget(self.title_edit)
         header_layout.addStretch()
         main_layout.addLayout(header_layout)
+
+        # Stage 52: the step's action buttons (cache 🗑 💾 ⏩, RUN/LOAD, ↺,
+        # Cache tick) live in the HEADER row, right-aligned, instead of the
+        # body row - so they stay usable while the panel is collapsed.
+        action_layout = QtWidgets.QHBoxLayout()
+        action_layout.setSpacing(4)
 
         body_layout = QtWidgets.QHBoxLayout()
         ctrl_layout = QtWidgets.QVBoxLayout()
@@ -93,11 +100,9 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             # RUN row below from looking lopsided with no field widget to
             # give it its usual shape.
             header_layout.addLayout(ctrl_layout)
-            header_layout.addWidget(btn_dots)
         else:
             body_layout.addLayout(ctrl_layout)
             body_layout.addWidget(self.field)
-            body_layout.addWidget(btn_dots)
 
         if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT", "INSTANCE_OBJ"):
             self.func_field = QtWidgets.QLineEdit()
@@ -125,8 +130,8 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                     "you had run the file in the Script Editor yourself.")
                 body_layout.addWidget(self.chk_share_global)
 
-        self._build_cache_controls(body_layout)
-        body_layout.addWidget(self.btn_run)
+        self._build_cache_controls(action_layout)
+        action_layout.addWidget(self.btn_run)
 
         # Small reset button shown only when the panel is in the SHOW ERROR state.
         # Clicking it restores the run button to normal WITHOUT re-running.
@@ -136,7 +141,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         self.btn_reset_err.setStyleSheet("background-color: #3e3e42; color: #ffcc66; font-weight: bold;")
         self.btn_reset_err.setVisible(False)
         self.btn_reset_err.clicked.connect(self.reset_run_button)
-        body_layout.addWidget(self.btn_reset_err)
+        action_layout.addWidget(self.btn_reset_err)
 
         # Per-panel "Popup" tick: only JSON/Tweaker panels ever trigger the
         # SkinCluster-naming confirmation (prompt_skincluster_naming_check),
@@ -159,7 +164,11 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             self.chk_naming_popup.setStyleSheet("QCheckBox { color: #cccccc; font-size: 12px; margin-left: 6px; }")
             body_layout.addWidget(self.chk_naming_popup)
 
-        self._build_cache_tick(body_layout)
+        self._build_cache_tick(action_layout)
+        # Stage 53: "..." sits at the far right of the title row so the menu
+        # (copy/paste, build till here...) works while collapsed too.
+        action_layout.addWidget(btn_dots)
+        header_layout.addLayout(action_layout)
         main_layout.addLayout(body_layout)
 
         if p_type == "JSON":
@@ -379,6 +388,72 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             lod_asset_layout.addWidget(self.asset_name_field)
             main_layout.addLayout(lod_asset_layout)
 
+        if p_type == "CC_IMPORT":
+            # Stage 55: the main field is the CC FBX (Browse / "..." menu).
+            # Extra inputs: the CC version (names the output file) and the
+            # texture folder to repath into. See utils/cc_import.py for the
+            # whole pipeline.
+            cc_row = QtWidgets.QHBoxLayout()
+            cc_row.setContentsMargins(25, 0, 0, 0)
+            cc_row.addWidget(QtWidgets.QLabel("CC Version:"))
+            self.cc_version_field = QtWidgets.QLineEdit("v001")
+            self.cc_version_field.setFixedWidth(70)
+            self.cc_version_field.setToolTip(
+                "The Character Creator version of this FBX. Output file:\n"
+                "<Rig Root>/cc_rig/cc_built_<version>.ma  ('3' or 'v3' becomes v003)")
+            cc_row.addWidget(self.cc_version_field)
+            cc_row.addWidget(QtWidgets.QLabel("Textures:"))
+            self.cc_tex_field = QtWidgets.QLineEdit()
+            self.cc_tex_field.setPlaceholderText("Folder to repath all textures into (searched recursively)")
+            cc_row.addWidget(self.cc_tex_field)
+            btn_cc_tex = QtWidgets.QPushButton("📂")
+            btn_cc_tex.setFixedWidth(30)
+            btn_cc_tex.setToolTip("Browse the texture folder")
+            btn_cc_tex.clicked.connect(self._browse_cc_tex_dir)
+            cc_row.addWidget(btn_cc_tex)
+            main_layout.addLayout(cc_row)
+
+            # Stage 56: meshes to delete from the CC character (e.g. extra
+            # clothing / eyelash cards). Deleted after the namespaces are
+            # removed, so names are stored WITHOUT a namespace.
+            cc_del_row = QtWidgets.QHBoxLayout()
+            cc_del_row.setContentsMargins(25, 0, 0, 0)
+            cc_del_row.addWidget(QtWidgets.QLabel("Delete Meshes:"))
+            self.cc_delete_field = QtWidgets.QLineEdit()
+            self.cc_delete_field.setPlaceholderText("Comma-separated, wildcards allowed (e.g. CC_Base_Eye*, Boots)")
+            self.cc_delete_field.setToolTip(
+                "These meshes are deleted after the import. Namespaces are ignored,\n"
+                "because every namespace is removed before this step runs.")
+            cc_del_row.addWidget(self.cc_delete_field)
+            btn_cc_del_sel = QtWidgets.QPushButton("Get Selected")
+            btn_cc_del_sel.setToolTip("Put the selected meshes into the field (namespace stripped).")
+            btn_cc_del_sel.clicked.connect(self._cc_delete_from_selection)
+            cc_del_row.addWidget(btn_cc_del_sel)
+            main_layout.addLayout(cc_del_row)
+
+            cc_row2 = QtWidgets.QHBoxLayout()
+            cc_row2.setContentsMargins(25, 0, 0, 0)
+            self.chk_cc_new_scene = QtWidgets.QCheckBox("New scene first")
+            self.chk_cc_new_scene.setChecked(True)
+            self.chk_cc_new_scene.setToolTip(
+                "Start from an empty scene so cc_built contains ONLY the CC character.\n"
+                "Untick if this step runs after other steps whose results you want kept.")
+            cc_row2.addWidget(self.chk_cc_new_scene)
+            # Stage 57: where CTRL_faceGUI is moved after the import.
+            from ..utils import cc_import as _cc
+            cc_row2.addWidget(QtWidgets.QLabel("Face GUI XYZ:"))
+            self.cc_face_gui_field = QtWidgets.QLineEdit(_cc.DEFAULT_FACE_GUI_POS)
+            self.cc_face_gui_field.setFixedWidth(150)
+            self.cc_face_gui_field.setToolTip("Translate for CTRL_faceGUI after the import: x, y, z")
+            cc_row2.addWidget(self.cc_face_gui_field)
+            self.lbl_cc_out = QtWidgets.QLabel()
+            self.lbl_cc_out.setStyleSheet("color: #888; margin-left: 10px;")
+            cc_row2.addWidget(self.lbl_cc_out)
+            cc_row2.addStretch()
+            main_layout.addLayout(cc_row2)
+            self.cc_version_field.textChanged.connect(self._update_cc_output_label)
+            self._update_cc_output_label()
+
         if p_type in ("DELETE_OBJ", "ZERO_OUT"):
             # One name field, reused for both types - Delete removes
             # whatever's listed, Zero Out builds an offset group above
@@ -549,9 +624,9 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
     def update_style(self):
         accent = getattr(self, 'accent', '#2bb5a8')
         self.setStyleSheet(
-            f"SortablePanel {{ background: {self.bg_color}; border: 1px solid #333;"
+            f"SortablePanel {{ background: {self.bg_color}; border: {self._border_css()};"
             f" border-left: 4px solid {accent}; border-radius: 5px; margin-top: 5px; }}"
-            f" SortablePanel:hover {{ border: 1px solid #555; border-left: 4px solid {accent}; }}")
+            f" SortablePanel:hover {{ border: {self._border_css('#555')}; border-left: 4px solid {accent}; }}")
 
     def change_color(self):
         current_color = QtGui.QColor(self.bg_color)
@@ -875,7 +950,74 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         else:
             self.workspace.add_panel(title, p_type, default_val, index=idx)
 
-    def copy_panel(self):
+    # ── Stage 55: CC Import panel helpers ─────────────────────────────
+    def _cc_output_path(self):
+        from ..utils import cc_import
+        root = self.workspace.rig_root() if hasattr(self.workspace, "rig_root") else ""
+        return cc_import.output_path(root or "<Rig Root>", self.cc_version_field.text())
+
+    def _update_cc_output_label(self, *_):
+        if hasattr(self, "lbl_cc_out"):
+            self.lbl_cc_out.setText("→ " + self._cc_output_path())
+
+    def _cc_delete_from_selection(self):
+        """'soldier1:grp|soldier1:Boots' -> 'Boots': take the leaf of the DAG
+        path, then drop the namespace, since namespaces are gone by the
+        time the delete step runs."""
+        sel = cmds.ls(selection=True, long=True) or []
+        names = []
+        for n in sel:
+            short = n.split("|")[-1].split(":")[-1]
+            if short not in names:
+                names.append(short)
+        if not names:
+            cmds.warning("[KRT CC] Select the meshes to delete first.")
+            return
+        self.cc_delete_field.setText(", ".join(names))
+
+    def _cc_save_overwrite(self):
+        """... menu: write the CURRENT scene to cc_built_<version>.ma, e.g.
+        after fixing something by hand - no import/cleanup is re-run."""
+        from ..utils import cc_import
+        root = self.workspace.rig_root()
+        if not root:
+            cmds.warning("[KRT CC] Rig Root is not set.")
+            return
+        path = cc_import.output_path(root, self.cc_version_field.text())
+        cc_import.export_ma(path)
+        cmds.warning("[KRT CC] Saved current scene -> " + path)
+
+    def _browse_cc_tex_dir(self):
+        kwargs = {"fm": 3, "caption": "Select Texture Folder"}
+        start = self.workspace.resolve_path(self.cc_tex_field.text()) or self.get_start_dir()
+        if start and os.path.isdir(start):
+            kwargs["dir"] = start
+        res = cmds.fileDialog2(**kwargs)
+        if res:
+            self.cc_tex_field.setText(self.workspace.relativize_path(res[0]))
+
+    # Generic "extra fields" hook (Stage 55): every save/load/copy/paste/
+    # duplicate/undo path calls these two instead of growing another
+    # per-type if-branch. A new panel type only has to fill them in here.
+    def extra_data(self):
+        if self.p_type == "CC_IMPORT":
+            return {"cc_version": self.cc_version_field.text(),
+                    "cc_tex_dir": self.workspace.relativize_path(self.cc_tex_field.text()),
+                    "cc_new_scene": self.chk_cc_new_scene.isChecked(),
+                    "cc_delete_meshes": self.cc_delete_field.text(),
+                    "cc_face_gui_pos": self.cc_face_gui_field.text()}
+        return {}
+
+    def apply_extra_data(self, data):
+        if self.p_type == "CC_IMPORT":
+            if data.get("cc_version"): self.cc_version_field.setText(data["cc_version"])
+            if data.get("cc_tex_dir"): self.cc_tex_field.setText(self.workspace.relativize_path(data["cc_tex_dir"]))
+            if "cc_new_scene" in data: self.chk_cc_new_scene.setChecked(bool(data["cc_new_scene"]))
+            if data.get("cc_delete_meshes"): self.cc_delete_field.setText(data["cc_delete_meshes"])
+            if data.get("cc_face_gui_pos"): self.cc_face_gui_field.setText(data["cc_face_gui_pos"])
+
+    def clipboard_data(self):
+        """This panel as a clipboard dict (paths ABSOLUTE - see copy note)."""
         data = {"type": self.p_type, "title": self.title_edit.text(), "active": self.is_active, "bg_color": self.bg_color}
         # The clipboard is shared by every session tab, and each tab has its
         # own Rig Root - so a relative path copied out of rig A would silently
@@ -895,7 +1037,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                 data["naming_popup"] = self.naming_popup_enabled()
             if self.p_type == "MATERIAL":
                 data["meshes"] = self.mesh_field.text()
-            if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"): data["func_call"] = self.func_field.text()
+            if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT", "INSTANCE_OBJ"): data["func_call"] = self.func_field.text()
             if hasattr(self, 'chk_share_global'): data["share_global"] = self.chk_share_global.isChecked()
             if self.p_type == "TWEAKER":
                 data["groups"] = self.get_tweaker_groups_data()
@@ -910,91 +1052,28 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                 data["note_height"] = self.note_height
             if self.p_type == "IMPORT_LOD":
                 data["asset_name"] = self.asset_name_field.text()
-            if self.p_type in ("DELETE_OBJ", "ZERO_OUT"):
+            if self.p_type in ("DELETE_OBJ", "ZERO_OUT", "INSTANCE_OBJ"):
                 data["target"] = self.target_field.text()
             if self.p_type == "PARENT_OBJ":
                 data["child"] = self.child_field.text()
                 data["parent"] = self.parent_field.text()
         data["collapsed"] = self.is_collapsed()
-        self.workspace.main_window.clipboard_panel_data = data
-        cmds.warning(f"Panel '{self.title_edit.text()}' copied to clipboard.")
+        extra = self.extra_data()
+        if "cc_tex_dir" in extra:       # absolute on the clipboard, like every path
+            extra["cc_tex_dir"] = self.workspace.resolve_path(extra["cc_tex_dir"])
+        data.update(extra)
+        return data
+
+    # Stage 53: copy/cut/paste go through the workspace, which knows the
+    # multi-panel selection. clipboard_data() above only describes THIS panel.
+    def copy_panel(self):
+        self.workspace.copy_panels(self)
 
     def cut_panel(self):
-        """Stage 22, request #1: Copy Panel, then delete this panel -
-        delete_panel() itself pushes the removed panel onto the workspace's
-        undo stack, so a Cut can still be undone same as a plain Delete."""
-        self.copy_panel()
-        self.workspace.delete_panel(self)
+        self.workspace.cut_panels(self)
 
     def paste_panel(self, offset):
-        data = getattr(self.workspace.main_window, 'clipboard_panel_data', None)
-        if not data: return
-        container = self.workspace.get_current_lod_container()
-        if not container: return
-        idx = container.layout.indexOf(self) + offset
-
-        p_type = data.get("type")
-        is_act = data.get("active", True)
-        title = data.get("title", "Copied Panel")
-        bg_col = data.get("bg_color", "#252526")
-
-        if p_type == "MODULE":
-            pan = self.workspace.add_module_panel(title, index=idx)
-            pan.bg_color = bg_col
-            pan.update_style()
-            for m in data.get("modules", []):
-                # relativize against THIS tab's root: same rig -> short path
-                # again; different rig -> stays absolute and still resolves.
-                pan.add_module_bubble(pre_path=self.workspace.relativize_path(m.get("path")),
-                                      is_active=m.get("active", True))
-            if not is_act: pan.checkbox.setChecked(False)
-        else:
-            pan = self.workspace.add_panel(
-                title, p_type, self.workspace.relativize_path(data.get("path", "")), index=idx)
-            pan.bg_color = bg_col
-            pan.update_style()
-            if not is_act: pan.checkbox.setChecked(False)
-            if p_type == "JSON":
-                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
-                if data.get("reskin_control"): pan.reskin_ctl_field.setText(data.get("reskin_control"))
-                if data.get("reskin_scale"): pan.reskin_scale_field.setText(data.get("reskin_scale"))
-                if "naming_popup" in data and hasattr(pan, 'chk_naming_popup'):
-                    pan.chk_naming_popup.setChecked(bool(data.get("naming_popup")))
-            if p_type == "MATERIAL" and data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-            if p_type == "SHAPES" and data.get("pattern"): pan.pattern_field.setText(data.get("pattern"))
-            if p_type in ("SCRIPT", "GLOBAL_SCRIPT") and data.get("func_call"): pan.func_field.setText(data.get("func_call"))
-            if "share_global" in data and hasattr(pan, 'chk_share_global'):
-                pan.chk_share_global.setChecked(bool(data.get("share_global")))
-            if p_type == "TWEAKER":
-                pan.load_tweaker_groups_data(data.get("groups"), legacy_item=data)
-                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
-                if "naming_popup" in data and hasattr(pan, 'chk_naming_popup'):
-                    pan.chk_naming_popup.setChecked(bool(data.get("naming_popup")))
-            if p_type == "NOTE" and hasattr(pan, 'note_edit'):
-                if data.get("note_text"): pan.note_edit.setPlainText(data.get("note_text"))
-                pan.note_text_color = data.get("note_text_color", pan.note_text_color)
-                pan.note_bg_color = data.get("note_bg_color", pan.note_bg_color)
-                pan.note_font_size = data.get("note_font_size", pan.note_font_size)
-                pan.note_height = data.get("note_height", pan.note_height)
-                pan.note_edit.setFixedHeight(pan.note_height)
-                pan._apply_note_style()
-            if p_type == "IMPORT_LOD" and hasattr(pan, 'asset_name_field'):
-                if data.get("asset_name"): pan.asset_name_field.setText(data.get("asset_name"))
-            if p_type in ("DELETE_OBJ", "ZERO_OUT") and hasattr(pan, 'target_field'):
-                if data.get("target"): pan.target_field.setText(data.get("target"))
-            if p_type == "PARENT_OBJ" and hasattr(pan, 'child_field'):
-                if data.get("child"): pan.child_field.setText(data.get("child"))
-                if data.get("parent"): pan.parent_field.setText(data.get("parent"))
-            if p_type == "INSTANCE_OBJ" and hasattr(pan, 'target_field'):
-                if data.get("target"): pan.target_field.setText(data.get("target"))
-                if data.get("func_call") and hasattr(pan, 'func_field'): pan.func_field.setText(data.get("func_call"))
-        cmds.warning(f"Panel pasted.")
-        # A collapsed panel pastes collapsed - the flag travels with the
-        # panel like every other bit of its state.
-        if data.get("collapsed") and hasattr(pan, "set_collapsed"):
-            pan.set_collapsed(True)
+        self.workspace.paste_panels_at(self, offset)
 
     def on_btn_run_clicked(self):
         if self.btn_run.text() == "SHOW ERROR":
@@ -1027,14 +1106,14 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
     def mouseDoubleClickEvent(self, event):
         if self.title_edit.geometry().contains(event.pos()):
             self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
-            self.title_edit.setStyleSheet("background: #1e1e1e; border: 1px solid #2bb5a8; font-weight: bold; color: white; font-size: 13px; padding: 2px;")
+            self.title_edit.setStyleSheet("background: #1e1e1e; border: 1px solid #2bb5a8; font-weight: bold; color: white; font-size: 15px; padding: 2px;")
             self.title_edit.setFocus()
             self.title_edit.selectAll()
         super(SortablePanel, self).mouseDoubleClickEvent(event)
 
     def finish_editing_title(self):
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
-        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 15px;")
         self.title_edit.clearFocus()
 
     def mousePressEvent(self, event):
@@ -1399,6 +1478,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         "GLOBAL_SCRIPT": "scripts",
         "IMPORT_3D": "model",
         "IMPORT_LOD": "model",
+        "CC_IMPORT": "model",
         "JSON": "skinCluster",
         "TWEAKER": "skinCluster",
         "SHAPES": "controlShape",
@@ -1468,15 +1548,16 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             actions_map[m.addAction("Add Zero Out Panel")] = ("ZERO OUT", "ZERO_OUT", offset)
             actions_map[m.addAction("Add Parent Panel")] = ("PARENT", "PARENT_OBJ", offset)
             actions_map[m.addAction("Add Instance Panel")] = ("INSTANCE", "INSTANCE_OBJ", offset)
+            actions_map[m.addAction("Add CC Import Panel (Character Creator FBX)")] = ("CC IMPORT", "CC_IMPORT", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
         menu.addSeparator()
 
-        a_copy = menu.addAction("📄 Copy Panel")
-        a_cut = menu.addAction("✂ Cut Panel")
-        paste_above = menu.addAction("📋 Paste Panel (Above)")
-        paste_below = menu.addAction("📋 Paste Panel (Below)")
+        a_copy = menu.addAction(self.workspace.panel_copy_label(self, "📄 Copy"))
+        a_cut = menu.addAction(self.workspace.panel_copy_label(self, "✂ Cut"))
+        paste_above = menu.addAction(self.workspace.panel_paste_label("Above"))
+        paste_below = menu.addAction(self.workspace.panel_paste_label("Below"))
 
         if not hasattr(self.workspace.main_window, 'clipboard_panel_data') or not self.workspace.main_window.clipboard_panel_data:
             paste_above.setEnabled(False)
@@ -1497,6 +1578,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         menu.addSeparator()
 
         a_vs = a_load = a_comp = a_rem = a_save_over = a_save_new = None
+        a_cc_save = None
         v_actions = {}
 
         if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"):
@@ -1508,9 +1590,14 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                 # path - this is the only way back to a normal, editable,
                 # type-your-own-code field.
                 a_rem = menu.addAction("❌ Clear (type code instead)")
-        elif self.p_type in ("IMPORT_3D", "IMPORT_LOD"):
+        elif self.p_type in ("IMPORT_3D", "IMPORT_LOD", "CC_IMPORT"):
             a_load = menu.addAction("📂 Load 3D file (.ma/.mb/.fbx/.obj/.abc)")
             a_rem = menu.addAction("❌ Remove file")
+            if self.p_type == "CC_IMPORT":
+                from ..utils import cc_import
+                menu.addSeparator()
+                a_cc_save = menu.addAction("💾 Save File (Overwrite) -> {}_{}.ma".format(
+                    cc_import.OUTPUT_PREFIX, cc_import.normalize_version(self.cc_version_field.text())))
         elif self.p_type == "JSON":
             a_load = menu.addAction("📂 Load new file")
             a_rem = menu.addAction("❌ Remove file")
@@ -1584,6 +1671,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                 # isn't found, instead of just erroring.
                 self.workspace.open_script_externally(path)
         elif action == a_load: self.browse_file()
+        elif action is not None and action == a_cc_save: self._cc_save_overwrite()
         elif action == a_dup: self.workspace.duplicate_panel(self)
         elif action == a_comp:
             kwargs = {'fm': 1, 'ff': "Python (*.py)", 'caption': "Select Older File to Compare"}
@@ -1627,6 +1715,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"): kwargs['ff'] = "All Files (*.*);;Scripts (*.py *.mel);;Python (*.py);;MEL (*.mel)"
         elif self.p_type in ["JSON", "SHAPES", "TWEAKER", "MATERIAL"]: kwargs['ff'] = "All Files (*.*);;JSON (*.jSkin *.json)"
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD"): kwargs['ff'] = "All Files (*.*);;3D Files (*.fbx *.obj *.abc *.ma *.mb);;FBX (*.fbx);;OBJ (*.obj);;Alembic (*.abc);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
+        elif self.p_type == "CC_IMPORT": kwargs['ff'] = "FBX (*.fbx);;All Files (*.*)"
         elif self.p_type == "PUBLISH": kwargs['fm'] = 3; kwargs['caption'] = "Select Publish Directory"
         else: return
         
@@ -1746,6 +1835,16 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                     else:
                         success, error_msg = self.workspace.organize_lod_logic(
                             self.asset_name_field.text())
+                elif self.p_type == "CC_IMPORT":
+                    from ..utils import cc_import
+                    success, error_msg = cc_import.run(
+                        self.path(), self.cc_version_field.text(),
+                        self.workspace.rig_root(),
+                        tex_dir=self.workspace.resolve_path(self.cc_tex_field.text()),
+                        new_scene=self.chk_cc_new_scene.isChecked(),
+                        delete_meshes_text=self.cc_delete_field.text(),
+                        face_gui_pos=self.cc_face_gui_field.text())
+                    self._update_cc_output_label()
                 elif self.p_type == "DELETE_OBJ":
                     success, error_msg = self.workspace.delete_by_name_logic(self.target_field.text())
                 elif self.p_type == "ZERO_OUT":

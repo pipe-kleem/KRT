@@ -71,6 +71,8 @@ class WorkspacePipelineIoMixin(object):
                     if panel.p_type == "PARENT_OBJ" and hasattr(panel, 'child_field'):
                         data["child"] = panel.child_field.text()
                         data["parent"] = panel.parent_field.text()
+                    if hasattr(panel, "extra_data"):       # Stage 55 generic hook
+                        data.update(panel.extra_data())
                     seq.append(data)
             pipeline_data["lods"].append({"name": lod_name, "color": lod_color, "execution_sequence": seq})
 
@@ -93,7 +95,9 @@ class WorkspacePipelineIoMixin(object):
         # Guide JSON (ModuleGraphWidget.save_all_guides/get_graph_config_data)
         # always agree on what a node needs to remember.
         graph_data = {
-            "guide_path": self.graph_widget.path_field.text(),
+            # Stage 54: relative to the Rig Root when it sits under it, so the
+            # JSON never pins one artist's absolute path on everyone else.
+            "guide_path": self.relativize_path(self.graph_widget.path_field.text()),
             "nodes": [], "wires": [],
         }
         for item in self.graph_widget.graph_view.scene.items():
@@ -201,8 +205,9 @@ class WorkspacePipelineIoMixin(object):
             # rewritten here (they come in from the file as saved).
             self._pending_legacy_root = "root_path" not in data
             self.set_rig_root(data.get("root_path", ""), relativize_existing=False)
-            # Stage 51: restore the sidebar collapse state (older files: open).
-            self.set_sidebar_collapsed(data.get("sidebar_collapsed", False))
+            # Stage 58: the LOD sidebar always opens collapsed (user request),
+            # whatever the file saved - the ▶ rail brings it back.
+            self.set_sidebar_collapsed(True)
 
             # Stage 38, request #2: restore the Playblast tab's settings,
             # if this pipeline JSON has them (older files won't - the tab
@@ -340,6 +345,8 @@ class WorkspacePipelineIoMixin(object):
                             if p_type == "PARENT_OBJ" and hasattr(pan, 'child_field'):
                                 if item.get("child"): pan.child_field.setText(item.get("child"))
                                 if item.get("parent"): pan.parent_field.setText(item.get("parent"))
+                            if hasattr(pan, "apply_extra_data"):   # Stage 55 generic hook
+                                pan.apply_extra_data(item)
                             if item.get("uuid"): pan.uuid = item.get("uuid")
                             if hasattr(pan, 'set_cache_marked'): pan.set_cache_marked(item.get("cache_enabled", False))
                             pan.refresh_cache_ui()
@@ -371,6 +378,14 @@ class WorkspacePipelineIoMixin(object):
             self._refresh_path_mode_button()
 
             saved_guide_path = graph_data.get("guide_path") or None
+            # Stage 54: a guide path inside ANOTHER user's profile (saved by a
+            # colleague, e.g. C:/Users/vishal3/...) is not writable here -
+            # fall back to this JSON's own guide/ folder instead.
+            from ..utils import relpath as _relpath
+            if saved_guide_path and _relpath.foreign_home(self.resolve_path(saved_guide_path)):
+                cmds.warning("[KRT] Saved guide path '{}' is in another user's folder - "
+                             "using this pipeline's own guide folder instead.".format(saved_guide_path))
+                saved_guide_path = None
             self.set_session_path(file_path, guide_path=saved_guide_path, refresh_guide_default=(saved_guide_path is None))
             self.session_manager.add_recent(file_path); self.main_window.refresh_all_session_lists()
         except Exception: traceback.print_exc()

@@ -83,6 +83,8 @@ class WorkspacePanelsMixin(object):
                 if hasattr(new_pan, 'chk_naming_popup') and hasattr(panel, 'chk_naming_popup'):
                     new_pan.chk_naming_popup.setChecked(panel.chk_naming_popup.isChecked())
 
+        if hasattr(panel, "extra_data") and hasattr(new_pan, "apply_extra_data"):
+            new_pan.apply_extra_data(panel.extra_data())     # Stage 55 generic hook
         # Carry over cache-tick and enabled/disabled state for all panel types.
         if hasattr(panel, 'cache_marked') and hasattr(new_pan, 'set_cache_marked'):
             new_pan.set_cache_marked(panel.cache_marked())
@@ -167,9 +169,11 @@ class WorkspacePanelsMixin(object):
             if p_type == "PARENT_OBJ" and hasattr(panel, 'child_field'):
                 data["child"] = panel.child_field.text()
                 data["parent"] = panel.parent_field.text()
-        return data
         if hasattr(panel, "is_collapsed"):
             data["collapsed"] = panel.is_collapsed()
+        if hasattr(panel, "extra_data"):          # Stage 55 generic hook
+            data.update(panel.extra_data())
+        return data
 
     def restore_panel_from_data(self, data, lod_row=None, index=-1):
         """Reconstruct a panel from serialize_panel_data()'s dict shape -
@@ -233,9 +237,11 @@ class WorkspacePanelsMixin(object):
         if data.get("uuid"): pan.uuid = data.get("uuid")
         if hasattr(pan, 'set_cache_marked'): pan.set_cache_marked(data.get("cache_enabled", False))
         if hasattr(pan, 'refresh_cache_ui'): pan.refresh_cache_ui()
-        return pan
+        if hasattr(pan, "apply_extra_data"):      # Stage 55 generic hook
+            pan.apply_extra_data(data)
         if data.get("collapsed") and hasattr(pan, "set_collapsed"):
             pan.set_collapsed(True)
+        return pan
 
     def undo_last_panel_delete(self):
         """The "↩ Undo" panel-menu action - pops the most recently
@@ -248,3 +254,226 @@ class WorkspacePanelsMixin(object):
         pan = self.restore_panel_from_data(entry.get("data"), lod_row=entry.get("lod_row"), index=entry.get("index", -1))
         if pan:
             cmds.warning("Undo: restored panel '{}'.".format(entry.get("data", {}).get("title", "")))
+
+    # ------------------------------------------------------------------
+    # Stage 53: multi-panel selection + copy / cut / paste
+    # ------------------------------------------------------------------
+    # The selection is a plain list of panel objects kept on the workspace.
+    # Panels are only drawn differently (SelectableMixin._border_css); the
+    # ORDER used for copying always comes from the LOD's layout, so copied
+    # panels paste back in build order no matter which order you clicked.
+
+    def _panel_sel(self):
+        if not hasattr(self, "_selected_panels"):
+            self._selected_panels = []
+        return self._selected_panels
+
+    def _alive(self, panel):
+        try:
+            panel.objectName()      # raises RuntimeError once Qt deleted it
+            return True
+        except RuntimeError:
+            return False
+
+    def _container_panels(self, container=None):
+        """Every panel in the (current) LOD, in layout = build order."""
+        container = container or self.get_current_lod_container()
+        if not container:
+            return []
+        out = []
+        for i in range(container.layout.count()):
+            w = container.layout.itemAt(i).widget()
+            if w is not None and hasattr(w, "clipboard_data"):
+                out.append(w)
+        return out
+
+    def selected_panels(self):
+        order = self._container_panels()
+        sel = [p for p in self._panel_sel() if self._alive(p)]
+        return [p for p in order if p in sel]
+
+    def clear_panel_selection(self):
+        for p in self._panel_sel():
+            if self._alive(p):
+                p.set_selected(False)
+        self._selected_panels = []
+
+    def _select(self, panels):
+        for p in panels:
+            if p not in self._panel_sel():
+                self._panel_sel().append(p)
+            p.set_selected(True)
+
+    def on_panel_clicked(self, panel, modifiers):
+        """Plain click = select only this one (click again to deselect),
+        Ctrl+click = add/remove, Shift+click = range from the last click."""
+        from ..widgets.selection import _has_mod
+        ctrl = _has_mod(modifiers, QtCore.Qt.ControlModifier)
+        shift = _has_mod(modifiers, QtCore.Qt.ShiftModifier)
+        sel = self._panel_sel()
+        anchor = getattr(self, "_selection_anchor", None)
+
+        if shift and anchor is not None and self._alive(anchor):
+            order = self._container_panels()
+            if anchor in order and panel in order:
+                a, b = sorted((order.index(anchor), order.index(panel)))
+                self._select(order[a:b + 1])
+        elif ctrl:
+            if panel in sel:
+                sel.remove(panel)
+                panel.set_selected(False)
+            else:
+                self._select([panel])
+            self._selection_anchor = panel
+        else:
+            only_this = (sel == [panel])
+            self.clear_panel_selection()
+            if not only_this:
+                self._select([panel])
+            self._selection_anchor = panel
+
+        # Give the panel keyboard focus so Ctrl+C / Ctrl+V reach it.
+        panel.setFocusPolicy(QtCore.Qt.ClickFocus)
+        panel.setFocus()
+
+    def _panels_to_act_on(self, source):
+        """The whole selection if `source` is part of it, else just `source`."""
+        sel = self.selected_panels()
+        if source in sel and len(sel) > 1:
+            return sel
+        return [source]
+
+    def _clipboard_list(self):
+        data = getattr(self.main_window, "clipboard_panel_data", None)
+        if not data:
+            return []
+        if isinstance(data, dict):      # a single-panel copy from before Stage 53
+            return [data]
+        return list(data)
+
+    def panel_copy_label(self, source, verb):
+        n = len(self._panels_to_act_on(source))
+        return "{} Panel".format(verb) if n == 1 else "{} {} Selected Panels".format(verb, n)
+
+    def panel_paste_label(self, where):
+        n = len(self._clipboard_list())
+        what = "Panel" if n <= 1 else "{} Panels".format(n)
+        return "📋 Paste {} ({})".format(what, where)
+
+    def copy_panels(self, source):
+        panels = self._panels_to_act_on(source)
+        # A LIST on the shared main-window clipboard, so it can be pasted
+        # into another LOD or another session tab.
+        self.main_window.clipboard_panel_data = [p.clipboard_data() for p in panels]
+        cmds.warning("[KRT] Copied {} panel(s): {}".format(
+            len(panels), ", ".join(p.title_edit.text() for p in panels)))
+        return panels
+
+    def cut_panels(self, source):
+        panels = self.copy_panels(source)
+        self.clear_panel_selection()
+        for p in panels:
+            # LOD Loader panels disconnect their signals first.
+            if hasattr(p, "_on_delete_clicked"):
+                p._on_delete_clicked()
+            else:
+                self.delete_panel(p)
+
+    def paste_panels_at(self, anchor, offset):
+        """offset 0 = above `anchor`, 1 = below it."""
+        container = self.get_current_lod_container()
+        if not container:
+            return []
+        idx = container.layout.indexOf(anchor)
+        idx = -1 if idx < 0 else idx + offset
+        return self._paste_clipboard(idx)
+
+    def paste_panels_below_selection(self):
+        """Ctrl+V: below the last selected panel, else at the end of the LOD."""
+        sel = self.selected_panels()
+        if sel:
+            return self.paste_panels_at(sel[-1], 1)
+        return self._paste_clipboard(-1)
+
+    def _paste_clipboard(self, idx):
+        items = self._clipboard_list()
+        if not items:
+            cmds.warning("[KRT] Nothing to paste - copy a panel first.")
+            return []
+        new = []
+        for i, data in enumerate(items):
+            pan = self._paste_one(data, -1 if idx < 0 else idx + i)
+            if pan is not None:
+                new.append(pan)
+        # The pasted panels become the selection, ready to move/copy again.
+        self.clear_panel_selection()
+        self._select(new)
+        cmds.warning("[KRT] Pasted {} panel(s).".format(len(new)))
+        return new
+
+    def _paste_one(self, data, idx):
+        """Create ONE panel from a clipboard dict at layout index `idx`
+        (-1 = end). Was copy-pasted into all three panel classes before."""
+        p_type = data.get("type")
+        is_act = data.get("active", True)
+        title = data.get("title", "Copied Panel")
+        bg_col = data.get("bg_color", "#252526")
+
+        if p_type == "MODULE":
+            pan = self.add_module_panel(title, index=idx)
+            if pan is None: return None
+            for m in data.get("modules", []):
+                # relativize against THIS tab's root: same rig -> short path
+                # again; different rig -> stays absolute and still resolves.
+                pan.add_module_bubble(pre_path=self.relativize_path(m.get("path")),
+                                      is_active=m.get("active", True))
+        elif p_type == "LOD_LOADER":
+            pan = self.add_lod_loader_panel(title, index=idx)
+            if pan is None: return None
+            pan.set_checked_lod_names(data.get("lod_names", []))
+        else:
+            pan = self.add_panel(title, p_type, self.relativize_path(data.get("path", "")), index=idx)
+            if pan is None: return None
+            if p_type == "JSON":
+                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
+                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
+                if data.get("reskin_control"): pan.reskin_ctl_field.setText(data.get("reskin_control"))
+                if data.get("reskin_scale"): pan.reskin_scale_field.setText(data.get("reskin_scale"))
+            if p_type == "MATERIAL" and data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
+            if p_type == "SHAPES" and data.get("pattern"): pan.pattern_field.setText(data.get("pattern"))
+            if p_type in ("SCRIPT", "GLOBAL_SCRIPT", "INSTANCE_OBJ") and data.get("func_call") and hasattr(pan, "func_field"):
+                pan.func_field.setText(data.get("func_call"))
+            if "share_global" in data and hasattr(pan, "chk_share_global"):
+                pan.chk_share_global.setChecked(bool(data.get("share_global")))
+            if p_type == "TWEAKER":
+                pan.load_tweaker_groups_data(data.get("groups"), legacy_item=data)
+                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
+                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
+            if "naming_popup" in data and hasattr(pan, "chk_naming_popup"):
+                pan.chk_naming_popup.setChecked(bool(data.get("naming_popup")))
+            if p_type == "NOTE" and hasattr(pan, "note_edit"):
+                if data.get("note_text"): pan.note_edit.setPlainText(data.get("note_text"))
+                pan.note_text_color = data.get("note_text_color", pan.note_text_color)
+                pan.note_bg_color = data.get("note_bg_color", pan.note_bg_color)
+                pan.note_font_size = data.get("note_font_size", pan.note_font_size)
+                pan.note_height = data.get("note_height", pan.note_height)
+                pan.note_edit.setFixedHeight(pan.note_height)
+                pan._apply_note_style()
+            if p_type == "IMPORT_LOD" and hasattr(pan, "asset_name_field") and data.get("asset_name"):
+                pan.asset_name_field.setText(data.get("asset_name"))
+            if p_type in ("DELETE_OBJ", "ZERO_OUT", "INSTANCE_OBJ") and hasattr(pan, "target_field") and data.get("target"):
+                pan.target_field.setText(data.get("target"))
+            if p_type == "PARENT_OBJ" and hasattr(pan, "child_field"):
+                if data.get("child"): pan.child_field.setText(data.get("child"))
+                if data.get("parent"): pan.parent_field.setText(data.get("parent"))
+
+        pan.bg_color = bg_col
+        pan.update_style()
+        if not is_act: pan.checkbox.setChecked(False)
+        if hasattr(pan, "set_cache_marked"): pan.set_cache_marked(data.get("cache_enabled", False))
+        if hasattr(pan, "apply_extra_data"):      # Stage 55 generic hook
+            pan.apply_extra_data(data)
+        # A collapsed panel pastes collapsed - the flag travels with it.
+        if data.get("collapsed") and hasattr(pan, "set_collapsed"):
+            pan.set_collapsed(True)
+        return pan

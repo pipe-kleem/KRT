@@ -1,6 +1,7 @@
 """Auto-split from widgets.py."""
 from ._shared import *
 from .collapse import CollapseMixin
+from .selection import SelectableMixin
 from .cache_mixin import CacheMixin
 from .dialogs import ErrorDialog, GraphNodeOrderDialog
 from .flow_layout import FlowLayout
@@ -299,7 +300,7 @@ class BubbleDropArea(QtWidgets.QWidget):
         event.acceptProposedAction()
 
 
-class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
+class SortableBubblePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame):
     def __init__(self, title, workspace):
         super(SortableBubblePanel, self).__init__()
         self.p_type = "MODULE"
@@ -338,13 +339,19 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         # against the dark card and are hard to read at 13px; the type is
         # still signalled by the icon and the left border stripe, so the
         # title itself does not need to carry it.
-        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 15px;")
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
         self.title_edit.editingFinished.connect(self.finish_editing_title)
 
         header_layout.addWidget(self.checkbox); header_layout.addWidget(self.icon_label); header_layout.addWidget(self.title_edit); header_layout.addStretch()
         main_layout.addLayout(header_layout)
         
+        # Stage 52: the step's action buttons (cache 🗑 💾 ⏩, RUN/LOAD, ↺,
+        # Cache tick) live in the HEADER row, right-aligned, instead of the
+        # body row - so they stay usable while the panel is collapsed.
+        action_layout = QtWidgets.QHBoxLayout()
+        action_layout.setSpacing(4)
+
         body_layout = QtWidgets.QHBoxLayout()
         ctrl_layout = QtWidgets.QVBoxLayout()
         ctrl_layout.setSpacing(0)
@@ -373,9 +380,8 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         body_layout.addLayout(ctrl_layout)
         body_layout.addWidget(self.bubble_area)
         body_layout.addWidget(btn_add_mod)
-        body_layout.addWidget(btn_dots)
-        self._build_cache_controls(body_layout)
-        body_layout.addWidget(self.btn_run)
+        self._build_cache_controls(action_layout)
+        action_layout.addWidget(self.btn_run)
 
         # Reset-error button (hidden until this panel is in the SHOW ERROR state).
         self.btn_reset_err = QtWidgets.QPushButton("↺")
@@ -384,9 +390,11 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         self.btn_reset_err.setStyleSheet("background-color: #3e3e42; color: #ffcc66; font-weight: bold;")
         self.btn_reset_err.setVisible(False)
         self.btn_reset_err.clicked.connect(self.reset_run_button)
-        body_layout.addWidget(self.btn_reset_err)
+        action_layout.addWidget(self.btn_reset_err)
 
-        self._build_cache_tick(body_layout)
+        self._build_cache_tick(action_layout)
+        action_layout.addWidget(btn_dots)   # Stage 53: "..." in the title row
+        header_layout.addLayout(action_layout)
 
         # Stage 35: now that self.bubble_area can be several rows tall (the
         # FlowLayout wrap fix above), a plain QHBoxLayout centers every
@@ -421,9 +429,9 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
     def update_style(self):
         accent = getattr(self, 'accent', '#2bb5a8')
         self.setStyleSheet(
-            f"SortableBubblePanel {{ background: {self.bg_color}; border: 1px solid #333;"
+            f"SortableBubblePanel {{ background: {self.bg_color}; border: {self._border_css()};"
             f" border-left: 4px solid {accent}; border-radius: 5px; margin-top: 5px; }}"
-            f" SortableBubblePanel:hover {{ border: 1px solid #555; border-left: 4px solid {accent}; }}")
+            f" SortableBubblePanel:hover {{ border: {self._border_css('#555')}; border-left: 4px solid {accent}; }}")
 
     def change_color(self):
         current_color = QtGui.QColor(self.bg_color)
@@ -443,7 +451,8 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         else:
             self.workspace.add_panel(title, p_type, default_val, index=idx)
 
-    def copy_panel(self):
+    def clipboard_data(self):
+        """This panel as a clipboard dict (paths ABSOLUTE - see copy note)."""
         data = {"type": self.p_type, "title": self.title_edit.text(), "active": self.is_active, "bg_color": self.bg_color}
         # Absolute on the clipboard - see SortablePanel.copy_panel for why.
         # GRAPH:: bubble ids pass through resolve_path() unchanged.
@@ -451,81 +460,18 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             mods = [{"path": self.workspace.resolve_path(self.bubble_layout.itemAt(b).widget().full_path), "active": self.bubble_layout.itemAt(b).widget().is_active} for b in range(self.bubble_layout.count())]
             data["modules"] = mods
         data["collapsed"] = self.is_collapsed()
-        self.workspace.main_window.clipboard_panel_data = data
-        cmds.warning(f"Panel '{self.title_edit.text()}' copied to clipboard.")
+        return data
+
+    # Stage 53: copy/cut/paste go through the workspace, which knows the
+    # multi-panel selection. clipboard_data() above only describes THIS panel.
+    def copy_panel(self):
+        self.workspace.copy_panels(self)
 
     def cut_panel(self):
-        """Stage 22, request #1: Copy Panel, then delete this panel -
-        delete_panel() itself pushes the removed panel onto the workspace's
-        undo stack, so a Cut can still be undone same as a plain Delete."""
-        self.copy_panel()
-        self.workspace.delete_panel(self)
+        self.workspace.cut_panels(self)
 
     def paste_panel(self, offset):
-        data = getattr(self.workspace.main_window, 'clipboard_panel_data', None)
-        if not data: return
-        container = self.workspace.get_current_lod_container()
-        if not container: return
-        idx = container.layout.indexOf(self) + offset
-
-        p_type = data.get("type")
-        is_act = data.get("active", True)
-        title = data.get("title", "Copied Panel")
-        bg_col = data.get("bg_color", "#252526")
-
-        if p_type == "MODULE":
-            pan = self.workspace.add_module_panel(title, index=idx)
-            pan.bg_color = bg_col
-            pan.update_style()
-            for m in data.get("modules", []):
-                # relativize against THIS tab's root: same rig -> short path
-                # again; different rig -> stays absolute and still resolves.
-                pan.add_module_bubble(pre_path=self.workspace.relativize_path(m.get("path")),
-                                      is_active=m.get("active", True))
-            if not is_act: pan.checkbox.setChecked(False)
-        else:
-            pan = self.workspace.add_panel(
-                title, p_type, self.workspace.relativize_path(data.get("path", "")), index=idx)
-            pan.bg_color = bg_col
-            pan.update_style()
-            if not is_act: pan.checkbox.setChecked(False)
-            if p_type == "JSON":
-                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
-                if data.get("reskin_control"): pan.reskin_ctl_field.setText(data.get("reskin_control"))
-                if data.get("reskin_scale"): pan.reskin_scale_field.setText(data.get("reskin_scale"))
-                if "naming_popup" in data and hasattr(pan, 'chk_naming_popup'):
-                    pan.chk_naming_popup.setChecked(bool(data.get("naming_popup")))
-            if p_type == "MATERIAL" and data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-            if p_type == "SHAPES" and data.get("pattern"): pan.pattern_field.setText(data.get("pattern"))
-            if p_type in ("SCRIPT", "GLOBAL_SCRIPT") and data.get("func_call"): pan.func_field.setText(data.get("func_call"))
-            if p_type == "TWEAKER":
-                pan.load_tweaker_groups_data(data.get("groups"), legacy_item=data)
-                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
-                if "naming_popup" in data and hasattr(pan, 'chk_naming_popup'):
-                    pan.chk_naming_popup.setChecked(bool(data.get("naming_popup")))
-            if p_type == "NOTE" and hasattr(pan, 'note_edit'):
-                if data.get("note_text"): pan.note_edit.setPlainText(data.get("note_text"))
-                pan.note_text_color = data.get("note_text_color", pan.note_text_color)
-                pan.note_bg_color = data.get("note_bg_color", pan.note_bg_color)
-                pan.note_font_size = data.get("note_font_size", pan.note_font_size)
-                pan.note_height = data.get("note_height", pan.note_height)
-                pan.note_edit.setFixedHeight(pan.note_height)
-                pan._apply_note_style()
-            if p_type == "IMPORT_LOD" and hasattr(pan, 'asset_name_field'):
-                if data.get("asset_name"): pan.asset_name_field.setText(data.get("asset_name"))
-            if p_type in ("DELETE_OBJ", "ZERO_OUT") and hasattr(pan, 'target_field'):
-                if data.get("target"): pan.target_field.setText(data.get("target"))
-            if p_type == "PARENT_OBJ" and hasattr(pan, 'child_field'):
-                if data.get("child"): pan.child_field.setText(data.get("child"))
-                if data.get("parent"): pan.parent_field.setText(data.get("parent"))
-            if p_type == "INSTANCE_OBJ" and hasattr(pan, 'target_field'):
-                if data.get("target"): pan.target_field.setText(data.get("target"))
-                if data.get("func_call") and hasattr(pan, 'func_field'): pan.func_field.setText(data.get("func_call"))
-        cmds.warning(f"Panel pasted.")
-        if data.get("collapsed") and hasattr(pan, "set_collapsed"):
-            pan.set_collapsed(True)
+        self.workspace.paste_panels_at(self, offset)
 
     def on_btn_run_clicked(self):
         if self.btn_run.text() == "SHOW ERROR":
@@ -546,14 +492,14 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
     def mouseDoubleClickEvent(self, event):
         if self.title_edit.geometry().contains(event.pos()):
             self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
-            self.title_edit.setStyleSheet("background: #1e1e1e; border: 1px solid #2bb5a8; font-weight: bold; color: white; font-size: 13px; padding: 2px;")
+            self.title_edit.setStyleSheet("background: #1e1e1e; border: 1px solid #2bb5a8; font-weight: bold; color: white; font-size: 15px; padding: 2px;")
             self.title_edit.setFocus()
             self.title_edit.selectAll()
         super(SortableBubblePanel, self).mouseDoubleClickEvent(event)
 
     def finish_editing_title(self):
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
-        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 15px;")
         self.title_edit.clearFocus()
 
     def mousePressEvent(self, event):
@@ -618,15 +564,16 @@ class SortableBubblePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             actions_map[m.addAction("Add Zero Out Panel")] = ("ZERO OUT", "ZERO_OUT", offset)
             actions_map[m.addAction("Add Parent Panel")] = ("PARENT", "PARENT_OBJ", offset)
             actions_map[m.addAction("Add Instance Panel")] = ("INSTANCE", "INSTANCE_OBJ", offset)
+            actions_map[m.addAction("Add CC Import Panel (Character Creator FBX)")] = ("CC IMPORT", "CC_IMPORT", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
         menu.addSeparator()
 
-        a_copy = menu.addAction("📄 Copy Panel")
-        a_cut = menu.addAction("✂ Cut Panel")
-        paste_above = menu.addAction("📋 Paste Panel (Above)")
-        paste_below = menu.addAction("📋 Paste Panel (Below)")
+        a_copy = menu.addAction(self.workspace.panel_copy_label(self, "📄 Copy"))
+        a_cut = menu.addAction(self.workspace.panel_copy_label(self, "✂ Cut"))
+        paste_above = menu.addAction(self.workspace.panel_paste_label("Above"))
+        paste_below = menu.addAction(self.workspace.panel_paste_label("Below"))
 
         if not hasattr(self.workspace.main_window, 'clipboard_panel_data') or not self.workspace.main_window.clipboard_panel_data:
             paste_above.setEnabled(False)

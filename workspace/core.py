@@ -142,6 +142,8 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
         tab_index = self.main_window.session_stack.indexOf(self)
         tab_name = os.path.basename(path) if path else "Untitled Session"
         self.main_window.tab_bar.setTabText(tab_index, tab_name)
+        # Stage 54: hover a tab to see which JSON it is (names can repeat).
+        self.main_window.tab_bar.setTabToolTip(tab_index, path or "Not saved yet")
 
         if self.main_window.session_stack.currentIndex() == tab_index:
             self.main_window.session_path_field.setText(path)
@@ -215,6 +217,9 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
             "font-size:10px;}QToolButton:hover{background-color:#3e3e42;}")
         self.btn_sidebar_collapse.clicked.connect(self.toggle_sidebar_collapsed)
         side_layout.addWidget(self.btn_sidebar_collapse)
+        # Stage 58: collapsed by default. Deferred one event-loop turn so
+        # self.sidebar and every page inside it exist first.
+        QtCore.QTimer.singleShot(0, lambda: self.set_sidebar_collapsed(True))
 
         self.sidebar_empty = QtWidgets.QWidget()
         self.sidebar_stack.addWidget(self.sidebar_empty)

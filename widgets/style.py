@@ -50,6 +50,7 @@ def panel_run_label(p_type):
     if p_type == "ZERO_OUT": return "ZERO OUT"
     if p_type == "PARENT_OBJ": return "PARENT"
     if p_type == "INSTANCE_OBJ": return "🧬 CREATE INSTANCES"
+    if p_type == "CC_IMPORT": return "IMPORT CC"
     return "LOAD"
 
 

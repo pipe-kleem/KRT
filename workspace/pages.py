@@ -261,18 +261,6 @@ class WorkspacePagesMixin(object):
         # share the same underlying _save_pipeline_assets() logic so a
         # rigger who only wants one half doesn't have to write out the
         # other every time.
-        btn_save_maya = QtWidgets.QPushButton("SAVE MAYA FILE")
-        btn_save_maya.setFixedHeight(50)
-        btn_save_maya.setToolTip("Save the current scene as a new versioned .ma in the Publish Path - no pipeline JSON.")
-        btn_save_maya.setStyleSheet("background: #444; color: white; border: 1px solid #2bb5a8; font-weight: bold;")
-        btn_save_maya.clicked.connect(self.save_maya_file_logic)
-
-        btn_publish = QtWidgets.QPushButton("SAVE ALL")
-        btn_publish.setFixedHeight(50)
-        btn_publish.setToolTip("Save both a new versioned .ma and the pipeline JSON in the Publish Path.")
-        btn_publish.setStyleSheet("background: #2bb5a8; color: white; font-weight: bold;")
-        btn_publish.clicked.connect(self.publish_asset_logic)
-
         btn_save_json = QtWidgets.QPushButton("SAVE JSON FILE")
         btn_save_json.setFixedHeight(50)
         btn_save_json.setToolTip("Save the current pipeline as a new versioned JSON in the Publish Path - no Maya file.")
@@ -296,8 +284,8 @@ class WorkspacePagesMixin(object):
         # to occupy is subdivided further, three ways, between them.
         save_btn_layout = QtWidgets.QHBoxLayout()
         save_btn_layout.setSpacing(4)
-        save_btn_layout.addWidget(btn_save_maya)
-        save_btn_layout.addWidget(btn_publish)
+        # Stage 58: SAVE MAYA FILE and SAVE ALL removed from the UI on
+        # request; only SAVE JSON FILE stays. Their methods are kept.
         save_btn_layout.addWidget(btn_save_json)
 
         btn_layout.addWidget(btn_build)
@@ -368,6 +356,11 @@ class WorkspacePagesMixin(object):
         menu.addSeparator()
         a_collapse_all = menu.addAction("▸ Collapse All Panels")
         a_expand_all = menu.addAction("▾ Expand All Panels")
+        menu.addSeparator()
+        # Stage 53: pasting needs a target panel to right-click, which an
+        # empty LOD does not have - this one appends to the current LOD.
+        a_paste_end = menu.addAction(self.panel_paste_label("end of this LOD"))
+        a_paste_end.setEnabled(bool(self._clipboard_list()))
 
         action = menu.exec(QtGui.QCursor.pos()) if IS_PYSIDE6 else menu.exec_(QtGui.QCursor.pos())
         if not action:
@@ -377,6 +370,9 @@ class WorkspacePagesMixin(object):
             return
         if action == a_expand_all:
             self.set_all_panels_collapsed(False)
+            return
+        if action == a_paste_end:
+            self._paste_clipboard(-1)
             return
         if action in v_actions:
             target_path = v_actions[action]

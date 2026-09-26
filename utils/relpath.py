@@ -91,3 +91,22 @@ def relativize_in_text(root, text):
         return text
     pattern = re.compile(re.escape(root).replace("/", r"[\\/]") + r"[\\/]?", re.IGNORECASE)
     return pattern.sub("", text)
+
+
+_HOME_RE = re.compile(r"^([a-zA-Z]:/users/)([^/]+)(/|$)", re.I)
+
+
+def foreign_home(p, my_home=None):
+    """Stage 54: True when `p` sits inside ANOTHER user's Windows profile,
+    e.g. 'C:/Users/vishal3/kleem_guides.json' opened by user sid2.
+
+    A pipeline JSON saved by one artist can carry such a path; on another
+    artist's machine (or login) that folder is either missing or not
+    writable, so the path must not be used as-is."""
+    m = _HOME_RE.match(norm(p))
+    if not m:
+        return False
+    mine = _HOME_RE.match(norm(my_home or os.path.expanduser("~")))
+    if not mine:
+        return False
+    return m.group(2).lower() != mine.group(2).lower()

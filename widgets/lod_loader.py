@@ -1,6 +1,7 @@
 """Auto-split from widgets.py."""
 from ._shared import *
 from .collapse import CollapseMixin
+from .selection import SelectableMixin
 from .dialogs import ErrorDialog
 from .flow_layout import FlowLayout
 from .style import type_accent, type_bg_tint, type_icon
@@ -41,7 +42,7 @@ class LodLoaderBubble(QtWidgets.QFrame):
         layout.addWidget(self.close_btn)
 
 
-class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
+class LodLoaderPanel(CollapseMixin, SelectableMixin, QtWidgets.QFrame):
     """A panel type that builds ENTIRE LODs, one RUN click at a time - the
     corrected form of Stage 19's "LOD Build Manager" request (Stage 20).
     Stage 23: its button reads RUN, not LOAD - it's a normal step that
@@ -97,12 +98,18 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
         # against the dark card and are hard to read at 13px; the type is
         # still signalled by the icon and the left border stripe, so the
         # title itself does not need to carry it.
-        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 15px;")
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
         self.title_edit.editingFinished.connect(self.finish_editing_title)
 
         header_layout.addWidget(self.checkbox); header_layout.addWidget(self.icon_label); header_layout.addWidget(self.title_edit); header_layout.addStretch()
         main_layout.addLayout(header_layout)
+
+        # Stage 52: the step's action buttons (cache 🗑 💾 ⏩, RUN/LOAD, ↺,
+        # Cache tick) live in the HEADER row, right-aligned, instead of the
+        # body row - so they stay usable while the panel is collapsed.
+        action_layout = QtWidgets.QHBoxLayout()
+        action_layout.setSpacing(4)
 
         body_layout = QtWidgets.QHBoxLayout()
         ctrl_layout = QtWidgets.QVBoxLayout()
@@ -133,8 +140,7 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
         body_layout.addLayout(ctrl_layout)
         body_layout.addWidget(self.bubble_area)
         body_layout.addWidget(btn_add_lod)
-        body_layout.addWidget(btn_dots)
-        body_layout.addWidget(self.btn_run)
+        action_layout.addWidget(self.btn_run)
 
         self.btn_reset_err = QtWidgets.QPushButton("↺")
         self.btn_reset_err.setFixedWidth(28)
@@ -142,7 +148,9 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
         self.btn_reset_err.setStyleSheet("background-color: #3e3e42; color: #ffcc66; font-weight: bold;")
         self.btn_reset_err.setVisible(False)
         self.btn_reset_err.clicked.connect(self.reset_run_button)
-        body_layout.addWidget(self.btn_reset_err)
+        action_layout.addWidget(self.btn_reset_err)
+        action_layout.addWidget(btn_dots)   # Stage 53: "..." in the title row
+        header_layout.addLayout(action_layout)
 
         # Stage 35: same top-alignment fix as the Module Bubbles panel - once
         # self.bubble_area can be several rows tall, a plain QHBoxLayout
@@ -259,9 +267,9 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
     def update_style(self):
         accent = getattr(self, 'accent', type_accent("LOD_LOADER"))
         self.setStyleSheet(
-            f"LodLoaderPanel {{ background: {self.bg_color}; border: 1px solid #333;"
+            f"LodLoaderPanel {{ background: {self.bg_color}; border: {self._border_css()};"
             f" border-left: 4px solid {accent}; border-radius: 5px; margin-top: 5px; }}"
-            f" LodLoaderPanel:hover {{ border: 1px solid #555; border-left: 4px solid {accent}; }}")
+            f" LodLoaderPanel:hover {{ border: {self._border_css('#555')}; border-left: 4px solid {accent}; }}")
 
     def change_color(self):
         current_color = QtGui.QColor(self.bg_color)
@@ -280,14 +288,14 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
     def mouseDoubleClickEvent(self, event):
         if self.title_edit.geometry().contains(event.pos()):
             self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, False)
-            self.title_edit.setStyleSheet("background: #1e1e1e; border: 1px solid #ffca28; font-weight: bold; color: white; font-size: 13px; padding: 2px;")
+            self.title_edit.setStyleSheet("background: #1e1e1e; border: 1px solid #ffca28; font-weight: bold; color: white; font-size: 15px; padding: 2px;")
             self.title_edit.setFocus()
             self.title_edit.selectAll()
         super(LodLoaderPanel, self).mouseDoubleClickEvent(event)
 
     def finish_editing_title(self):
         self.title_edit.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
-        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 13px;")
+        self.title_edit.setStyleSheet("background: transparent; border: none; font-weight: bold; color: white; font-size: 15px;")
         self.title_edit.clearFocus()
 
     def mousePressEvent(self, event):
@@ -363,6 +371,7 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
             actions_map[m.addAction("Add Zero Out Panel")] = ("ZERO OUT", "ZERO_OUT", offset)
             actions_map[m.addAction("Add Parent Panel")] = ("PARENT", "PARENT_OBJ", offset)
             actions_map[m.addAction("Add Instance Panel")] = ("INSTANCE", "INSTANCE_OBJ", offset)
+            actions_map[m.addAction("Add CC Import Panel (Character Creator FBX)")] = ("CC IMPORT", "CC_IMPORT", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
@@ -376,10 +385,10 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
         # the "step" is itself a full multi-panel LOD build) and Replace
         # All Paths (this panel has no file-path field for that dialog to
         # touch).
-        a_copy = menu.addAction("📄 Copy Panel")
-        a_cut = menu.addAction("✂ Cut Panel")
-        paste_above = menu.addAction("📋 Paste Panel (Above)")
-        paste_below = menu.addAction("📋 Paste Panel (Below)")
+        a_copy = menu.addAction(self.workspace.panel_copy_label(self, "📄 Copy"))
+        a_cut = menu.addAction(self.workspace.panel_copy_label(self, "✂ Cut"))
+        paste_above = menu.addAction(self.workspace.panel_paste_label("Above"))
+        paste_below = menu.addAction(self.workspace.panel_paste_label("Below"))
         if not hasattr(self.workspace.main_window, 'clipboard_panel_data') or not self.workspace.main_window.clipboard_panel_data:
             paste_above.setEnabled(False)
             paste_below.setEnabled(False)
@@ -411,81 +420,23 @@ class LodLoaderPanel(CollapseMixin, QtWidgets.QFrame):
         elif action == a_dup: self.workspace.duplicate_panel(self)
         elif action == a_del: self._on_delete_clicked()
 
-    def copy_panel(self):
+    def clipboard_data(self):
+        """This panel as a clipboard dict (paths ABSOLUTE - see copy note)."""
         data = {"type": self.p_type, "title": self.title_edit.text(), "active": self.is_active,
                 "bg_color": self.bg_color, "lod_names": self.checked_lod_names()}
-        self.workspace.main_window.clipboard_panel_data = data
-        cmds.warning(f"Panel '{self.title_edit.text()}' copied to clipboard.")
+        data["collapsed"] = self.is_collapsed()
+        return data
+
+    # Stage 53: copy/cut/paste go through the workspace, which knows the
+    # multi-panel selection. clipboard_data() above only describes THIS panel.
+    def copy_panel(self):
+        self.workspace.copy_panels(self)
 
     def cut_panel(self):
-        self.copy_panel()
-        self._on_delete_clicked()
+        self.workspace.cut_panels(self)
 
     def paste_panel(self, offset):
-        data = getattr(self.workspace.main_window, 'clipboard_panel_data', None)
-        if not data: return
-        container = self.workspace.get_current_lod_container()
-        if not container: return
-        idx = container.layout.indexOf(self) + offset
-
-        p_type = data.get("type")
-        is_act = data.get("active", True)
-        title = data.get("title", "Copied Panel")
-        bg_col = data.get("bg_color", "#252526")
-
-        if p_type == "MODULE":
-            pan = self.workspace.add_module_panel(title, index=idx)
-            pan.bg_color = bg_col
-            pan.update_style()
-            for m in data.get("modules", []):
-                pan.add_module_bubble(pre_path=m.get("path"), is_active=m.get("active", True))
-            if not is_act: pan.checkbox.setChecked(False)
-        elif p_type == "LOD_LOADER":
-            pan = self.workspace.add_lod_loader_panel(title, index=idx)
-            pan.bg_color = bg_col
-            pan.update_style()
-            pan.set_checked_lod_names(data.get("lod_names", []))
-            if not is_act: pan.checkbox.setChecked(False)
-        else:
-            pan = self.workspace.add_panel(title, p_type, data.get("path", ""), index=idx)
-            pan.bg_color = bg_col
-            pan.update_style()
-            if not is_act: pan.checkbox.setChecked(False)
-            if p_type == "JSON":
-                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
-                if data.get("reskin_control"): pan.reskin_ctl_field.setText(data.get("reskin_control"))
-                if data.get("reskin_scale"): pan.reskin_scale_field.setText(data.get("reskin_scale"))
-                if "naming_popup" in data and hasattr(pan, 'chk_naming_popup'):
-                    pan.chk_naming_popup.setChecked(bool(data.get("naming_popup")))
-            if p_type == "MATERIAL" and data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-            if p_type == "SHAPES" and data.get("pattern"): pan.pattern_field.setText(data.get("pattern"))
-            if p_type in ("SCRIPT", "GLOBAL_SCRIPT") and data.get("func_call"): pan.func_field.setText(data.get("func_call"))
-            if p_type == "TWEAKER":
-                pan.load_tweaker_groups_data(data.get("groups"), legacy_item=data)
-                if data.get("meshes"): pan.mesh_field.setText(data.get("meshes"))
-                if data.get("joints"): pan.joints_field.setText(data.get("joints"))
-                if "naming_popup" in data and hasattr(pan, 'chk_naming_popup'):
-                    pan.chk_naming_popup.setChecked(bool(data.get("naming_popup")))
-            if p_type == "NOTE" and hasattr(pan, 'note_edit'):
-                if data.get("note_text"): pan.note_edit.setPlainText(data.get("note_text"))
-                pan.note_text_color = data.get("note_text_color", pan.note_text_color)
-                pan.note_bg_color = data.get("note_bg_color", pan.note_bg_color)
-                pan.note_font_size = data.get("note_font_size", pan.note_font_size)
-                pan.note_height = data.get("note_height", pan.note_height)
-                pan.note_edit.setFixedHeight(pan.note_height)
-                pan._apply_note_style()
-            if p_type == "IMPORT_LOD" and hasattr(pan, 'asset_name_field'):
-                if data.get("asset_name"): pan.asset_name_field.setText(data.get("asset_name"))
-            if p_type in ("DELETE_OBJ", "ZERO_OUT") and hasattr(pan, 'target_field'):
-                if data.get("target"): pan.target_field.setText(data.get("target"))
-            if p_type == "PARENT_OBJ" and hasattr(pan, 'child_field'):
-                if data.get("child"): pan.child_field.setText(data.get("child"))
-                if data.get("parent"): pan.parent_field.setText(data.get("parent"))
-            if p_type == "INSTANCE_OBJ" and hasattr(pan, 'target_field'):
-                if data.get("target"): pan.target_field.setText(data.get("target"))
-                if data.get("func_call") and hasattr(pan, 'func_field'): pan.func_field.setText(data.get("func_call"))
-        cmds.warning(f"Panel pasted.")
+        self.workspace.paste_panels_at(self, offset)
 
     def _on_delete_clicked(self):
         """Stop listening to the real LOD list before this panel is torn

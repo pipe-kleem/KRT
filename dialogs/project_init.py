@@ -33,6 +33,17 @@ class ProjectInitDialog(QtWidgets.QDialog):
         self.edit_name.setPlaceholderText("e.g. parshuram_a")
         self.edit_name.textChanged.connect(self._refresh_preview)
         form.addWidget(self.edit_name, 1, 1, 1, 2)
+
+        # Stage 56: which default panel stack to build.
+        form.addWidget(QtWidgets.QLabel("<b>Rig type:</b>"), 2, 0)
+        self.cmb_type = QtWidgets.QComboBox()
+        self.cmb_type.addItem("Prop", "prop")
+        self.cmb_type.addItem("Character", "character")
+        self.cmb_type.setCurrentIndex(1)       # Stage 59: Character is the default
+        self.cmb_type.setToolTip(
+            "Prop: the standard panel stack.\n"
+            "Character: the same stack plus character steps (CC Import, off by default).")
+        form.addWidget(self.cmb_type, 2, 1, 1, 2)
         lay.addLayout(form)
 
         self.lbl_preview = QtWidgets.QLabel()
@@ -80,6 +91,9 @@ class ProjectInitDialog(QtWidgets.QDialog):
         exists = " (already exists - nothing is overwritten)" if os.path.isdir(root) else ""
         self.lbl_preview.setText(
             "<b>{}</b>{}<br>&nbsp;&nbsp;{}".format(root, exists, "&nbsp;&nbsp;".join(f + "/" for f in self.folders)))
+
+    def rig_type(self):
+        return self.cmb_type.currentData() or "prop"
 
     def rig_name(self):
         return self.edit_name.text().strip()

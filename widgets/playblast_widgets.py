@@ -378,12 +378,15 @@ class PBCameraViewWidget(QtWidgets.QWidget):
         self._model_panel = None
         if not panel:
             return
+        # Stage 54: deleting the panel makes Maya run cleanupModelPanelBar
+        # on its toolbar path, which has the same empty '||' segments as the
+        # create/update calls - silence it exactly like creation does.
         try:
             if cmds.modelPanel(panel, query=True, exists=True):
-                cmds.deleteUI(panel, panel=True)
+                self._quiet_script_editor(cmds.deleteUI, panel, panel=True)
         except Exception:
             try:
-                cmds.deleteUI(panel, panel=True)
+                self._quiet_script_editor(cmds.deleteUI, panel, panel=True)
             except Exception:
                 pass
 
@@ -402,7 +405,8 @@ class PBCameraViewWidget(QtWidgets.QWidget):
             if not p.startswith(cls.PANEL_PREFIX):
                 continue
             try:
-                cmds.deleteUI(p, panel=True)
+                # quiet: see stop() - cleanupModelPanelBar noise on delete
+                cls._quiet_script_editor(cmds.deleteUI, p, panel=True)
                 removed += 1
             except Exception:
                 pass

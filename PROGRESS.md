@@ -7,6 +7,29 @@
 
 ---
 
+## 0. START HERE (state as of 2026-09-23)
+
+| | |
+|---|---|
+| **Version** | `45.2` (`__init__.py`: `__version__` / `__build__`) — the window title shows it; if Maya shows an older number you are running a different copy of the folder. |
+| **Location** | `C:\pipeline\KRT_02` on device **kla04**. Package name `KRT`. |
+| **Git** | Branch **`pipe`**, remote `origin` = `https://github.com/pipe-kleem/KRT.git` (also has `master`). Push with `git push origin pipe`. |
+| **Size** | ~24,000 lines, 87 `.py` files (excluding `archive/`). |
+| **Last stages** | 49 panel collapse · 50 white titles · 51 LOD sidebar collapse. |
+
+**Bump `__version__` on every change** — it is the only way to tell from inside Maya whether the running code is the code we just edited.
+
+**Still untested in a live Maya / live AYON session** (nothing here can be verified from a chat session):
+- AYON publish: reviewable upload (movie *and* image), representation `tags`, `review` product creation, `CreateContext.create()` arguments in the installed ayon-core, whether the four companion sets come back as direct members of the instance node, and whether `rigMain` now shows up in the official AYON Publisher.
+- Guessed defaults to confirm: product name `reviewRigging` vs `reviewMain`; folder names `skinCluster` / `controlShape` vs the older `skin` / `ctrls`.
+
+**Decisions made 2026-09-23:**
+1. **KRISHNA rename** — labels only (done in v44.0). Script Editor log prefixes (`[AYON]`, `[AYON PUBLISH]`), warnings, comments and all internals stay "AYON".
+2. **Package name stays `KRT`** — do not move it to the `ssd_` convention.
+3. **Git remote** = `https://github.com/pipe-kleem/KRT.git`, work happens on branch `pipe`.
+
+---
+
 ## 1. What this project is
 
 **KRT (Kleem Rigging Tool)** — a PySide2/PySide6 Maya tool for procedural biped/creature rig building on top of
@@ -30,12 +53,12 @@ Playblast tab with ffmpeg encode + wipe-compare player, fast skin export/import 
 - **Qt:** `compat.py` picks PySide6 (Maya 2025+) or PySide2. Multimedia + wipe-compare degrade gracefully if Qt lacks them.
 - **Dependencies:** Maya (`maya.cmds`, OpenMaya 1.0 + 2.0 API), mGear (Shifter, io, plebe), `ayon_api` (publish), ffmpeg (playblast encode).
 - **Original author header:** `main.py` docstring names Vishal Nagpal as owner/POC.
-- **No git repo yet.** Strongly recommended: `git init` in `KRT_02` so every session's change is diffable/revertable.
+- **Git:** repo initialised 2026-09-18, branch `pipe`, one commit per stage. No remote yet, so nothing is pushed anywhere — the history lives only on kla04.
 - **Cannot run Maya from Claude.** Verification = `py_compile` + AST duplicate-method scan + reading mGear source. Every change
   must be tested by the user in a real Maya session. Maya caches modules — **relaunch via the KRT menu (it reloads) or restart Maya**
   before reporting a fix "didn't work".
 
-## 3. Codebase map (as of 2026-09-18, after restructure — ~20,300 lines, 45 files)
+## 3. Codebase map (restructured 2026-09-18 — now ~24,000 lines, 87 files)
 
 Package name is still `KRT`; **every public import path is unchanged** (`from .widgets import SortablePanel`, `from .graph import ModuleGraphWidget` …)
 because each package's `__init__.py` re-exports everything. Inside a package, `_shared.py` holds the original module's imports + constants + small helpers,
@@ -121,8 +144,8 @@ Health: all files compile (`py_compile` clean); **no duplicate method definition
 
 Observations / candidates for future work (not yet done — decide together):
 
-1. **Hardcoded personal dev paths** in `workspace.py::setup_default_panels` (lines ~770–776, `E:\Pipe_Storage\Vishal_workspace\...`) — defaults for a
-   new LOD point at another artist's disk. Should become blank or a configurable studio default.
+1. ~~**Hardcoded personal dev paths** (`E:\Pipe_Storage\Vishal_workspace\...`) in the default panels~~ — **done**: Stage 42 (v42.0) made
+   `P:\rigging_team\Rigging_local_share\all_Rigs` the studio default and Stage 41 made every panel path relative to the Rig Root.
 2. **Hardcoded network defaults**: `P:\pipeline_database\Maya\Scripts\ONE` (workspace.py:27, session.py:35), `P:\rigging_team\...studiolibrary`,
    `R:\Pipeline_Share\...\controlShapes.ma` (graph.py:53), ffmpeg/font search paths (workspace.py:3450–3464). Fine for now; consider a `config.json`.
 3. ~~`SessionWorkspace` is 5k lines / 159 methods~~ — **done 2026-09-18** (split into 8 files via mixins, see §3). Biggest remaining files: `workspace/playblast.py` (1844), `widgets/sortable_panel.py` (1662).
@@ -138,33 +161,32 @@ Observations / candidates for future work (not yet done — decide together):
 
 ## 6. How we verify a change (you can run these yourself)
 
-Open a terminal in `C:\pipeline\KRT_02` and run:
+Open a terminal in `C:\pipeline\KRT_02` and run these three, in order. They are cheap and have caught every
+regression this project has had, so run all three after **any** edit:
 
 ```bat
-:: 1) Syntax check — catches typos/indent errors instantly, no Maya needed
-python -m py_compile graph.py widgets.py workspace.py dialogs.py utils.py main.py
+:: 1) Syntax check - catches typos and indent errors instantly, no Maya needed
+python -m compileall -q workspace widgets dialogs graph utils tools *.py
 
-:: 2) Duplicate-method scan — a second `def foo` in the same class silently replaces the first
-python -c "import ast,sys
-for f in ['graph.py','widgets.py','workspace.py','dialogs.py','utils.py','main.py']:
-    for c in ast.walk(ast.parse(open(f,encoding='utf-8').read())):
-        if isinstance(c,ast.ClassDef):
-            s={}
-            for m in c.body:
-                if isinstance(m,ast.FunctionDef):
-                    if m.name in s: print('DUP',f,c.name,m.name,s[m.name],m.lineno)
-                    s[m.name]=m.lineno
-print('scan done')"
+:: 2) Undefined names + relative imports - want "files with holes: 0" AND "broken relative imports: 0"
+python tools\check_names.py .
 
-:: 3) Undefined-name check + import smoke test (run this after ANY edit)
-::    - undefined-name check: names a module uses but never binds (NameError waiting to happen)
-::    - import test: loads the whole package with fake Maya/Qt stubs
+:: 3) Import smoke test - loads the whole package against fake Maya/Qt stubs; want "IMPORT OK"
 python tools\smoke_test.py
 ```
+
+**What each one can and cannot see.** Importing a module only executes its *top level*, so steps 1 and 3 prove the
+files parse and the imports resolve — they say nothing about code **inside method bodies**. That is what
+`check_names.py` is for: it walks every function for names that are used but never bound (a `NameError` waiting to
+happen) and validates the depth of every relative import, including the ones written inside function bodies.
+Two real bugs from this project that only step 2 caught: the `NameError: RigNode` after the graph split, and 17
+`.utils` imports that should have been `..utils`.
 
 Then in Maya: **KRT menu → launch** (reloads modules) and test the actual behaviour. Report back what happened.
 
 ## 7. Working agreement
+
+- **Git (2026-09-26):** the user commits/pushes only for major versions and will ask. Don't end replies with commit steps, and don't run git commands from the chat session (they leave `.git/index.lock` behind on kla04).
 
 - One "Stage" = one numbered request set → code → verify → test in Maya → log it here.
 - Quote the request verbatim in the Work Log; flag anything inferred rather than confirmed from mGear source.
@@ -174,6 +196,115 @@ Then in Maya: **KRT menu → launch** (reloads modules) and test the actual beha
 ---
 
 ## 8. Work Log (newest first)
+
+### 2026-09-26 — CC Import: LOD1 works, LOD0 crashes inside the FBX import (no code change)
+- User: "lod1 worked but lod0 crashed probably my pc isnt able to handle" + full hang_dumps.log.
+- Log facts: 17:35 session (v45.2, correct PyMEL from AppData/Roaming): LOD1 FBX import ~170 s inside `cmds.file` (Auto Setup's pymel importFile), post-import work, face rig ~30 s (`cmds.expression`) -> success. 16:30 session (v45.2): LOD0 stayed inside `cmds.file` 12+ minutes, then the log just stops = Maya died mid-import. 16:05 session (v45.1): LOD0 -> `Windows fatal exception: access violation` with the main thread inside `cmds.file`.
+- Conclusion: the crash is inside Maya's FBX importer on the heavy LOD0 file, not in KRT code (the GIL-safe watchdog only reads, and KRT has no code running during `cmds.file`). Most likely memory. Suggested check: plain File > Import of LOD0 without Auto Setup/KRT while watching RAM in Task Manager.
+
+### 2026-09-26 — v45.2: the hang watchdog was the likely crash cause - rewritten GIL-safe
+- Report (verbatim): "even after removing mansur same thing i think something we changed undo or something and that is crashing our krt".
+- What changed right before the crashes started (v44.7): `_FastMode` AND the faulthandler watchdog. `_FastMode` no longer touches the import (v45.0) and it still crashed, which leaves the watchdog. `faulthandler.dump_traceback_later(repeat=True)` walks every thread's frames **without the GIL**; during the long FBX import (PyMEL running on the main thread) it read frames mid-change - the log's garbage frame (`nodetypes.py line 863266405`, `File "kwargs"`) is exactly that. faulthandler is meant for a process that is already dying, not for sampling a healthy one every 8 s.
+- `utils/hang_watch.py` rewritten: no faulthandler at all (dump_traceback_later AND enable removed). A daemon `threading.Thread` checks a heartbeat set by a 1 s QTimer; when blocked > threshold it reads `sys._current_frames()[main]` - which requires the GIL, so frames can't change under it - and logs that stack (once per threshold while blocked). Popup/modal logging and "responsive again" kept. Log header now says "v45.2 GIL-safe watchdog".
+- **Restart Maya** (not just reload KRT): an old v45.1 watchdog armed in the running Maya would keep firing.
+
+### 2026-09-26 — v45.1: what the hang log showed (CC import crash + ImportError)
+- User sent `hang_dumps.log` + a traceback. Findings (from the log, not guesses):
+  1. **The CC "crash at ~70%" happens inside the FBX import itself** - main thread in `pymel.core.system.importFile` for 5+ minutes (a dump every 8 s), last dump a corrupted frame in `pymel/core/nodetypes.py __apihandle__`, then Maya died. That PyMEL is **not Maya's**: `C:/Users/sid2/Downloads/mansurRig_3.0.0/.../PythonLibs/CrossPlatform/pymel` is on sys.path first. Auto Setup's own `install_pymel.bat` says Maya 2026 needs its custom **pymel-1.7.1rc1** wheel. Old PyMEL on Maya 2026 = prime suspect for the crash (and possibly the slowness).
+  2. **ImportError "attempted relative import beyond top-level package"**: Auto Setup imports its sub-packages by bare name (`import widgets`); `C:/Users/sid2/Downloads/KRT_02` is on sys.path and its `widgets/` package was found first.
+  3. Other dumps were a file dialog / text-folder browse left open (expected; a Maya file dialog doesn't service Qt timers).
+- Fixes in both copies of cc_autosetup: `_isolate_autosetup_imports(root)` puts `AutoSetupForMaya/lib` first on sys.path and unloads already-imported modules with the same names that came from elsewhere; `_check_pymel()` logs PyMEL version+path and **stops with instructions** if Maya >= 2026 and PyMEL < 1.7 (instead of crashing mid-import).
+- `HangWatch` is now a per-session singleton (`sys._krt_hang_watch`); a reload stops the previous one (explains the "~1s blocked" false alarms).
+- **User action needed:** remove `Downloads/KRT_02` and the mansurRig `PythonLibs/CrossPlatform` from sys.path (Maya.env PYTHONPATH / userSetup / whatever adds them) and run `install_pymel.bat`.
+
+### 2026-09-26 — v45.0: Maya crash at ~70% of the CC import
+- Report (verbatim): "maya craches with cc import around 70%".
+- The import worked before v44.7; v44.7 wrapped the Auto Setup import in `_FastMode` (echo off + undo queue off + `refresh(suspend=True)`). Prime suspect: suspending the viewport / undo while the compiled tool builds HIK + VP2/Arnold shaders. **Unconfirmed** - no crash log seen yet.
+- `_FastMode(undo_off=False, suspend_viewport=False)`: the Auto Setup import now gets **echo off only**; undo-off + viewport-suspend apply only to KRT's own cleanup steps.
+- `HangWatch.start()` now also calls `faulthandler.enable(file=hang log, all_threads=True)`, so a native crash leaves the last Python stack in `hang_dumps.log`. Maya's own crash log: `%TEMP%` (`C:/Users/<user>/AppData/Local/Temp`), newest `*.log` / `MayaCrashLog*`.
+- If it still crashes with only echo off, the next suspect is the v44.8 browse path (`_FileDialogAnswer` monkeypatch) - test by importing through Auto Setup by hand with the same FBX.
+
+### 2026-09-26 — v44.9: Initialize Project defaults to Character; watchdog also logs input-grabbing popups
+- Report (verbatim): "it hangged when i clicked on initialize project thn on a right click it hannged so probably its ui / and default in initialize project will be character".
+- `ProjectInitDialog`: Rig type combo defaults to **Character**.
+- Hang NOT yet diagnosed - the hang log lives in `Documents/maya/KRT/`, which this chat session cannot read (folder grant refused); asked the user to paste `hang_dumps.log`.
+- Reading the code, the right-click path (`SelectableMixin.contextMenuEvent` -> `show_context_menu` -> `QMenu.exec`) has nothing that blocks; the only disk access is `has_cache()` and, for JSON panels, `populate_versions_menu` (`os.listdir` on the skin folder - slow only on a slow share). Second hypothesis: a menu/dialog open but not visible (behind a window / off-screen) grabs input so the UI *looks* frozen while the event loop runs - the stack watchdog can't see that. So `HangWatch._check_input_grab()` now logs any `activePopupWidget()`/`activeModalWidget()` held > 10 s with class, title, visibility, geometry, on-screen. (A normal dialog left open > 10 s also gets one harmless line.)
+
+### 2026-09-26 — v44.8: CC Import imported the OLD fbx after the path was changed
+- Report (verbatim): "in cc importer there is one issue i changed fbx but it still imported the old fbx".
+- Cause (inferred - Auto Setup is compiled): the tool keeps the FBX/JSON path in an internal variable that only its **Browse** button sets. `cc_autosetup` was typing into the text field, which changes the display, not what gets imported. The first run worked only because the field and the internal value happened to match.
+- Fix, in BOTH copies (`KRT/utils/cc_autosetup.py` and `C:/pipeline/ssd_cc_autosetup/ssd_cc_autosetup.py`): `_set_path_via_browse()` clicks the browse button on the field's row (`_row_button`, found by geometry) inside `_FileDialogAnswer`, which temporarily replaces `cmds.fileDialog2`, pymel's `fileDialog2` and QFileDialog's static getters so the tool's own browse code receives our path. Raises if no dialog function was actually called (tool uses something else -> send `inspect_ui()`).
+- Safety net: after import, warns if the new root's namespace doesn't start with the FBX file name.
+
+### 2026-09-26 — Stage 58 (v44.7): hang watchdog, CC Import speed + timing, UI trims
+- Request (verbatim): "the cc import is too slow ... we need to find a way to somehow make it work faster / remove the save mayafile button and save both button from ui / the lod tab is always collapsed by default / major thing to be debugged- sometimes everything hangs and not sure why ui issue ig".
+- **Hang watchdog** `utils/hang_watch.py`, started by `KRT_Tool.__init__`, stopped in `closeEvent`. A 1 s QTimer re-arms `faulthandler.dump_traceback_later(8, repeat=True)`; if the UI thread is blocked > 8 s the stacks of all Python threads are appended to `<Documents>/maya/KRT/hang_dumps.log` (every 8 s while it stays blocked = a poor man's sampling profiler), followed by "UI responsive again after ~Ns" when it recovers. **Next step: user reproduces a hang and sends the log.** Suspects noted while reading code, not confirmed: `perform_autosave` every 5 min for every tab calls `get_current_pipeline_data()` which reads live guide state from Maya; graph pos-watch timer (1.5 s, only while visible); playblast camera poll timer.
+- **CC Import speed:** `_FastMode` context around the whole pipeline - Script Editor Echo All Commands off (the user's log showed thousands of echoed progressBar lines), undo queue off (`stateWithoutFlush=False`), `refresh(suspend=True)`; all restored in `__exit__`. `_Timer` prints a per-step timing table at the end. Auto Setup itself is compiled (.pyd) - if the table shows its import dominates, the remaining levers are outside its code.
+- **UI:** SAVE MAYA FILE and SAVE ALL buttons removed from the Rig page (methods kept; SAVE JSON FILE + PUBLISH KRISHNA remain).
+- **LOD sidebar** opens collapsed: default `_sidebar_collapsed=True`, collapsed after `setup_ui`, and a loaded JSON no longer re-opens it (`sidebar_collapsed` is still written, no longer read).
+
+### 2026-09-26 — Stage 57 (v44.6): studio post-import script folded into CC Import
+- User pasted their manual post-import script and asked to add whatever was missing.
+- Already covered: import references, remove namespaces, cutKey on ctrl* (our delete-keys step deletes ALL time-based animCurves, a superset).
+- Added to `utils/cc_import.py` (run after namespaces + delete meshes, before repath):
+  - `import_all_references` now **loads an unloaded reference first** (an unloaded ref can't be imported).
+  - `position_face_gui(pos)` - `CTRL_faceGUI` translate; panel field **Face GUI XYZ** (default `32.404, 240.963, -6.432`, saved as `cc_face_gui_pos`).
+  - `hide_body_faces()` - selects `HIDE_BODY_FACES` (the 26 CC_Base_Body ranges) and runs `HideSelectedObjects`; skips with a warning if the body is missing or the indices don't exist (different topology).
+  - `strip_name_suffix("_a")` - long names, **deepest first**, so renaming a parent never invalidates a child's stored path (the pasted version sorted short names by length, which doesn't guarantee that).
+- To check in Maya: that the hidden faces are still hidden after reopening the saved .ma.
+
+### 2026-09-26 — Stage 56 (v44.5): CC delete-meshes + Save (Overwrite), Prop/Character project types, right-click = "..." menu
+- Request (verbatim): "in the cc import panel add a delete meshes text box with select button ... and also have a save file (overwrite) in 3 dots / the cc one should be in the initialize project and initialize has 2 types prop and character ... for now it will be same as prop but with cc import and cc import off by default / when i right click on a panel the 3dot menu can open".
+- CC panel: **Delete Meshes** field + Get Selected. Selection is stored as leaf name WITHOUT namespace (`soldier1:grp|soldier1:Boots` -> `Boots`) because the delete runs after the namespace removal. Wildcards allowed; only transforms that own a mesh shape are deleted (a pattern can't catch joints/controls). Saved in the JSON as `cc_delete_meshes` via the Stage 55 extra_data hook.
+- CC "..." menu: **💾 Save File (Overwrite) -> cc_built_<ver>.ma** exports the CURRENT scene (no re-import/cleanup) - for hand fixes after a run.
+- Initialize Project: **Rig type** combo (Prop / Character). `default_panels_for(rig_type)`: Prop = `DEFAULT_PANELS`; Character = same + `CHARACTER_EXTRA_PANELS` (CC IMPORT, OFF, after LOAD SCRIPT PANEL). Future character-only scripts go into that list. The CC panel was removed from the prop stack.
+- `SelectableMixin.contextMenuEvent` -> `show_context_menu()` on all three panel classes. Text fields and the ⏩ button keep their own right-click menus (they accept the event first).
+- Verified: compileall, check_names 0/0, smoke_test IMPORT OK.
+
+### 2026-09-26 — Stage 55 (v44.4): CC Import panel (Character Creator FBX -> cc_rig/cc_built_<ver>.ma)
+- Request (verbatim): "lets create a default panel for cc importer and there we will just give fbx file path, we will also have a version there ... delete all keys / delete all bump maps and the connections / import all references / remove all namespaces / and I will give a path to repath all textures ... remove unused nodes and save as a ma file in cc_rig folder and the file name will be cc_built and thn version".
+- New panel type **`CC_IMPORT`** (🧑, coral). Main field = FBX. Extra row: **CC Version** (`3`/`v3` -> `v003`), **Textures** folder + 📂, **New scene first** (default on), and a live "→ <root>/cc_rig/cc_built_v001.ma" label. Run label "IMPORT CC". Added to every Add-Panel menu and to Initialize Project's `DEFAULT_PANELS` (after LOAD SCRIPT PANEL, **OFF** by default - it would fail on non-CC rigs with no FBX).
+- `utils/cc_import.py` - one function per step, then `run()`: Auto Setup import + Generate Face Rig -> import references -> delete keys -> delete bump nodes -> remove namespaces -> repath textures -> MLdeleteUnused -> `exportAll` to `<Rig Root>/cc_rig/cc_built_<ver>.ma` (exportAll does not rename the open scene).
+  - Order differs from the request on purpose: **references are imported first**, because referenced nodes cannot be deleted.
+  - Keys = time-based animCurves only (TL/TA/TU/TT); driven keys (UL/UA/UU/UT) are kept. Bump = bump2d/bump3d/aiBump2d/aiBump3d (aiNormalMap kept); their orphaned normal-map file nodes are removed by Delete Unused.
+  - Repath = same matching rules as IDR RepathTexture (exact > same ext > EXT_PRIORITY > first) but self-contained: one `os.walk` index, no dependency on the P: script.
+- `utils/cc_autosetup.py` = copy of `C:/pipeline/ssd_cc_autosetup/ssd_cc_autosetup.py` (uses `..compat` for Qt). **Two copies - fix bugs in both.**
+- **Generic extra-fields hook:** `SortablePanel.extra_data()` / `apply_extra_data()`; called from pipeline save/load, clipboard copy/paste, undo serialize/restore and duplicate. New panel types with extra inputs only need to fill in those two methods.
+- Risks to check in Maya: (1) Delete Unused Nodes might remove face-rig utility nodes - check the face board still drives the face after the run; (2) face-rig expressions after the namespace merge; (3) output label shows "<Rig Root>" until the version field changes if the rig root is set after the panel is built.
+- Verified: compileall, check_names 0/0, smoke_test IMPORT OK.
+
+### 2026-09-23 — Stage 54 (v44.3): guide path from another user, close-time MEL noise, single-instance launch, icon buttons, movable tabs
+- Reported: `PermissionError: 'C:/Users/vishal3/kleem_guides.json'` in `save_all_guides` (user sid2) during Save JSON; `cleanupModelPanelBar KRT_Window||||...` + `Line 1.33: Syntax error` on closing KRT; "if krt is open it doesnt reload and just maximizes if minimized, sometimes the tool just doesnt show"; "reset ui load json pipeline and save session can be just buttons without text so we have more space for tabs ... rearranging".
+- **Guide path:** the pipeline JSON stored the Guide Path field verbatim — an absolute path in a colleague's profile. New `utils/relpath.foreign_home(p)` (C:/Users/<someone else>/...). Load: such a saved `guide_path` is ignored (warning) and the default `<json dir>/guide/<name>_guide.json` is used. Save: `save_all_guides` redirects to that default too. The JSON now stores `guide_path` relativized against the Rig Root.
+- **Close noise:** `deleteUI` on the embedded camera modelPanel makes Maya run `cleanupModelPanelBar` on the malformed path; both `stop()` and `cleanup_stale_panels()` now wrap the delete in `_quiet_script_editor` (same as creation). Unverified: if Maya defers that proc, the suppression won't catch it.
+- **Single instance:** `menu.launch()` (shelf button + menu) now finds a visible `KRT_Window` and un-minimizes/raises/activates it instead of reloading. New `menu.force_reload()` + menu item "Reload KRT (close + reopen)" for picking up code changes. `menu.py` is kept in memory across reloads (`_KEEP`), so Maya must be restarted once (or the installer re-run) for the menu/shelf to use the new launch.
+- **Top bar:** Load JSON Pipeline / Reset Scene & UI / Save Session are 34px icon buttons with tooltips. Tabs are movable (`setMovable(True)`); `on_tab_moved()` moves the matching workspace in `session_stack` so tab and page stay paired. Each tab's tooltip is its full JSON path.
+- Verified: compileall, check_names 0/0, smoke_test IMPORT OK.
+
+### 2026-09-23 — Stage 53 (v44.2): multi-panel select + copy/cut/paste; "..." in the title row
+- Request (verbatim): "i want selection and copying of multiple panels at once to paste in another / also the three dots can also be up there when collapsed".
+- **Selection** — new `widgets/selection.py::SelectableMixin` (mixed into all three panel classes). A click that is not a drag (release within `startDragDistance` of the press) calls `workspace.on_panel_clicked()`: plain click = select only this one (again = deselect), **Ctrl+click** toggle, **Shift+click** range from the last click. Selected panels get a 2px `#4fc3f7` border via `_border_css()` inside each `update_style()`.
+- **Clipboard is now a LIST** of panel dicts on `main_window.clipboard_panel_data` (shared by every session tab, so paste works in another LOD or another rig tab). An old single-dict value is still accepted (`_clipboard_list()`).
+- Each panel class's `copy_panel()` became `clipboard_data()` (returns the dict). `copy_panel`/`cut_panel`/`paste_panel` are now thin calls into `workspace/panels.py`: `copy_panels`, `cut_panels`, `paste_panels_at`, `_paste_clipboard`, `_paste_one`. The three near-identical paste bodies (one per panel class) are replaced by the single `_paste_one()`, which also handles LOD_LOADER from any panel.
+- Copy/cut acts on the **whole selection when the right-clicked panel is part of it**, otherwise just that panel. Menu labels show the count ("📄 Copy 3 Selected Panels", "📋 Paste 3 Panels (Below)"). Copied order = layout (build) order, not click order. Pasted panels become the new selection.
+- **Keyboard** (click a panel first to focus it): Ctrl+C copy, Ctrl+V paste below the last selected panel (or at the end), Esc clear. The mixin accepts `ShortcutOverride` for these keys so Maya's hotkeys don't take them first. A QLineEdit that has focus still does its own text copy/paste.
+- Rig header "..." menu: **📋 Paste … (end of this LOD)**, for pasting into an empty LOD (no panel to right-click).
+- **"..." button** moved into the title-row action group (far right) on all three panel classes, so it works while collapsed.
+- **Bug fixes found while here:** (1) `serialize_panel_data` / `restore_panel_from_data` had the Stage 49 `collapsed` lines *after* `return`, so undo never kept collapse state — moved above the return. (2) SortablePanel copy never wrote INSTANCE_OBJ's `target` / `func_call`, although paste read them — now copied.
+- Verified: compileall clean, check_names 0/0, smoke_test IMPORT OK. Needs Maya testing: click vs drag detection, Ctrl/Shift modifiers under PySide6, Ctrl+V focus, paste into another tab.
+
+### 2026-09-23 — Stage 52 (v44.1): action buttons in the title row, slimmer collapsed panels
+- Request (verbatim): "this we can move to title so even collapsed we have access to this and can reduce the size of collapsed but increase title font size" (screenshot: 🗑 💾 ⏩ LOAD Cache row).
+- `SortablePanel`, `SortableBubblePanel`, `LodLoaderPanel`: the cache buttons (🗑 💾 ⏩), RUN/LOAD, ↺ reset-error and the Cache tick now go into a new `action_layout`, added to the END of `header_layout` (right edge). The LOD Loader has no cache controls, so only RUN and ↺ moved there. Collapse hides only rows after the header, so these stay clickable while collapsed. Settings (field, "...", ×, 🌐, Function, Popup) stay in the body row.
+- `CollapseMixin`: collapsed panels use `COLLAPSED_V_MARGIN = 3` top/bottom instead of 10; the original margins are stored at `_init_collapse` and restored on expand.
+- Title font 13px → 15px at all nine `title_edit.setStyleSheet` sites (normal + editing + finish-editing, in all three panel classes).
+- Verified: compileall clean, check_names 0/0, smoke_test IMPORT OK. Not yet seen in Maya: header width on narrow columns, and NOTE/DELETE/ZERO_OUT/PARENT panels (× and ... already sit in their header, so the actions land to the right of them).
+
+### 2026-09-23 — v44.0: KRISHNA labels + decisions settled
+- Request (verbatim): "KRISHNA rename ... - only labels", "stay krt", "this si a branch pipe of repo url is - https://github.com/pipe-kleem/KRT.git".
+- Changed only on-screen text (six strings): publish dialog window title, "KRISHNA Context" group box, Review checkbox tooltip, the "Resolving KRISHNA server publish path …" status line (`dialogs/ayon_publish.py`); the "🚀 PUBLISH KRISHNA" button and the rig-name tooltip (`workspace/pages.py`).
+- Left as AYON on purpose: `[AYON]` / `[AYON PUBLISH]` Script Editor prints and `cmds.warning` messages, the file name `ayon_publish.py`, variable names like `btn_publish_ayon`, `ayon_api`, env vars, `ayon:5000`.
+- Remote `origin` was already configured; `pipe` was 1 commit ahead of `origin/pipe` before this change.
 
 ### 2026-09-18 — Session 2: restructure into packages + mixins  (commit `0301516`)
 - Request: *"lets restructure all the code first divide in multiple files so its faster to edit and work in it"*. Chosen style: folders + mixins.

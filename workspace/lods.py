@@ -92,6 +92,7 @@ class WorkspaceLodsMixin(object):
         menu_add.addAction("Add Delete-by-Name Panel", lambda: self.add_panel("DELETE", "DELETE_OBJ", ""))
         menu_add.addAction("Add Zero Out Panel", lambda: self.add_panel("ZERO OUT", "ZERO_OUT", ""))
         menu_add.addAction("Add Parent Panel", lambda: self.add_panel("PARENT", "PARENT_OBJ", ""))
+        menu_add.addAction("Add CC Import Panel (Character Creator FBX)", lambda: self.add_panel("CC IMPORT", "CC_IMPORT", ""))
         btn_add_panel.setMenu(menu_add); rig_vbox.addWidget(btn_add_panel); rig_vbox.addStretch()
 
         scroll.setWidget(scroll_content); layout.addWidget(scroll)
@@ -280,7 +281,7 @@ class WorkspaceLodsMixin(object):
     # ------------------------------------------------------------------
     def sidebar_is_collapsed(self):
         """True when the LOD Manager sidebar is folded away to the left."""
-        return bool(getattr(self, "_sidebar_collapsed", False))
+        return bool(getattr(self, "_sidebar_collapsed", True))
 
     def set_sidebar_collapsed(self, state):
         """Fold the sidebar to a thin rail (state=True) or restore it.

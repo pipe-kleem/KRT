@@ -14,10 +14,17 @@ from ._shared import *
 
 class CollapseMixin(object):
 
+    # Top/bottom padding of a collapsed panel (expanded panels use 10).
+    COLLAPSED_V_MARGIN = 3
+
     def _init_collapse(self, main_layout, header_layout):
         """Call at the END of __init__, once every row has been added."""
         self._main_layout = main_layout
         self._collapsed = False
+        # Stage 52: remember the normal margins so a collapsed panel can
+        # shrink to a slim bar (less top/bottom padding) and grow back.
+        m = main_layout.contentsMargins()
+        self._expanded_margins = (m.left(), m.top(), m.right(), m.bottom())
 
         self.btn_collapse = QtWidgets.QPushButton("▾")
         self.btn_collapse.setFixedSize(20, 20)
@@ -61,6 +68,12 @@ class CollapseMixin(object):
             self._collapsed = state
         for w in self._body_items():
             w.setVisible(not state)
+        # Stage 52: slim bar when collapsed - only the header row is left.
+        l, t, r, bm = getattr(self, "_expanded_margins", (10, 10, 10, 10))
+        if state:
+            self._main_layout.setContentsMargins(l, self.COLLAPSED_V_MARGIN, r, self.COLLAPSED_V_MARGIN)
+        else:
+            self._main_layout.setContentsMargins(l, t, r, bm)
         if hasattr(self, "btn_collapse"):
             self.btn_collapse.setText("▸" if state else "▾")
             self.btn_collapse.setToolTip(

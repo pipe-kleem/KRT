@@ -213,6 +213,23 @@ organize_rig_sets()
         ("PUBLISH PATH",         "PUBLISH",       ".",                               True),
     ]
 
+    # Stage 56: project types. A CHARACTER starts as the prop stack plus the
+    # CC Import panel (OFF); character-only scripts get added to
+    # CHARACTER_EXTRA_PANELS as they are written. Each entry is
+    # (insert_after_title, panel_tuple) so it lands at the right place.
+    PROJECT_TYPES = ("prop", "character")
+    CHARACTER_EXTRA_PANELS = [
+        ("LOAD SCRIPT PANEL", ("CC IMPORT", "CC_IMPORT", "", False)),
+    ]
+
+    def default_panels_for(self, rig_type="prop"):
+        panels = list(self.DEFAULT_PANELS)
+        if rig_type == "character":
+            for after_title, entry in self.CHARACTER_EXTRA_PANELS:
+                idx = next((i for i, p in enumerate(panels) if p[0] == after_title), len(panels) - 1)
+                panels.insert(idx + 1, entry)
+        return panels
+
     def _krt_package_dir(self):
         """KRT/ itself - this file sits in KRT/workspace/, so go up two."""
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -236,10 +253,11 @@ organize_rig_sets()
             copy_utils=dlg.chk_utils.isChecked(),
             make_panels=dlg.chk_panels.isChecked(),
             open_folder=dlg.chk_open_folder.isChecked(),
+            rig_type=dlg.rig_type(),
         )
 
     def initialize_project(self, root, rig_name, copy_utils=True,
-                           make_panels=True, open_folder=False):
+                           make_panels=True, open_folder=False, rig_type="prop"):
         """Create the folder structure, seed scripts/utils.py, point the Rig
         Root at it and (optionally) build the default panel stack.
 
@@ -286,7 +304,7 @@ organize_rig_sets()
             self.edit_rig_name.setText("{}_rig".format(rig_name))
 
         if make_panels:
-            self._create_default_project_panels(rig_name=rig_name)
+            self._create_default_project_panels(rig_name=rig_name, rig_type=rig_type)
         self._refresh_path_mode_button()
 
         # Playblast output, if that tab has been built in this session.
@@ -313,7 +331,7 @@ organize_rig_sets()
         root = self.rig_root()
         return os.path.basename(root.rstrip("/")) if root else "**"
 
-    def _create_default_project_panels(self, rig_name=None):
+    def _create_default_project_panels(self, rig_name=None, rig_type="prop"):
         """Replace the current LOD's panels with the standard stack."""
         container = self.get_current_lod_container()
         if not container:
@@ -324,7 +342,8 @@ organize_rig_sets()
             if item.widget():
                 item.widget().deleteLater()
         rig = rig_name or self.default_rig_token()
-        for title, p_type, value, active in self.DEFAULT_PANELS:
+        panels = self.default_panels_for(rig_type)
+        for title, p_type, value, active in panels:
             if p_type == "MODULE":
                 pan = self.add_module_panel(title)
             else:
@@ -343,5 +362,5 @@ organize_rig_sets()
             if (pan is not None and title == "LOAD SCRIPT PANEL"
                     and hasattr(pan, "chk_share_global")):
                 pan.chk_share_global.setChecked(True)
-        cmds.warning("[KRT] Default panel stack created ({} panels) for '{}'.".format(
-            len(self.DEFAULT_PANELS), rig))
+        cmds.warning("[KRT] Default {} panel stack created ({} panels) for '{}'.".format(
+            rig_type, len(panels), rig))

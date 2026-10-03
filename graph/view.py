@@ -3,6 +3,7 @@ from ._shared import *
 from .catalog import list_mgear_components, list_plebe_templates
 from .dialogs import CustomScriptDialog, NodeSearchPopup, PlebeTemplateDialog
 from .items import RigNode, RigWire, bezier_path
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class NodeGraphView(QtWidgets.QGraphicsView):
@@ -593,7 +594,7 @@ class NodeGraphView(QtWidgets.QGraphicsView):
         of the catalog components. Same 'graft onto a parent' behavior as
         any other component once placed (see build_node_guide /
         _build_custom_sgt_guide)."""
-        res = cmds.fileDialog2(fm=1, ff="mGear Guide Template (*.sgt);;All Files (*.*)",
+        res = file_dialog2(fm=1, ff="mGear Guide Template (*.sgt);;All Files (*.*)",
                                caption="Choose a Custom Module .sgt File")
         if not res:
             return

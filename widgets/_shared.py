@@ -40,6 +40,10 @@ PANEL_TYPE_ACCENTS = {
     "PARENT_OBJ":    "#ffa726",   # orange      - parents child object(s) under a parent
     "INSTANCE_OBJ":  "#ab47bc",   # purple      - creates preset-transform instances of an object
     "CC_IMPORT":     "#ff8a65",   # coral       - Character Creator FBX -> cleaned cc_built .ma
+    "JOINT_TRANSFER": "#7986cb",  # indigo      - fit CC joints to the body (utils/joint_transfer.py)
+    "FINGER_FIX":    "#4db6ac",   # sea green   - match CC fingers to the hand rig (utils/finger_fix.py)
+    "JOINT_POS":     "#90a4ae",   # blue grey   - save/load joint positions (utils/joint_positions.py)
+    "BREATHING":     "#81c784",   # soft green  - breathing setup (utils/breathing.py)
 }
 
 # Stage 17, request "different design per panel type", REVISED Stage 18
@@ -82,6 +86,10 @@ PANEL_TYPE_ICONS = {
     # transform instances of a named object (see panel UI/execute below).
     "INSTANCE_OBJ":  "🧬",
     "CC_IMPORT":     "🧑",
+    "JOINT_TRANSFER": "🦿",
+    "FINGER_FIX":    "✋",
+    "JOINT_POS":     "📍",
+    "BREATHING":     "🫁",
 }
 
 # Stage 17: each panel type's DEFAULT background - a faint wash of its own
@@ -109,6 +117,10 @@ PANEL_TYPE_BG_TINT = {
     "PARENT_OBJ":    "#453b28",
     "INSTANCE_OBJ":  "#3a2f45",
     "CC_IMPORT":     "#45302a",
+    "JOINT_TRANSFER": "#323440",
+    "FINGER_FIX":    "#2c3d3d",
+    "JOINT_POS":     "#363a3d",
+    "BREATHING":     "#323d33",
 }
 
 # Stage 17, "these fields are where we're loading/saving a path, not typing
@@ -118,7 +130,7 @@ PANEL_TYPE_BG_TINT = {
 # excluded on purpose: that field can hold raw pasted code instead of a
 # path. Stage 18 adds IMPORT_3D (now that MA/IMPORT_3D are one merged,
 # always-Browse-set panel type - request #1).
-READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD", "CC_IMPORT"}
+READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD", "CC_IMPORT", "JOINT_POS"}
 
 # Stage 18, request #4: every read-only field across the Rig Workspace uses
 # this SAME colour, regardless of which panel type it belongs to - a single

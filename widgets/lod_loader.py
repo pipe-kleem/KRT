@@ -372,6 +372,10 @@ class LodLoaderPanel(CollapseMixin, SelectableMixin, QtWidgets.QFrame):
             actions_map[m.addAction("Add Parent Panel")] = ("PARENT", "PARENT_OBJ", offset)
             actions_map[m.addAction("Add Instance Panel")] = ("INSTANCE", "INSTANCE_OBJ", offset)
             actions_map[m.addAction("Add CC Import Panel (Character Creator FBX)")] = ("CC IMPORT", "CC_IMPORT", offset)
+            actions_map[m.addAction("Add Joint Transfer Panel (fit CC joints to body)")] = ("JOINT TRANSFER", "JOINT_TRANSFER", offset)
+            actions_map[m.addAction("Add Finger Fix Panel (match fingers to hand rig)")] = ("FINGER FIX", "FINGER_FIX", offset)
+            actions_map[m.addAction("Add Joint Positions Panel (save/load joints)")] = ("JOINT POSITIONS", "JOINT_POS", offset)
+            actions_map[m.addAction("Add Breathing Panel")] = ("BREATHING", "BREATHING", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
@@ -397,6 +401,7 @@ class LodLoaderPanel(CollapseMixin, SelectableMixin, QtWidgets.QFrame):
         a_build_till = menu.addAction("🚀 Build Till Here (run every step)")
         a_build_till_cached = menu.addAction("⚡ Build Till Here (resume from newest cache)")
         a_dup = menu.addAction("📋 Duplicate Panel")
+        a_del_panel = menu.addAction(self.workspace.panel_copy_label(self, "🗑 Delete"))
         a_del = menu.addAction("❌ Delete Panel")
 
         action = menu.exec(QtGui.QCursor.pos()) if IS_PYSIDE6 else menu.exec_(QtGui.QCursor.pos())
@@ -418,6 +423,7 @@ class LodLoaderPanel(CollapseMixin, SelectableMixin, QtWidgets.QFrame):
             print("[KRT] menu: Build Till Here (cached) ->", self.title_edit.text())
             self.workspace.build_till_panel(self, resume_from_cache=True)
         elif action == a_dup: self.workspace.duplicate_panel(self)
+        elif action == a_del_panel: self.workspace.delete_panels(self)
         elif action == a_del: self._on_delete_clicked()
 
     def clipboard_data(self):

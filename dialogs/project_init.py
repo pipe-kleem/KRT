@@ -6,6 +6,7 @@ utils.py template, replacing the current LOD's panels).
 """
 from ._shared import *
 from ..utils.paths import DEFAULT_RIGS_ROOT
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class ProjectInitDialog(QtWidgets.QDialog):
@@ -78,7 +79,7 @@ class ProjectInitDialog(QtWidgets.QDialog):
         kwargs = {"fm": 3, "caption": "Select the folder that holds all rigs"}
         if start and os.path.isdir(start):
             kwargs["dir"] = start
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res:
             self.edit_parent.setText(res[0].replace("\\", "/"))
             self._refresh_preview()

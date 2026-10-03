@@ -1,5 +1,6 @@
 """Auto-split from dialogs.py."""
 from ._shared import *
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -91,7 +92,7 @@ class AdvancedSaveDialog(QtWidgets.QDialog):
         self.update_version()
 
     def browse_dir(self):
-        res = cmds.fileDialog2(fm=3, caption="Select Save Directory")
+        res = file_dialog2(fm=3, caption="Select Save Directory")
         if res:
             self.dir_edit.setText(res[0])
 

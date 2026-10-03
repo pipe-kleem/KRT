@@ -1,6 +1,7 @@
 """ModuleGraphWidget - io methods (mixin, auto-split from graph.py)."""
 from ._shared import *
 from .items import RigNode, RigWire
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class GraphIoMixin(object):
@@ -67,7 +68,7 @@ class GraphIoMixin(object):
                   "caption": "Browse Guide JSON"}
         if start_dir:
             kwargs["startingDirectory"] = start_dir
-        file_path = cmds.fileDialog2(**kwargs)
+        file_path = file_dialog2(**kwargs)
         if file_path:
             self.path_field.setText(file_path[0])
 

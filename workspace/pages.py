@@ -1,5 +1,6 @@
 """SessionWorkspace - pages methods (mixin, auto-split from workspace.py)."""
 from ._shared import *
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class WorkspacePagesMixin(object):
@@ -678,7 +679,7 @@ class WorkspacePagesMixin(object):
         kwargs = {"fileMode": 3, "caption": "Select Scripts Folder"}
         if start and os.path.exists(start):
             kwargs["startingDirectory"] = start
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res:
             self.set_scripts_lib_path(res[0])
 

@@ -6,6 +6,7 @@ from .path_tools import CreateFolderStructureDialog, collect_json_file_paths, re
 
 from ayon_api.entity_hub import EntityHub
 import ayon_api
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 def source_file_hash(path):
@@ -545,7 +546,7 @@ class AyonPublishDialog(QtWidgets.QDialog):
         kwargs = {"fm": 1, "ff": ff, "caption": "Choose QC media to publish"}
         if start and os.path.isdir(start):
             kwargs["dir"] = start
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res:
             self.edit_review_path.setText(res[0].replace("\\", "/"))
 

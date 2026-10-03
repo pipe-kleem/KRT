@@ -93,6 +93,10 @@ class WorkspaceLodsMixin(object):
         menu_add.addAction("Add Zero Out Panel", lambda: self.add_panel("ZERO OUT", "ZERO_OUT", ""))
         menu_add.addAction("Add Parent Panel", lambda: self.add_panel("PARENT", "PARENT_OBJ", ""))
         menu_add.addAction("Add CC Import Panel (Character Creator FBX)", lambda: self.add_panel("CC IMPORT", "CC_IMPORT", ""))
+        menu_add.addAction("Add Joint Transfer Panel (fit CC joints to body)", lambda: self.add_panel("JOINT TRANSFER", "JOINT_TRANSFER", ""))
+        menu_add.addAction("Add Finger Fix Panel (match fingers to hand rig)", lambda: self.add_panel("FINGER FIX", "FINGER_FIX", ""))
+        menu_add.addAction("Add Joint Positions Panel (save/load joints)", lambda: self.add_panel("JOINT POSITIONS", "JOINT_POS", ""))
+        menu_add.addAction("Add Breathing Panel", lambda: self.add_panel("BREATHING", "BREATHING", ""))
         btn_add_panel.setMenu(menu_add); rig_vbox.addWidget(btn_add_panel); rig_vbox.addStretch()
 
         scroll.setWidget(scroll_content); layout.addWidget(scroll)

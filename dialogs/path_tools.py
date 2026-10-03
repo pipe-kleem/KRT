@@ -1,5 +1,6 @@
 """Auto-split from dialogs.py."""
 from ._shared import *
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -108,7 +109,7 @@ class PathReplaceDialog(QtWidgets.QDialog):
 
     # ──────────────────────────────────────────────────────────────────
     def _browse_into(self, line_edit):
-        res = cmds.fileDialog2(fm=3, caption="Select Directory")
+        res = file_dialog2(fm=3, caption="Select Directory")
         if res:
             line_edit.setText(res[0].replace("\\", "/"))
 
@@ -366,7 +367,7 @@ class CreateFolderStructureDialog(QtWidgets.QDialog):
                 return
 
     def _browse_root(self):
-        res = cmds.fileDialog2(fm=3, caption="Select Project Root Directory")
+        res = file_dialog2(fm=3, caption="Select Project Root Directory")
         if res:
             self.edit_root.setText(res[0].replace("\\", "/"))
 

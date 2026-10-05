@@ -1,0 +1,91 @@
+global proc extraSliders()
+{
+
+    select -r  FRM_thicknessInward ;
+    duplicate -rr;
+    move -r -os -wd 0 -6.831893 0 ;
+    
+    select -r FRM_thicknessInward1.vtx[6:7] ;
+    select -tgl FRM_thicknessInward1.vtx[1] ;
+    select -tgl FRM_thicknessInward1.vtx[3] ;
+    move -r -os -wd 1.133882 0 0 ;
+    
+    select -r FRM_thicknessInward1|FRM_L_mouth_thicknessInwardU FRM_thicknessInward1|FRM_R_mouth_thicknessInwardU FRM_thicknessInward1|FRM_L_mouth_thicknessInwardD FRM_thicknessInward1|FRM_R_mouth_thicknessInwardD ;
+    duplicate -rr;
+    move -r 1.043416 0 0 ;
+    select -cl  ;
+    
+    
+    rename "FRM_thicknessInward1" "FRM_ExtraShapes";
+    
+    rename "FRM_ExtraShapes|FRM_L_mouth_thicknessInwardU" "FRM_V_Open";
+    rename "FRM_V_Open|CTRL_L_mouth_thicknessInwardU" "CTRL_V_Open";
+    
+    rename "FRM_ExtraShapes|FRM_R_mouth_thicknessInwardU" "FRM_V_Explosive";
+    rename "FRM_V_Explosive|CTRL_R_mouth_thicknessInwardU" "CTRL_V_Explosive";
+    
+    rename "FRM_ExtraShapes|FRM_L_mouth_thicknessInwardD" "FRM_V_Dental_Lip";
+    rename "FRM_V_Dental_Lip|CTRL_L_mouth_thicknessInwardD" "CTRL_V_Dental_Lip";
+    
+    rename "FRM_ExtraShapes|FRM_R_mouth_thicknessInwardD" "FRM_V_Tight_O";
+    rename "FRM_V_Tight_O|CTRL_R_mouth_thicknessInwardD" "CTRL_V_Tight_O";
+    
+    
+    rename "FRM_ExtraShapes|FRM_L_mouth_thicknessInwardU1" "FRM_V_Tight";
+    rename "FRM_V_Tight|CTRL_L_mouth_thicknessInwardU" "CTRL_V_Tight";
+    
+    rename "FRM_ExtraShapes|FRM_R_mouth_thicknessInwardU1" "FRM_V_Wide";
+    rename "FRM_V_Wide|CTRL_R_mouth_thicknessInwardU" "CTRL_V_Wide";
+    
+    rename "FRM_ExtraShapes|FRM_L_mouth_thicknessInwardD1" "FRM_V_Affricate";
+    rename "FRM_V_Affricate|CTRL_L_mouth_thicknessInwardD" "CTRL_V_Affricate";
+    
+    rename "FRM_ExtraShapes|FRM_R_mouth_thicknessInwardD1" "FRM_V_Lip_Open";
+    rename "FRM_V_Lip_Open|CTRL_R_mouth_thicknessInwardD" "CTRL_V_Lip_Open";
+    
+    select -r FRM_ExtraShapes ;
+    move -r 1.595882 0 0 ;
+    
+    
+    setAttr "FRM_V_Affricate.rotateZ" 180;
+    setAttr "FRM_V_Dental_Lip.rotateZ" 180;
+    setAttr "FRM_V_Tight_O.rotateZ" 180;
+    setAttr "FRM_V_Lip_Open.rotateZ" 180;
+    
+    select -r FRM_V_Open.vtx[10:11] ;
+    select -tgl FRM_V_Explosive.vtx[10:11] ;
+    select -tgl  FRM_V_Tight.vtx[10:11] ;
+    select -tgl FRM_V_Wide.vtx[10:11] ;
+    move -r 0 -0.739703 0 ;
+    select -cl  ;
+    select -tgl FRM_V_Dental_Lip.vtx[10:11];
+    select -tgl FRM_V_Tight_O.vtx[10:11];
+    select -tgl FRM_V_Affricate.vtx[10:11];
+    select -tgl FRM_V_Lip_Open.vtx[10:11];
+    move -r 0 -0.739703 0 ;
+    select -cl  ;
+    
+    
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Explosive;
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Open;
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Wide;
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Tight;
+    
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Tight_O;
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Dental_Lip;
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Lip_Open;
+    transformLimits -ty 0 1 -ety 1 1 CTRL_V_Affricate;
+    
+    connectAttr -f CTRL_V_Open.translateY Morpher_CC_Base_Body.V_Open;
+    connectAttr -f CTRL_V_Explosive.translateY Morpher_CC_Base_Body.V_Explosive;
+    connectAttr -f CTRL_V_Dental_Lip.translateY Morpher_CC_Base_Body.V_Dental_Lip;
+    connectAttr -f CTRL_V_Tight_O.translateY Morpher_CC_Base_Body.V_Tight_O;
+    
+    connectAttr -f CTRL_V_Tight.translateY Morpher_CC_Base_Body.V_Tight;
+    connectAttr -f CTRL_V_Wide.translateY Morpher_CC_Base_Body.V_Wide;
+    connectAttr -f CTRL_V_Affricate.translateY Morpher_CC_Base_Body.V_Affricate;
+    connectAttr -f CTRL_V_Lip_Open.translateY Morpher_CC_Base_Body.V_Lip_Open;
+    
+    select -cl  ;
+
+}

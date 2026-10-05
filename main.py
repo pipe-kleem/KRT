@@ -14,6 +14,7 @@ import maya.cmds as cmds
 import os
 import re
 import time
+import traceback
 from maya.app.general.mayaMixin import MayaQWidgetBaseMixin
 from .compat import QtWidgets, QtCore, QtGui, IS_PYSIDE6
 from . import __version__ as KRT_VERSION, __build__ as KRT_BUILD
@@ -22,11 +23,21 @@ from .dialogs import AdvancedSaveDialog
 from .workspace import SessionWorkspace, CurrentPageStackedWidget
 from .widgets import PBCameraViewWidget
 from .utils import log_crash, mark_session_start, mark_session_clean_exit, check_last_session_health
+from .utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
     def __init__(self, parent=None):
         # Initialize Maya's native workspace mixin layer safely
         super(KRT_Tool, self).__init__(parent=parent)
+
+        # Stage 68: load KRT's rig library (UniUtils, rig_lib, Fan, ...) before
+        # any session tab exists - aliases `import UniUtils`/`import wrapToBs`
+        # to the KRT copies and puts the helpers into Maya's Script Editor.
+        try:
+            from .rigutils import install as _install_rig_library
+            _install_rig_library()
+        except Exception:
+            cmds.warning("[KRT] rig library install failed:\n" + traceback.format_exc())
 
         # Version in the title: the fastest way to tell whether the copy
         # Maya actually loaded is the one you just installed.
@@ -306,7 +317,7 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
                 kwargs["dir"] = start
         except Exception:
             pass
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res:
             self.session_path_field.setText(res[0])
             self.load_path_from_field()

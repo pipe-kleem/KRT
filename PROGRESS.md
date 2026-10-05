@@ -11,7 +11,7 @@
 
 | | |
 |---|---|
-| **Version** | `45.2` (`__init__.py`: `__version__` / `__build__`) — the window title shows it; if Maya shows an older number you are running a different copy of the folder. |
+| **Version** | `46.3` (`__init__.py`: `__version__` / `__build__`) — the window title shows it; if Maya shows an older number you are running a different copy of the folder. |
 | **Location** | `C:\pipeline\KRT_02` on device **kla04**. Package name `KRT`. |
 | **Git** | Branch **`pipe`**, remote `origin` = `https://github.com/pipe-kleem/KRT.git` (also has `master`). Push with `git push origin pipe`. |
 | **Size** | ~24,000 lines, 87 `.py` files (excluding `archive/`). |
@@ -196,6 +196,84 @@ Then in Maya: **KRT menu → launch** (reloads modules) and test the actual beha
 ---
 
 ## 8. Work Log (newest first)
+
+### 2026-10-05 — Stage 68 (v46.3): the studio rig library ships inside KRT and loads with it
+- New package `rigutils/` (from `P:/rigging_team/Pipeline_share/RigUtils` + the per-rig utils.py), loaded when the KRT window opens (`main.py` -> `rigutils.install()`):
+  - `UniUtils.py` - functions unchanged; header now imports Fan/stretchy/Tweaker/capture_viewport_api from rigutils/, `breathing` = KRT's `utils/breathing.py` (newest, same `main()`), sources `extraSliders.mel` / `teethCtrlAdded.mel` from rigutils/; ends with `from .rig_lib import *` so `UniUtils.replace_and_rename_mesh` works too.
+  - `rig_lib.py` - the old `templates/utils.py` body (identical to kva_a/Scripts/utils.py) minus its `sys.path.append(P:)` / UniUtils / wrapToBs header. 27 functions + JOINT_MAPPINGS / JOINTS_TO_SKIP / EXCLUDE_JOINTS.
+  - `Fan.py`, `stretchy.py`, `Tweaker.py` (RigUtils Sep-14 version, used by UniUtils.TweakerMain - the TWEAKER panel still uses the older `PanelScripts/Tweaker.py`), `wrapToBs.py` (+1 line: `from .rig_lib import apply_custom_wrap`, which was a NameError before), `capture_viewport_api.py`, the two .mel files - copied as-is.
+- `rigutils.install()`: `sys.modules["UniUtils"/"wrapToBs"]` -> the KRT copies (old rigs' `sys.path.append(P:); import UniUtils; importlib.reload(UniUtils)` now get these; reload works via the real module name), and every public name is `setdefault` into Maya's `__main__` (Script Editor). Never raises.
+- Script panels: the three `shared_namespace = {...}` sites now call `SessionWorkspace.fresh_script_namespace()` = rig library names + cmds/mel/om (which win). So `replace_and_rename_mesh(...)` in any panel needs no utils.py.
+- `templates/utils.py` (copied into new rigs' scripts/) is now a short "this rig's own helpers" file listing what is preloaded; the full old template is `archive/utils_template_full_v46.py`.
+- Resources: `Universal_Hand_Attribute_AutoChar_v5.py` (kva "FingerAttr" panel) copied into `resources/rig_utils/` (`rig_resources.FINGER_ATTR`). FullBodyJntTransfer_01.ma / Hand_Build_v01.ma / Tongue.py were already there (user's robocopy, byte-identical). The .ma files only point outside KRT for textures (no nested references) - `report()` now lists only non-texture external paths and counts textures as harmless.
+- Verified offline (stubbed Maya): install OK, 54 names, `import UniUtils` -> KRT.rigutils.UniUtils, reload OK. Not yet run in Maya.
+
+### 2026-10-05 — Stage 67 (v46.2): step caches found again after reloading another JSON version
+- Bug: a step cache is `step_caches/<json name>_<hash of json path>/<panel uuid>.ma`, so the folder depends on the JSON's exact PATH. Caches made while v001 was open were invisible after loading v002 / a copy / an autosave (or after the first save of an unsaved session), although the panels' uuids - saved in the JSON - were the same.
+- Fix: `SessionManager.find_caches(uuid, rig_prefix)` searches every step_caches subfolder by uuid (one directory scan, reused for 2 s; `invalidate_cache_index()` after cache/remove/refresh-all), newest first, restricted to folders whose name starts with the rig folder name (kva_a...) plus `_unsaved` - so a JSON copied from another character (same uuids) can't pick up that character's caches.
+- `CacheMixin.find_cache_path()` = own folder first, else the newest match; `has_cache()` and loading (`load_cache_only`) use it; new caches are still written to the current JSON's own folder. The green 💾 tooltip says when the cache came from another JSON version's folder.
+- Removing caches (🗑 cascade, Clear LOD, Delete all for this pipeline) deletes every copy of those steps' caches (`all_cache_paths()`), so an older copy can't reappear as "cached".
+- Not yet run in Maya.
+
+### 2026-10-03 — Stage 65/66 (v46.1): Qt file dialogs; JOINT POSITIONS + BREATHING panels; CC chain reordered
+- **Stage 65 - file dialogs:** "Load file" in panels sometimes opened Maya's dialog empty (no folders, no files). New `utils/file_dialog.py::file_dialog2(**kw)` - drop-in for `cmds.fileDialog2` (same fm/fileMode, ff/fileFilter, dir/startingDirectory, caption; returns list or None) built on `QFileDialog` static methods (the OS dialog). A start path that doesn't exist falls back to its nearest existing parent. All 25 `cmds.fileDialog2(` calls in dialogs/, graph/, widgets/, workspace/ and main.py now call it (one import line added per file). `utils/cc_autosetup.py` is untouched - it monkeypatches cmds.fileDialog2 / QFileDialog for Auto Setup on purpose.
+- **Stage 66 - JOINT POSITIONS panel** (`JOINT_POS`, 📍; `utils/joint_positions.py`): field `cc_rig/joint_positions_v###.json` (read-only, versioned like skin files: Save Overwrite / New Version / Switch Version in "..."), option Root joint (CC_Base_BoneRoot). Saves every joint under the root: parent, translate, rotate, jointOrient, rotateOrder, scale, radius, parent-first. Load creates missing joints under their saved parent (e.g. finger tip joints), sets local values parent-first, then updates bindPreMatrix for every touched joint (skin stays). **RUN loads - unless a JOINT TRANSFER / FINGER FIX panel above it in the same LOD is ON, then RUN saves a new version** (`_fixes_active_above`). A missing file fails with a clear message.
+- **BREATHING panel** (`BREATHING`, 🫁; `utils/breathing.py` = kva's Breathing_Setup_Fixed.py with the RUN block removed; checked self-contained): Main Mesh + Extra Meshes (Get Selected each) + "0.01 scaling" -> `run_breathing(Body_Mesh, mesh_list, use_001_scaling)`; checks the meshes exist first. Template default Main Mesh `geo_{char}_cc_base_body_lod_0`. The v46.0 `templates/character/scripts/Breathing_Setup_Fixed.py` moved to `archive/` (the copy-on-init mechanism stays for other scripts).
+- **Character order now:** CC .MA FILE -> JOINT TRANSFER (off) -> FINGER FIX (off) -> CC EXTRAS -> JOINT POSITIONS -> CC JOINT POSE FIX -> TONGUE -> FAN + STRETCHY -> ORGANISE CC RIG -> BREATHING -> LOAD MODULE ...
+- Not yet run in Maya.
+
+### 2026-10-03 — v46.0: Breathing_Setup_Fixed.py ships with KRT
+- Copied from the latest character, `all_Rigs/kva_a/Scripts/Breathing_Setup_Fixed.py`, into `templates/character/scripts/`. Lines 1-1599 identical; only the final `run_breathing(...)` call changed: `Body_Mesh="geo_{char}_cc_base_body_lod_0"`, and `mesh_list` left empty with the kva costume meshes as a commented example (costume differs per character; `main()` skips extra meshes when the list is empty).
+- `_copy_character_scripts` now fills `{rig}` / `{char}` in copied .py/.mel files with plain `str.replace` (not `.format` - real scripts are full of braces). So a new rig gets e.g. `geo_kva_cc_base_body_lod_0` in its own scripts/Breathing_Setup_Fixed.py.
+
+### 2026-10-03 — Stage 64 (v45.9): breathing, CC extras, normals fix in the character template
+- After ORGANISE CC RIG: `BREATHING CTL` (SCRIPT, path `scripts/Breathing_Setup_Fixed.py`) and `CC EXTRAS` - one panel for the one-liners: `mel.eval("teethCtrlAdded();")`, `mel.eval("extraSliders();")`, `UniUtils.updateEpicSpine()`, `UniUtils.switchFix()` (with `import maya.mel as mel`). User rule: merge what can be merged; only very particular things get their own panel/panel type.
+- `DISPLAY NORMALS FIX` (`DisplayingNormalsFix()`) right after Display Switch, i.e. the last step before Rig Sets.
+- New `templates/character/scripts/`: every file there (README.txt excepted) is copied into `<rig>/scripts/` when a CHARACTER project is initialised with "copy utils" on, never overwriting (`_copy_character_scripts`). Meant for per-rig editable scripts such as Breathing_Setup_Fixed.py - which still has to be dropped in there (not reachable from the chat session).
+
+### 2026-10-03 — v45.8: ORGANISE CC RIG back to plain lines
+- User: keep it simple - characters often get extra meshes, so the panel must read as one `replace_and_rename_mesh(...)` line per mesh. `templates/character/cc_organise.py` is the original kva script again, with `kva` -> `{char}` and `kva_a` -> `{rig}`; no table, no helper. Kept: `transform1` guarded by objExists, `rigging`/`others` parented to `{rig}` (not `"*_a"`).
+- New template token `{char}` = rig name minus a trailing `_a` (`re.sub(r"_[a-z]$", "", rig)`), filled in with `{rig}` in `_create_default_project_panels`, so the panel shows real names (`geo_kva_cc_base_body_lod_0`).
+
+### 2026-10-03 — Stage 63 (v45.7): the CC build chain in the character template
+- Character template (`CHARACTER_EXTRA_PANELS`) now runs the CC chain **after** the model is loaded + LOD-organised: `CC .MA FILE` (IMPORT_3D `cc_rig/cc_built_v001.ma`) -> JOINT TRANSFER -> FINGER FIX -> `CC JOINT POSE FIX` -> `TONGUE JOINT FIX` -> `FAN + STRETCHY JOINTS` -> `ORGANISE CC RIG`, all ON. CC IMPORT stays early and OFF (one-off prep that writes cc_built). JOINT TRANSFER / FINGER FIX moved here from after CC IMPORT.
+- Long default scripts live as files: `templates/character/cc_joint_pose_fix.py`, `templates/character/cc_organise.py`. A template value `"@template:<rel path>"` is read by `project_init._template_text()` when the panels are created, then `{rig}` is filled in as before.
+  - Pose fix = the user's `set_joint_on_curve_preserve_mesh` + a `LIMBS` loop; uses the curve name `create_curve_on_joints()` returns instead of assuming `jnt_connection_crv1`; the empty `""` joint entries were dropped.
+  - Organise = the kva script with `ASSET = "{rig}"` and `CHAR = ASSET` minus a trailing `_a` (kva_a -> kva); mesh swaps as a table (right eye/cornea crossed exactly as in the original); `rigging`/`others` parented to ASSET instead of the `"*_a"` wildcard; `transform1` deleted only if it exists. The file must contain no braces other than `{rig}` (it goes through `.format`).
+- `TONGUE JOINT FIX` = `exec(rig_resources.read(rig_resources.TONGUE))` - Tongue.py is a KRT resource (`resources/rig_utils/Tongue.py`, P: fallback), run in the panel's namespace. `rig_resources.read()` added; `report()` now checks Tongue.py too.
+- Only affects projects initialised from now on. Not yet run in Maya.
+
+### 2026-10-03 — Stage 62 (v45.6): right-click Delete; embedded playblast viewport removed
+- Right-click / "..." menu of every panel kind (sortable, bubble, LOD loader) gains **🗑 Delete Panel** (reads "Delete N Selected Panels" when the panel is part of a multi-selection). New `workspace/panels.py::delete_panels(source)` - same path as Cut minus the clipboard, so **↩ Undo Delete/Cut** restores them.
+- Playblast tab: the live embedded Maya viewport (`PBCameraViewWidget`, page 0 of `pb_preview_stack`) is no longer created. Maya's `updateModelPanelBar` MEL kept failing on the `KRT_Window||||...|KRT_pbCamViewNNNLayout|...` path ("Line 1.32: Syntax error"). Page 0 is now a plain "Pick a playblast" label; all other `pb_camera_view` uses were already behind `hasattr()`. The class stays in `widgets/playblast_widgets.py` (and `cleanup_stale_panels()` still sweeps old panels on launch) in case it is wanted back.
+- The "Step must be less than range" warning was printed in the same burst; expected to be from the embedded panel too - re-check after this version.
+
+### 2026-10-03 — Stage 61 (v45.5): FINGER FIX panel; rig files ship inside KRT
+- New panel type `FINGER_FIX` (✋, sea green), port of the Finger Fix tab (HandRigMatchingUI) of jointTransferPro2.py -> `utils/finger_fix.py`. Steps: 0 create finger tip joints, 1 reference hand rig, 2 snap controls to joints, 3 match joints (skin kept), 4 remove reference + cleanup. Main field = hand rig .ma (empty = default); options Namespace (Hand_Build_v01) and Side (Both / Left / Right). In the character template after JOINT TRANSFER, OFF.
+  - Changes from the tool: step 0 duplicates with `parentOnly` and names the tip `<Finger>4` explicitly, and skips a finger whose 4 already exists (re-running no longer stacks joints); step 0 respects the Side option; steps 2/3 fail clearly if the hand rig isn't referenced; step 2 fails if nothing snapped; the reference is removed by namespace with the same leftover cleanup as joint transfer.
+- JOINT TRANSFER and FINGER FIX now share one generic "steps panel" in `sortable_panel.py` (`STEP_PANEL_TYPES`, `_build_steps_ui`, `_steps_*`). Saved keys: `steps` (ticked keys; the v45.4 `jt_steps` still loads), `jt_ref`, `ff_ns`, `ff_sides`.
+- New shared helpers: `utils/rig_reference.py` (find / load with top-level snapshot / remove with stray + foster-parent cleanup), `utils/step_runner.py` (run a STEPS list, stop at first failure, `on_step` callback). `joint_transfer.run_steps(keys, on_step, **opts)` signature changed to keyword opts.
+- **Rig files inside KRT:** `resources/rig_utils/` mirrors the old `P:/rigging_team/Pipeline_share/RigUtils` layout. `utils/rig_resources.py::resource(rel)` returns the in-KRT copy, else falls back to P:. `rig_resources.report()` lists OK/MISSING and any absolute paths still inside the .ma files. The installer already copies non-.py files. `sphere_02.json` is in; the two .ma files must be copied in by hand (P:/rigging_team is not a connected folder in this chat session).
+- Not yet run in Maya.
+
+### 2026-10-03 — Stage 60 (v45.4): JOINT TRANSFER panel + leftover cleanup
+- New panel type `JOINT_TRANSFER` (🦿, indigo). Main field = sphere JSON (empty = `joint_transfer.SPHERE_JSON`); a `Reference:` field (empty = `REFERENCE_FILE`); one row per step in a 2-column grid: ▶ runs just that step, ✔/✘ status, the tick decides whether RUN / the full build includes it. A single-step failure uses the panel's normal SHOW ERROR button.
+- Added to every "Add panel" menu (sortable, bubble, LOD loader, LOD page) and to the **character** template, right after CC IMPORT and OFF like it (`CHARACTER_EXTRA_PANELS`).
+- Saved/copied through the generic `extra_data` hook: `jt_ref`, `jt_steps` (ticked keys).
+- `utils/joint_transfer.py` reworked for step-by-step use:
+  - `STEPS` list drives the panel; `run_steps(keys, json_path, ref_path, on_step)` returns `(ok, err)`; `run()` still works as the one-liner.
+  - State between steps lives in `sys._krt_joint_transfer_state` (survives a KRT reload): `stored` from detect, the top-level nodes from before the reference was loaded.
+  - `detect()` with no args uses the spheres **in the scene now** (hand edits and deleted spheres count) and reads the mesh with the blendShape envelope at 0, so re-detecting after step 4 still measures the rest shape.
+  - **Leftover fix** (the user saw `transform8` + `FullBodyJntTransfer_01RNfosterParent1` after v45.3): the blendShape adds a non-referenced `...ShapeOrig` under the referenced mesh; deleting the blendShape leaves it, and removing the reference dumps it into a foster parent / new transform. `remove_reference()` now deletes non-referenced nodes under the reference's DAG before removing it, then deletes `<ns>RNfosterParent*` and any new top-level `transformN` holding only intermediate shapes.
+  - Spheres are created without construction history (one fewer node per sphere).
+- Not yet run in Maya.
+
+### 2026-10-03 — v45.3: joint transfer as a headless script (`utils/joint_transfer.py`)
+- Headless port of the Joint Relocator tab of `jointTransferPro2.py`. The SCRIPT panel line is `from KRT.utils import joint_transfer; joint_transfer.run()`.
+- `run()` does: `load_reference()` (FullBodyJntTransfer_01.ma, ns `FullBodyJntTransfer_01`) -> `import_spheres(SPHERE_JSON)` -> `detect(joints - STATIC_JOINTS)` -> `create_blendshape()` (CC_Base_Body -> FullBodyJntTransfer_01:CC_Base_Body, weight 1) -> `reposition(stored)` (Kabsch fit + bindPreMatrix update, skin preserved, one undo chunk) -> `cleanup()` (delete spheres, delete blendShape node, remove reference).
+- The same maths as the original, but faster: points come from one `MFnMesh.getPoints` call and the point-in-sphere test is vectorized with numpy. Sphere repositioning was dropped because the spheres get deleted anyway.
+- On error the scene is left as it is for inspection (`keep_on_error=True`); `joint_transfer.cleanup()` tidies it up by hand.
+- Not yet run in Maya.
 
 ### 2026-09-26 — CC Import: LOD1 works, LOD0 crashes inside the FBX import (no code change)
 - User: "lod1 worked but lod0 crashed probably my pc isnt able to handle" + full hang_dumps.log.

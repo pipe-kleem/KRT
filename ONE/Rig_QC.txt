@@ -1,0 +1,245 @@
+import maya.cmds as cmds
+import maya.utils
+import os
+import threading
+
+class RigQCTool:
+    def __init__(self):
+        self.window_id = "RigQCWindow"
+        self.create_ui()
+
+    def create_ui(self):
+        if cmds.window(self.window_id, exists=True):
+            cmds.deleteUI(self.window_id)
+
+        # Professional window sizing and styling
+        cmds.window(self.window_id, title="Rig QC - Auto ROM Generator", widthHeight=(420, 650))
+        
+        # Main scroll layout for scaling
+        self.main_scroll = cmds.scrollLayout(childResizable=True)
+        cmds.columnLayout(adjustableColumn=True, rowSpacing=5)
+        
+        # Header text
+        cmds.separator(height=10, style='none')
+        cmds.text(label=" RIG QUALITY CONTROL ", font="boldLabelFont", align='center', bgc=[0.15, 0.15, 0.15], height=30)
+        cmds.separator(height=10, style='none')
+
+        # --- SECTION 1: TARGET & SCOPE ---
+        cmds.frameLayout(label="1. Target & Scope", collapsable=True, marginHeight=10, marginWidth=10, bgc=[0.2, 0.2, 0.2])
+        cmds.columnLayout(adjustableColumn=True, rowSpacing=8)
+        
+        self.ctl_pattern = cmds.textFieldGrp(label="Naming Pattern:", text="*ctl", columnWidth2=[130, 200])
+        
+        self.limit_cb = cmds.checkBoxGrp(label="Limit Animation:", label1="Enable", value1=False, columnWidth2=[130, 100], cc=self.toggle_limit_field)
+        self.max_frames = cmds.intFieldGrp(label="Max Frames:", value1=100, columnWidth2=[130, 200], enable=False)
+        
+        cmds.setParent('..')
+        cmds.setParent('..')
+
+        # --- SECTION 2: ANIMATION VALUES ---
+        cmds.frameLayout(label="2. Animation Parameters", collapsable=True, marginHeight=10, marginWidth=10, bgc=[0.2, 0.2, 0.2])
+        cmds.columnLayout(adjustableColumn=True, rowSpacing=8)
+        
+        self.frame_step = cmds.intFieldGrp(label="Frame Offset:", value1=5, columnWidth2=[130, 200])
+        self.trans_val = cmds.floatFieldGrp(label="Translate Value:", value1=1.0, columnWidth2=[130, 200])
+        self.rot_val = cmds.floatFieldGrp(label="Rotate Value:", value1=90.0, columnWidth2=[130, 200])
+        
+        cmds.setParent('..')
+        cmds.setParent('..')
+
+        # --- SECTION 3: CAMERA SETTINGS ---
+        cmds.frameLayout(label="3. QC Camera Setup", collapsable=True, marginHeight=10, marginWidth=10, bgc=[0.2, 0.2, 0.2])
+        cmds.columnLayout(adjustableColumn=True, rowSpacing=8)
+        
+        self.cam_dist = cmds.floatFieldGrp(label="Camera Dist (Z):", value1=30.0, columnWidth2=[130, 200])
+        self.loc_rot_y = cmds.floatFieldGrp(label="Loc Rot Y:", value1=0.0, columnWidth2=[130, 200])
+        # CHANGED: Default Z rotation to 90.0
+        self.loc_rot_z = cmds.floatFieldGrp(label="Loc Rot Z:", value1=90.0, columnWidth2=[130, 200])
+        
+        cmds.setParent('..')
+        cmds.setParent('..')
+
+        # --- SECTION 4: OUTPUT ---
+        cmds.frameLayout(label="4. Output Settings", collapsable=True, marginHeight=10, marginWidth=10, bgc=[0.2, 0.2, 0.2])
+        cmds.columnLayout(adjustableColumn=True, rowSpacing=8)
+        
+        cmds.rowLayout(numberOfColumns=2, columnWidth2=[130, 200], adjustableColumn=2)
+        cmds.text(label="Resolution:", align='right')
+        self.resolution = cmds.optionMenu()
+        cmds.menuItem(label="1920x1080")
+        cmds.menuItem(label="1280x720")
+        cmds.setParent('..')
+        
+        default_path = r"C:\Users\vishal3\Downloads\playblast".replace("\\", "/")
+        self.export_path = cmds.textFieldButtonGrp(
+            label='Save Path:', 
+            buttonLabel='Browse', 
+            bc=self.browse_path,
+            text=default_path,
+            columnWidth3=[70, 220, 60]
+        )
+        
+        cmds.setParent('..')
+        cmds.setParent('..')
+
+        # --- DYNAMIC GENERATE BUTTON & PROGRESS BAR ---
+        cmds.separator(height=15, style='none')
+        
+        self.action_form = cmds.formLayout(height=45)
+        self.gen_btn = cmds.button(label="GENERATE AUTO QC", bgc=[0.25, 0.5, 0.35], command=self.run_qc)
+        self.prog_bar = cmds.progressBar(visible=False, height=45)
+        
+        cmds.formLayout(self.action_form, edit=True,
+            attachForm=[(self.gen_btn, 'top', 0), (self.gen_btn, 'bottom', 0), (self.gen_btn, 'left', 0), (self.gen_btn, 'right', 0),
+                        (self.prog_bar, 'top', 0), (self.prog_bar, 'bottom', 0), (self.prog_bar, 'left', 0), (self.prog_bar, 'right', 0)]
+        )
+        
+        cmds.setParent('..')
+        cmds.separator(height=10, style='none')
+        
+        cmds.showWindow(self.window_id)
+
+    def toggle_limit_field(self, *args):
+        is_checked = cmds.checkBoxGrp(self.limit_cb, q=True, value1=True)
+        cmds.intFieldGrp(self.max_frames, edit=True, enable=is_checked)
+
+    def browse_path(self):
+        path = cmds.fileDialog2(fileMode=3, caption="Select Playblast Folder")
+        if path:
+            cmds.textFieldButtonGrp(self.export_path, edit=True, text=path[0] + "/")
+
+    def get_versioned_filename(self, base_path, base_name, ext):
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+        
+        version = 1
+        while True:
+            filename = "{}_v{:03d}.{}".format(base_name, version, ext)
+            full_path = os.path.join(base_path, filename)
+            if not os.path.exists(full_path):
+                return full_path
+            version += 1
+
+    def trigger_revert_button(self):
+        maya.utils.executeDeferred(self.revert_button_ui)
+
+    def revert_button_ui(self):
+        if cmds.button(self.gen_btn, exists=True):
+            cmds.button(self.gen_btn, edit=True, label="GENERATE AUTO QC", bgc=[0.25, 0.5, 0.35], enable=True)
+
+    def run_qc(self, *args):
+        pattern = cmds.textFieldGrp(self.ctl_pattern, q=True, text=True)
+        limit_anim = cmds.checkBoxGrp(self.limit_cb, q=True, value1=True)
+        max_f = cmds.intFieldGrp(self.max_frames, q=True, value1=True)
+        
+        offset = cmds.intFieldGrp(self.frame_step, q=True, value1=True)
+        t_max = cmds.floatFieldGrp(self.trans_val, q=True, value1=True)
+        r_max = cmds.floatFieldGrp(self.rot_val, q=True, value1=True)
+        
+        cam_z = cmds.floatFieldGrp(self.cam_dist, q=True, value1=True)
+        l_rot_y = cmds.floatFieldGrp(self.loc_rot_y, q=True, value1=True)
+        l_rot_z = cmds.floatFieldGrp(self.loc_rot_z, q=True, value1=True)
+        
+        res_label = cmds.optionMenu(self.resolution, q=True, value=True)
+        width, height = map(int, res_label.split('x'))
+        pb_path = cmds.textFieldButtonGrp(self.export_path, q=True, text=True)
+
+        controls = cmds.ls(pattern, type='transform')
+        if not controls:
+            cmds.warning("No objects found matching pattern: " + pattern)
+            return
+
+        # START UI PROGRESS BAR (Animation Keying Phase)
+        cmds.button(self.gen_btn, edit=True, visible=False)
+        cmds.progressBar(self.prog_bar, edit=True, visible=True, maxValue=len(controls), progress=0)
+        cmds.refresh()
+        
+        # Camera Rig Setup
+        qc_cam_name = "QC_Camera"
+        qc_loc_name = "QC_Cam_Locator"
+        
+        if cmds.objExists(qc_cam_name): cmds.delete(qc_cam_name)
+        if cmds.objExists(qc_loc_name): cmds.delete(qc_loc_name)
+        
+        qc_loc = cmds.spaceLocator(name=qc_loc_name)[0]
+        qc_cam_shape = cmds.camera()
+        qc_cam = cmds.rename(qc_cam_shape[0], qc_cam_name)
+        cmds.parent(qc_cam, qc_loc)
+        
+        cmds.setAttr(qc_cam + ".translateZ", cam_z)
+        cmds.setAttr(qc_loc + ".rotateY", l_rot_y)
+        cmds.setAttr(qc_loc + ".rotateZ", l_rot_z)
+
+        # Animation Logic
+        current_frame = 1
+        cmds.playbackOptions(min=1, ast=1)
+        
+        attrs = [
+            ('translateX', t_max), ('translateY', t_max), ('translateZ', t_max),
+            ('rotateX', r_max), ('rotateY', r_max), ('rotateZ', r_max)
+        ]
+        
+        stop_animating = False
+        
+        for ctl in controls:
+            if stop_animating:
+                cmds.progressBar(self.prog_bar, edit=True, step=1)
+                continue
+                
+            p_con = cmds.pointConstraint(ctl, qc_loc, mo=False)[0]
+            
+            for attr, val in attrs:
+                if limit_anim and current_frame >= max_f:
+                    stop_animating = True
+                    break
+                    
+                full_attr = "{}.{}".format(ctl, attr)
+                if not cmds.objExists(full_attr) or not cmds.getAttr(full_attr, settable=True):
+                    continue
+                
+                cmds.setKeyframe(ctl, at=attr, v=0, t=current_frame)
+                current_frame += offset
+                cmds.setKeyframe(ctl, at=attr, v=val, t=current_frame)
+                current_frame += offset
+                cmds.setKeyframe(ctl, at=attr, v=0, t=current_frame)
+                current_frame += offset
+            
+            cmds.delete(p_con)
+            
+            cmds.progressBar(self.prog_bar, edit=True, step=1)
+            cmds.refresh()
+
+        cmds.playbackOptions(max=current_frame, aet=current_frame)
+
+        # SWITCH UI TO PLAYBLASTING STATE (Since playblast blocks Maya)
+        cmds.progressBar(self.prog_bar, edit=True, visible=False)
+        cmds.button(self.gen_btn, edit=True, visible=True, label="PLAYBLASTING... PLEASE WAIT", bgc=[0.8, 0.5, 0.1], enable=False)
+        cmds.refresh() # Force Maya to draw this warning before it freezes for rendering
+
+        # File Versioning & Playblast Generation
+        pb_format = "qt" if cmds.about(mac=True) else "avi"
+        full_file_path = self.get_versioned_filename(pb_path, "RigQC_Playblast", pb_format)
+        
+        cmds.lookThru(qc_cam)
+        
+        cmds.playblast(
+            filename=full_file_path,
+            format=pb_format,
+            sequenceTime=0,
+            clearCache=1,
+            viewer=True,
+            showOrnaments=True,
+            fp=4,
+            percent=100,
+            compression="none",
+            widthHeight=[width, height]
+        )
+        
+        # FINISH UI - GREEN SUCCESS BUTTON
+        cmds.button(self.gen_btn, edit=True, enable=True, label="DONE!", bgc=[0.2, 0.8, 0.2])
+        cmds.refresh() 
+        
+        threading.Timer(2.0, self.trigger_revert_button).start()
+
+# Execute
+RigQCTool()

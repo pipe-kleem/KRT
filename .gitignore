@@ -1,2 +1,18 @@
 __pycache__/
 *.pyc
+
+# added by ssd_git_backfill
+.venv/
+venv/
+dist/
+build/
+.env
+credentials*.json
+*.log
+.claude/
+*.bak
+*.zip
+.write_probe
+
+# added by ssd_git_backfill
+resources/rig_utils/FullBodyJntTransfer/FullBodyJntTransfer_01.ma

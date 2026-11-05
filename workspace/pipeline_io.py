@@ -1,5 +1,6 @@
 """SessionWorkspace - pipeline_io methods (mixin, auto-split from workspace.py)."""
 from ._shared import *
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class WorkspacePipelineIoMixin(object):
@@ -190,7 +191,7 @@ class WorkspacePipelineIoMixin(object):
             start_dir = self.default_browse_dir()
         if start_dir:
             kwargs['dir'] = start_dir
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if not res: return
         self.load_pipeline_from_file(res[0])
         

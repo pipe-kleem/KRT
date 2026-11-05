@@ -3,6 +3,7 @@ from ._shared import *
 from .catalog import list_plebe_templates
 from .dialogs import PlebeTemplateDialog
 from .items import RigNode
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class GraphComponentSettingsMixin(object):
@@ -550,7 +551,7 @@ class GraphComponentSettingsMixin(object):
             return
         node = selected[0]
         start_dir = os.path.dirname(self.workspace.resolve_path(node.custom_sgt_path)) if node.custom_sgt_path else self.workspace.default_browse_dir()
-        res = cmds.fileDialog2(
+        res = file_dialog2(
             fm=1, ff="mGear Guide Template (*.sgt);;All Files (*.*)",
             caption="Choose a Custom Module .sgt File",
             dir=start_dir if os.path.exists(start_dir) else "")

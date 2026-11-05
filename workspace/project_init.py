@@ -218,8 +218,41 @@ organize_rig_sets()
     # CHARACTER_EXTRA_PANELS as they are written. Each entry is
     # (insert_after_title, panel_tuple) so it lands at the right place.
     PROJECT_TYPES = ("prop", "character")
+    # Tongue.py ships in KRT/resources/rig_utils (P: share as fallback);
+    # exec() runs it in the panel's own namespace like a pasted script.
+    TONGUE_CODE = ('from KRT.utils import rig_resources\n'
+                   'exec(rig_resources.read(rig_resources.TONGUE))')
+    FAN_STRETCHY_CODE = 'UniUtils.run_Fan()\nUniUtils.run_stretchy()'
+    CC_EXTRAS_CODE = ('import maya.mel as mel\n'
+                      'mel.eval("teethCtrlAdded();")\n'
+                      'mel.eval("extraSliders();")\n'
+                      'UniUtils.updateEpicSpine()\n'
+                      'UniUtils.switchFix()')
+
     CHARACTER_EXTRA_PANELS = [
-        ("LOAD SCRIPT PANEL", ("CC IMPORT", "CC_IMPORT", "", False)),
+        # CC IMPORT is a one-off prep step (writes cc_rig/cc_built_<ver>.ma),
+        # so it stays OFF and early. Stage 63: the CC chain the build runs
+        # comes AFTER the model is loaded + LOD-organised ("CUSTOM SCRIPT"
+        # = the first panel of that title, the organize-LOD one), because
+        # ORGANISE CC RIG swaps the CC meshes in for the model's geo.
+        ("LOAD SCRIPT PANEL",     ("CC IMPORT", "CC_IMPORT", "", False)),
+        ("CUSTOM SCRIPT",         ("CC .MA FILE", "IMPORT_3D", "cc_rig/cc_built_v001.ma", True)),
+        # Stage 66: the slow/manual fixes ship OFF; JOINT POSITIONS loads
+        # their saved result. Model update: tick them ON and run - JOINT
+        # POSITIONS then saves a new version instead of loading.
+        ("CC .MA FILE",           ("JOINT TRANSFER", "JOINT_TRANSFER", "", False)),
+        ("JOINT TRANSFER",        ("FINGER FIX", "FINGER_FIX", "", False)),
+        ("FINGER FIX",            ("CC EXTRAS", "SCRIPT", CC_EXTRAS_CODE, True)),
+        ("CC EXTRAS",             ("JOINT POSITIONS", "JOINT_POS", "cc_rig/joint_positions_v001.json", True)),
+        ("JOINT POSITIONS",       ("CC JOINT POSE FIX", "SCRIPT", "@template:character/cc_joint_pose_fix.py", True)),
+        ("CC JOINT POSE FIX",     ("TONGUE JOINT FIX", "SCRIPT", TONGUE_CODE, True)),
+        ("TONGUE JOINT FIX",      ("FAN + STRETCHY JOINTS", "SCRIPT", FAN_STRETCHY_CODE, True)),
+        ("FAN + STRETCHY JOINTS", ("ORGANISE CC RIG", "SCRIPT", "@template:character/cc_organise.py", True)),
+        # Stage 64: a per-rig file (seeded from templates/character/scripts/
+        # at Initialize, see _copy_character_scripts), then the one-liners
+        # merged into a single panel, and the normals fix just before Rig Sets.
+        ("ORGANISE CC RIG",       ("BREATHING", "BREATHING", "geo_{char}_cc_base_body_lod_0", True)),
+        ("Display Switch",        ("DISPLAY NORMALS FIX", "SCRIPT", "DisplayingNormalsFix()", True)),
     ]
 
     def default_panels_for(self, rig_type="prop"):
@@ -297,6 +330,9 @@ organize_rig_sets()
                     cmds.warning("[KRT] Could not copy utils.py template:\n{}".format(
                         traceback.format_exc()))
 
+        if copy_utils and rig_type == "character":
+            self._copy_character_scripts(root)
+
         # Rig Root: from here on every panel path is stored relative to it.
         self.set_rig_root(root, relativize_existing=False)
 
@@ -321,6 +357,37 @@ organize_rig_sets()
                 pass
         return True
 
+    def _copy_character_scripts(self, root):
+        """Stage 64: every file in KRT/templates/character/scripts/ is seeded
+        into <rig>/scripts/ for a CHARACTER project (e.g. Breathing_Setup_Fixed.py),
+        so each rig gets its own editable copy. Never overwrites."""
+        src_dir = os.path.join(self._krt_package_dir(), "templates", "character", "scripts")
+        if not os.path.isdir(src_dir):
+            return
+        for name in sorted(os.listdir(src_dir)):
+            src = os.path.join(src_dir, name)
+            dest = os.path.join(root, "scripts", name).replace("\\", "/")
+            if not os.path.isfile(src) or name.startswith(".") or name.lower() == "readme.txt":
+                continue
+            if os.path.isfile(dest):
+                cmds.warning("[KRT] scripts/{} already exists - left untouched.".format(name))
+                continue
+            try:
+                if name.lower().endswith((".py", ".mel")):
+                    # fill {rig}/{char} with plain replace - .format() would
+                    # trip over every other brace in a real script
+                    rig = os.path.basename(root)
+                    with open(src, "r") as f:
+                        text = f.read()
+                    text = text.replace("{rig}", rig).replace("{char}", re.sub(r"_[a-z]$", "", rig))
+                    with open(dest, "w") as f:
+                        f.write(text)
+                else:
+                    shutil.copy2(src, dest)
+                cmds.warning("[KRT] Copied character script -> scripts/" + name)
+            except Exception:
+                cmds.warning("[KRT] Could not copy {}:\n{}".format(name, traceback.format_exc()))
+
     def default_rig_token(self):
         """What "{rig}" becomes in the default panels' inline scripts.
 
@@ -330,6 +397,19 @@ organize_rig_sets()
         still has to be filled in."""
         root = self.rig_root()
         return os.path.basename(root.rstrip("/")) if root else "**"
+
+    def _template_text(self, value):
+        """'@template:character/x.py' -> that file's text (KRT/templates/),
+        so long default scripts live as real .py files you can open/edit."""
+        if not value.startswith("@template:"):
+            return value
+        path = os.path.join(self._krt_package_dir(), "templates", value[len("@template:"):])
+        try:
+            with open(path, "r") as f:
+                return f.read()
+        except IOError:
+            cmds.warning("[KRT] default script template missing: " + path)
+            return "# missing template: " + value
 
     def _create_default_project_panels(self, rig_name=None, rig_type="prop"):
         """Replace the current LOD's panels with the standard stack."""
@@ -347,12 +427,14 @@ organize_rig_sets()
             if p_type == "MODULE":
                 pan = self.add_module_panel(title)
             else:
-                text = value or ""
+                text = self._template_text(value or "")
                 # .format() only where a {rig} token exists: some default
                 # scripts contain their own "{}" placeholders, which .format()
                 # would either consume or choke on.
-                if "{rig}" in text:
-                    text = text.format(rig=rig)
+                # {char} = rig name minus a trailing "_a" (kva_a -> kva), the
+                # prefix the model's geo uses (geo_kva_..._lod_0).
+                if "{rig}" in text or "{char}" in text:
+                    text = text.format(rig=rig, char=re.sub(r"_[a-z]$", "", rig))
                 pan = self.add_panel(title, p_type, text)
             if pan is not None and not active and hasattr(pan, "checkbox"):
                 pan.checkbox.setChecked(False)

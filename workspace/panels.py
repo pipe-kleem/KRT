@@ -369,6 +369,17 @@ class WorkspacePanelsMixin(object):
             len(panels), ", ".join(p.title_edit.text() for p in panels)))
         return panels
 
+    def delete_panels(self, source):
+        """Right-click > Delete: this panel, or every selected panel if it is
+        part of the selection. Undo Delete/Cut brings them back one by one."""
+        panels = self._panels_to_act_on(source)
+        self.clear_panel_selection()
+        for p in panels:
+            if hasattr(p, "_on_delete_clicked"):      # LOD Loader: disconnect first
+                p._on_delete_clicked()
+            else:
+                self.delete_panel(p)
+
     def cut_panels(self, source):
         panels = self.copy_panels(source)
         self.clear_panel_selection()

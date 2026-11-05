@@ -6,6 +6,7 @@ from .cache_mixin import CacheMixin
 from .dialogs import ErrorDialog
 from .style import is_script_file_ref, panel_run_label, prompt_skincluster_naming_check, style_readonly_path_field, type_accent, type_bg_tint, type_icon
 from .tweaker_group import TweakerVertexGroup, _NoteVerticalResizeHandle
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame):
@@ -90,7 +91,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         self.btn_run.setFixedWidth(130)
         self.btn_run.setStyleSheet("background-color: #2bb5a8; color: white; font-weight: bold;")
 
-        if p_type in ("NOTE", "DELETE_OBJ", "ZERO_OUT", "PARENT_OBJ"):
+        if p_type in ("NOTE", "DELETE_OBJ", "ZERO_OUT", "PARENT_OBJ", "BREATHING"):
             # None of these types show the generic path/code field (see
             # below - it's hidden for all of them, they each have their
             # own dedicated name field instead), so Delete/More-Options go
@@ -454,6 +455,13 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             self.cc_version_field.textChanged.connect(self._update_cc_output_label)
             self._update_cc_output_label()
 
+        if p_type in self.STEP_PANEL_TYPES:
+            self._build_steps_ui(main_layout)
+        if p_type == "JOINT_POS":
+            self._build_joint_pos_ui(main_layout)
+        if p_type == "BREATHING":
+            self._build_breathing_ui(main_layout)
+
         if p_type in ("DELETE_OBJ", "ZERO_OUT"):
             # One name field, reused for both types - Delete removes
             # whatever's listed, Zero Out builds an offset group above
@@ -790,6 +798,15 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             except Exception as e:
                 om.MGlobal.displayError(f"Failed to export skin: {e}")
 
+        elif self.p_type == "JOINT_POS":
+            from ..utils import joint_positions as jp
+            try:
+                jp.save(save_path, self.jp_root_field.text().strip() or jp.DEFAULT_ROOT)
+                self.field.setText(self.workspace.relativize_path(save_path))
+                cmds.warning("Joint positions saved to: " + save_path)
+            except Exception as e:
+                om.MGlobal.displayError("Failed to save joint positions: {}".format(e))
+
         elif self.p_type == "SHAPES":
             pattern = self.pattern_field.text()
             try:
@@ -899,6 +916,11 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             ff = "Skin (*.jSkin *.gSkin *.json);;All Files (*.*)"
             caption = "Save Skin As"
             default_name = "skinCluster" + default_ext
+        elif self.p_type == "JOINT_POS":
+            default_ext = ".json"
+            ff = "Joint Positions (*.json);;All Files (*.*)"
+            caption = "Save Joint Positions As"
+            default_name = "joint_positions_v001" + default_ext
         elif self.p_type == "SHAPES":
             default_ext = ".json"
             ff = "Control Shapes (*.json);;All Files (*.*)"
@@ -923,7 +945,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         if not start_dir or not os.path.exists(start_dir):
             start_dir = os.path.expanduser("~")
 
-        res = cmds.fileDialog2(
+        res = file_dialog2(
             fileFilter=ff, dialogStyle=2, fileMode=0, caption=caption,
             startingDirectory=os.path.join(start_dir, default_name).replace("\\", "/"))
         if not res:
@@ -992,9 +1014,239 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         start = self.workspace.resolve_path(self.cc_tex_field.text()) or self.get_start_dir()
         if start and os.path.isdir(start):
             kwargs["dir"] = start
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res:
             self.cc_tex_field.setText(self.workspace.relativize_path(res[0]))
+
+    # ── STEPS panels: JOINT TRANSFER (Stage 60), FINGER FIX (Stage 61) ────
+    # One row per step of the panel's module (its STEPS list): tick = part of
+    # RUN / the build, > = run just that step now, then a status mark. The
+    # steps share state inside the module, so you can run a few, adjust the
+    # scene by hand, and carry on. A new steps panel type = one entry in
+    # STEP_PANEL_TYPES + its option widgets in _build_steps_options().
+    STEP_PANEL_TYPES = ("JOINT_TRANSFER", "FINGER_FIX")
+    _STEP_STATE_STYLE = {"": ("", "#888"), "running": ("...", "#ffca28"),
+                         "ok": ("\u2714", "#4CAF50"), "error": ("\u2718", "#f44336")}
+
+    def _steps_module(self):
+        if self.p_type == "JOINT_TRANSFER":
+            from ..utils import joint_transfer as mod
+        else:
+            from ..utils import finger_fix as mod
+        return mod
+
+    def _build_steps_ui(self, main_layout):
+        mod = self._steps_module()
+        self._build_steps_options(main_layout, mod)
+        grid = QtWidgets.QGridLayout()
+        grid.setContentsMargins(25, 0, 0, 0)
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(2)
+        self.step_checks, self.step_status = {}, {}
+        per_col = (len(mod.STEPS) + 1) // 2           # two columns
+        for i, (key, label) in enumerate(mod.STEPS):
+            chk = QtWidgets.QCheckBox(label)
+            chk.setChecked(True)
+            chk.setToolTip("Included when the panel runs (RUN / full build).")
+            btn = QtWidgets.QPushButton("\u25B6")
+            btn.setFixedSize(26, 22)
+            btn.setToolTip("Run only this step now")
+            btn.clicked.connect(lambda _=False, k=key: self._steps_run_single(k))
+            status = QtWidgets.QLabel()
+            status.setFixedWidth(18)
+            hbox = QtWidgets.QHBoxLayout()
+            hbox.setSpacing(4)
+            hbox.addWidget(btn)
+            hbox.addWidget(status)
+            hbox.addWidget(chk)
+            hbox.addStretch()
+            grid.addLayout(hbox, i % per_col, (i // per_col) * 3)
+            self.step_checks[key], self.step_status[key] = chk, status
+        main_layout.addLayout(grid)
+
+    def _build_steps_options(self, main_layout, mod):
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(25, 0, 0, 0)
+        if self.p_type == "JOINT_TRANSFER":
+            # main field = sphere JSON; extra field = the reference .ma
+            self.field.setPlaceholderText("Sphere JSON (empty = " + mod.SPHERE_JSON + ")")
+            row.addWidget(QtWidgets.QLabel("Reference:"))
+            self.step_ref_field = QtWidgets.QLineEdit()
+            self.step_ref_field.setPlaceholderText("empty = " + mod.REFERENCE_FILE)
+            self.step_ref_field.setToolTip("The FullBodyJntTransfer .ma to reference (namespace %s)" % mod.NAMESPACE)
+            row.addWidget(self.step_ref_field)
+            btn_ref = QtWidgets.QPushButton("\U0001F4C2")
+            btn_ref.setFixedWidth(30)
+            btn_ref.setToolTip("Browse the reference .ma")
+            btn_ref.clicked.connect(self._browse_step_reference)
+            row.addWidget(btn_ref)
+        else:
+            # main field = the hand rig .ma; extras = namespace + side
+            self.field.setPlaceholderText("Hand rig .ma (empty = " + mod.HAND_RIG_FILE + ")")
+            row.addWidget(QtWidgets.QLabel("Namespace:"))
+            self.step_ns_field = QtWidgets.QLineEdit(mod.NAMESPACE)
+            self.step_ns_field.setFixedWidth(130)
+            self.step_ns_field.setToolTip("Namespace the hand rig is referenced under")
+            row.addWidget(self.step_ns_field)
+            row.addWidget(QtWidgets.QLabel("Side:"))
+            self.step_side_combo = QtWidgets.QComboBox()
+            for text, data in (("Both", "LR"), ("Left only", "L"), ("Right only", "R")):
+                self.step_side_combo.addItem(text, data)
+            row.addWidget(self.step_side_combo)
+            row.addStretch()
+        main_layout.addLayout(row)
+
+    def _browse_step_reference(self):
+        res = file_dialog2(fm=1, ff="Maya Files (*.ma *.mb);;All Files (*.*)",
+                               caption="Select Joint Transfer Reference")
+        if res:
+            self.step_ref_field.setText(res[0])
+
+    def _steps_options(self):
+        main = self.path().strip() or None
+        if self.p_type == "JOINT_TRANSFER":
+            return {"json_path": main, "ref_path": self.step_ref_field.text().strip() or None}
+        return {"ref_path": main, "ns": self.step_ns_field.text().strip(),
+                "sides": self.step_side_combo.currentData()}
+
+    def _steps_set_status(self, key, state):
+        text, color = self._STEP_STATE_STYLE.get(state, ("", "#888"))
+        lbl = self.step_status.get(key)
+        if lbl:
+            lbl.setText(text)
+            lbl.setStyleSheet("color: %s; font-weight: bold;" % color)
+        QtWidgets.QApplication.processEvents()
+
+    def _steps_run(self, keys):
+        return self._steps_module().run_steps(keys, on_step=self._steps_set_status,
+                                              **self._steps_options())
+
+    def _steps_run_single(self, key):
+        """One step by hand. A failure uses the panel's normal SHOW ERROR button."""
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            ok, err = self._steps_run([key])
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+        if ok:
+            self.reset_run_button()
+        else:
+            self.btn_run.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
+            self.btn_run.setText("SHOW ERROR")
+            self.last_error_msg = err
+            self.btn_reset_err.setVisible(True)
+
+    # ── JOINT POSITIONS (Stage 66) ───────────────────────────────────────
+    # Field = the joint position file (cc_rig/joint_positions_v###.json).
+    # RUN loads it - UNLESS a JOINT TRANSFER or FINGER FIX panel above it is
+    # switched on: then the fixes just ran, so RUN saves a NEW version
+    # instead. Normal builds: fixes off -> fast load. Model update: tick the
+    # fixes on, run everything, the new positions are recorded.
+    FIX_PANEL_TYPES = ("JOINT_TRANSFER", "FINGER_FIX")
+
+    def _build_joint_pos_ui(self, main_layout):
+        from ..utils import joint_positions as jp
+        self.field.setPlaceholderText("Joint position file - '...' > Save Joint Positions")
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(25, 0, 0, 0)
+        row.addWidget(QtWidgets.QLabel("Root joint:"))
+        self.jp_root_field = QtWidgets.QLineEdit(jp.DEFAULT_ROOT)
+        self.jp_root_field.setFixedWidth(160)
+        self.jp_root_field.setToolTip("Every joint under (and including) this one is saved.")
+        row.addWidget(self.jp_root_field)
+        self.lbl_jp_mode = QtWidgets.QLabel()
+        self.lbl_jp_mode.setStyleSheet("color: #888; margin-left: 10px;")
+        row.addWidget(self.lbl_jp_mode)
+        row.addStretch()
+        main_layout.addLayout(row)
+        self.lbl_jp_mode.setText("RUN = load (or save a new version when a fix panel above is ON)")
+
+    def _fixes_active_above(self):
+        container = self.parentWidget()
+        lay = getattr(container, "layout", None)
+        lay = lay() if callable(lay) else lay
+        if lay is None:
+            return []
+        on = []
+        for i in range(lay.count()):
+            w = lay.itemAt(i).widget()
+            if w is self:
+                break
+            if getattr(w, "p_type", None) in self.FIX_PANEL_TYPES and getattr(w, "is_active", False):
+                on.append(w.title_edit.text())
+        return on
+
+    def _joint_pos_path(self):
+        path = self.path().strip()
+        if not path:
+            root = self.workspace.rig_root() or ""
+            path = os.path.join(root, "cc_rig", "joint_positions_v001.json").replace("\\", "/")
+        return path
+
+    def _joint_pos_run(self):
+        from ..utils import joint_positions as jp
+        try:
+            fixes = self._fixes_active_above()
+            path = self._joint_pos_path()
+            if fixes:
+                save_path = get_versioned_path(path, get_latest=False)
+                jp.save(save_path, self.jp_root_field.text().strip() or jp.DEFAULT_ROOT)
+                self.field.setText(self.workspace.relativize_path(save_path))
+                self.lbl_jp_mode.setText("saved new version (fixes ON: {})".format(", ".join(fixes)))
+            else:
+                if not os.path.isfile(path):
+                    path = get_versioned_path(path, get_latest=True)
+                jp.load(path)
+                self.lbl_jp_mode.setText("loaded " + os.path.basename(path))
+            return True, ""
+        except Exception:
+            return False, traceback.format_exc()
+
+    # ── BREATHING (Stage 66) ─────────────────────────────────────────────
+    def _build_breathing_ui(self, main_layout):
+        self.field.setVisible(False)
+        default_body = self.field.text().strip()      # template default lands here
+        self.field.setText("")
+        for label, attr, tip in (
+                ("Main Mesh:", "br_body_field", "The body mesh the breathing is built on"),
+                ("Extra Meshes:", "br_meshes_field", "Costume/groom meshes that breathe with the body, comma-separated")):
+            row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(25, 0, 0, 0)
+            lbl = QtWidgets.QLabel(label)
+            lbl.setFixedWidth(85)
+            row.addWidget(lbl)
+            edit = QtWidgets.QLineEdit()
+            edit.setToolTip(tip)
+            setattr(self, attr, edit)
+            row.addWidget(edit)
+            btn = QtWidgets.QPushButton("Get Selected")
+            btn.clicked.connect(lambda _=False, e=edit: self._get_selection_into(e))
+            row.addWidget(btn)
+            main_layout.addLayout(row)
+        self.br_body_field.setText(default_body)
+        self.br_meshes_field.setPlaceholderText("optional - e.g. geo_x_upper_cloth_lod_0, geo_x_chest_armor_lod_0")
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(25, 0, 0, 0)
+        self.chk_br_001 = QtWidgets.QCheckBox("0.01 scaling (use_001_scaling)")
+        row.addWidget(self.chk_br_001)
+        row.addStretch()
+        main_layout.addLayout(row)
+
+    def _breathing_run(self):
+        from ..utils import breathing
+        body = self.br_body_field.text().strip()
+        if not body:
+            return False, "BREATHING: fill in the Main Mesh."
+        meshes = [m.strip() for m in self.br_meshes_field.text().split(",") if m.strip()]
+        missing = [m for m in [body] + meshes if not cmds.objExists(m)]
+        if missing:
+            return False, "BREATHING: these meshes are not in the scene: " + ", ".join(missing)
+        try:
+            breathing.run_breathing(Body_Mesh=body, mesh_list=meshes,
+                                    use_001_scaling=self.chk_br_001.isChecked())
+            return True, ""
+        except Exception:
+            return False, traceback.format_exc()
 
     # Generic "extra fields" hook (Stage 55): every save/load/copy/paste/
     # duplicate/undo path calls these two instead of growing another
@@ -1006,6 +1258,19 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                     "cc_new_scene": self.chk_cc_new_scene.isChecked(),
                     "cc_delete_meshes": self.cc_delete_field.text(),
                     "cc_face_gui_pos": self.cc_face_gui_field.text()}
+        if self.p_type == "JOINT_POS":
+            return {"jp_root": self.jp_root_field.text()}
+        if self.p_type == "BREATHING":
+            return {"br_body": self.br_body_field.text(), "br_meshes": self.br_meshes_field.text(),
+                    "br_001": self.chk_br_001.isChecked()}
+        if self.p_type in self.STEP_PANEL_TYPES:
+            data = {"steps": [k for k, c in self.step_checks.items() if c.isChecked()]}
+            if self.p_type == "JOINT_TRANSFER":
+                data["jt_ref"] = self.step_ref_field.text()
+            else:
+                data["ff_ns"] = self.step_ns_field.text()
+                data["ff_sides"] = self.step_side_combo.currentData()
+            return data
         return {}
 
     def apply_extra_data(self, data):
@@ -1015,6 +1280,23 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             if "cc_new_scene" in data: self.chk_cc_new_scene.setChecked(bool(data["cc_new_scene"]))
             if data.get("cc_delete_meshes"): self.cc_delete_field.setText(data["cc_delete_meshes"])
             if data.get("cc_face_gui_pos"): self.cc_face_gui_field.setText(data["cc_face_gui_pos"])
+        if self.p_type == "JOINT_POS" and data.get("jp_root"):
+            self.jp_root_field.setText(data["jp_root"])
+        if self.p_type == "BREATHING":
+            if "br_body" in data: self.br_body_field.setText(data["br_body"])
+            if "br_meshes" in data: self.br_meshes_field.setText(data["br_meshes"])
+            if "br_001" in data: self.chk_br_001.setChecked(bool(data["br_001"]))
+        if self.p_type in self.STEP_PANEL_TYPES:
+            steps = data.get("steps", data.get("jt_steps"))     # jt_steps = v45.4 files
+            if steps is not None:
+                for k, c in self.step_checks.items():
+                    c.setChecked(k in steps)
+            if self.p_type == "JOINT_TRANSFER":
+                if data.get("jt_ref"): self.step_ref_field.setText(data["jt_ref"])
+            else:
+                if data.get("ff_ns"): self.step_ns_field.setText(data["ff_ns"])
+                idx = self.step_side_combo.findData(data.get("ff_sides", "LR"))
+                if idx >= 0: self.step_side_combo.setCurrentIndex(idx)
 
     def clipboard_data(self):
         """This panel as a clipboard dict (paths ABSOLUTE - see copy note)."""
@@ -1485,6 +1767,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         "MATERIAL": "controlShape",
         "PUBLISH": "rig",
         "MODULE": "guides",
+        "JOINT_POS": "cc_rig",
     }
 
     def get_start_dir(self):
@@ -1549,6 +1832,10 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             actions_map[m.addAction("Add Parent Panel")] = ("PARENT", "PARENT_OBJ", offset)
             actions_map[m.addAction("Add Instance Panel")] = ("INSTANCE", "INSTANCE_OBJ", offset)
             actions_map[m.addAction("Add CC Import Panel (Character Creator FBX)")] = ("CC IMPORT", "CC_IMPORT", offset)
+            actions_map[m.addAction("Add Joint Transfer Panel (fit CC joints to body)")] = ("JOINT TRANSFER", "JOINT_TRANSFER", offset)
+            actions_map[m.addAction("Add Finger Fix Panel (match fingers to hand rig)")] = ("FINGER FIX", "FINGER_FIX", offset)
+            actions_map[m.addAction("Add Joint Positions Panel (save/load joints)")] = ("JOINT POSITIONS", "JOINT_POS", offset)
+            actions_map[m.addAction("Add Breathing Panel")] = ("BREATHING", "BREATHING", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
@@ -1575,6 +1862,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         a_replace_paths = menu.addAction("🔀 Replace All Paths...")
         # Duplicate is available for every panel type, not just SCRIPT.
         a_dup = menu.addAction("📋 Duplicate Panel")
+        a_del_panel = menu.addAction(self.workspace.panel_copy_label(self, "🗑 Delete"))
         menu.addSeparator()
 
         a_vs = a_load = a_comp = a_rem = a_save_over = a_save_new = None
@@ -1614,6 +1902,14 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             a_save_new = menu.addAction("💾 Save Skin (New Version)")
             switch_menu = menu.addMenu("🔄 Switch Version")
             v_actions = self.populate_versions_menu(switch_menu)
+        elif self.p_type == "JOINT_POS":
+            a_load = menu.addAction("📂 Load joint position file")
+            a_rem = menu.addAction("❌ Remove file")
+            menu.addSeparator()
+            a_save_over = menu.addAction("💾 Save Joint Positions (Overwrite)")
+            a_save_new = menu.addAction("💾 Save Joint Positions (New Version)")
+            switch_menu = menu.addMenu("🔄 Switch Version")
+            v_actions = self.populate_versions_menu(switch_menu)
         elif self.p_type == "SHAPES":
             a_load = menu.addAction("📂 Load new file")
             a_rem = menu.addAction("❌ Remove file")
@@ -1633,6 +1929,12 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         elif self.p_type == "PUBLISH":
             a_load = menu.addAction("📂 Load new path")
             a_rem = menu.addAction("❌ Remove path")
+        elif self.p_type == "JOINT_TRANSFER":
+            a_load = menu.addAction("📂 Load sphere JSON")
+            a_rem = menu.addAction("❌ Clear (use the default JSON)")
+        elif self.p_type == "FINGER_FIX":
+            a_load = menu.addAction("📂 Load hand rig .ma")
+            a_rem = menu.addAction("❌ Clear (use the default hand rig)")
 
         a_note_text_color = a_note_bg_color = a_note_size = None
         if self.p_type == "NOTE":
@@ -1673,11 +1975,12 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         elif action == a_load: self.browse_file()
         elif action is not None and action == a_cc_save: self._cc_save_overwrite()
         elif action == a_dup: self.workspace.duplicate_panel(self)
+        elif action == a_del_panel: self.workspace.delete_panels(self)
         elif action == a_comp:
             kwargs = {'fm': 1, 'ff': "Python (*.py)", 'caption': "Select Older File to Compare"}
             sd = self.get_start_dir()
             if os.path.exists(sd): kwargs['dir'] = sd
-            old_file = cmds.fileDialog2(**kwargs)
+            old_file = file_dialog2(**kwargs)
             if old_file: subprocess.Popen(f'code -d "{self.path()}" "{old_file[0]}"', shell=True)
         elif action == a_rem: self.field.setText("")
         elif action == a_save_over: self.save_versioned_data(overwrite=True)
@@ -1716,12 +2019,15 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         elif self.p_type in ["JSON", "SHAPES", "TWEAKER", "MATERIAL"]: kwargs['ff'] = "All Files (*.*);;JSON (*.jSkin *.json)"
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD"): kwargs['ff'] = "All Files (*.*);;3D Files (*.fbx *.obj *.abc *.ma *.mb);;FBX (*.fbx);;OBJ (*.obj);;Alembic (*.abc);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
         elif self.p_type == "CC_IMPORT": kwargs['ff'] = "FBX (*.fbx);;All Files (*.*)"
+        elif self.p_type == "JOINT_TRANSFER": kwargs['ff'] = "JSON (*.json);;All Files (*.*)"
+        elif self.p_type == "FINGER_FIX": kwargs['ff'] = "Maya Files (*.ma *.mb);;All Files (*.*)"
+        elif self.p_type == "JOINT_POS": kwargs['ff'] = "Joint Positions (*.json);;All Files (*.*)"
         elif self.p_type == "PUBLISH": kwargs['fm'] = 3; kwargs['caption'] = "Select Publish Directory"
         else: return
         
         sd = self.get_start_dir()
         if os.path.exists(sd): kwargs['dir'] = sd
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res: self.field.setText(self.workspace.relativize_path(res[0]))
 
     def execute(self, progress_ui=None, force=False):
@@ -1845,6 +2151,15 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                         delete_meshes_text=self.cc_delete_field.text(),
                         face_gui_pos=self.cc_face_gui_field.text())
                     self._update_cc_output_label()
+                elif self.p_type == "JOINT_POS":
+                    success, error_msg = self._joint_pos_run()
+                elif self.p_type == "BREATHING":
+                    success, error_msg = self._breathing_run()
+                elif self.p_type in self.STEP_PANEL_TYPES:
+                    keys = [k for k, c in self.step_checks.items() if c.isChecked()]
+                    for k in self.step_status:
+                        self._steps_set_status(k, "")
+                    success, error_msg = self._steps_run(keys)
                 elif self.p_type == "DELETE_OBJ":
                     success, error_msg = self.workspace.delete_by_name_logic(self.target_field.text())
                 elif self.p_type == "ZERO_OUT":

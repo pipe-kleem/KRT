@@ -52,6 +52,64 @@ class SessionManager:
         except Exception as e:
             om.MGlobal.displayError(f"Could not save session file: {e}")
             
+    # Stage 67: a step cache is <folder>/<panel uuid>.ma. The folder is per
+    # pipeline JSON PATH, but the uuid is saved in the JSON and stays the same
+    # across every version/copy of it - so a cache written while v001 was open
+    # is still that step's cache when v002 (or a copy) is loaded. These two
+    # search every step_caches/ subfolder by uuid. One scan is reused for a
+    # couple of seconds, so refreshing 40 panels costs one directory walk.
+    _CACHE_INDEX_TTL = 2.0
+
+    def _cache_index(self, force=False):
+        import time as _time
+        now = _time.time()
+        idx = getattr(self, "_cache_idx", None)
+        if idx is not None and not force and now - getattr(self, "_cache_idx_t", 0) < self._CACHE_INDEX_TTL:
+            return idx
+        idx = {}
+        try:
+            for sub in os.listdir(self.cache_dir):
+                d = os.path.join(self.cache_dir, sub)
+                if not os.path.isdir(d):
+                    continue
+                for fn in os.listdir(d):
+                    if fn.lower().endswith(".ma"):
+                        p = os.path.join(d, fn).replace("\\", "/")
+                        try:
+                            idx.setdefault(fn[:-3], []).append((os.path.getmtime(p), p))
+                        except OSError:
+                            pass
+        except OSError:
+            pass
+        for k in idx:
+            idx[k] = [p for _, p in sorted(idx[k], reverse=True)]   # newest first
+        self._cache_idx, self._cache_idx_t = idx, now
+        return idx
+
+    def invalidate_cache_index(self):
+        self._cache_idx = None
+
+    def find_caches(self, uuid_hex, rig_prefix=""):
+        """Every cache file for this step uuid, newest first, in the cache
+        folders of THIS rig only: a folder is named after its pipeline JSON
+        (kva_a_Rig_v001_1a2b3c4d), so it must start with `rig_prefix` (the
+        rig folder name, e.g. kva_a). That keeps a JSON copied from another
+        character - same panel uuids - from showing that character's caches.
+        '_unsaved' (caches made before the first save) is always searched."""
+        if not uuid_hex:
+            return []
+        pre = (rig_prefix or "").lower()
+        out = []
+        for p in self._cache_index().get(uuid_hex, []):
+            folder = os.path.basename(os.path.dirname(p)).lower()
+            if pre and folder != "_unsaved" and not folder.startswith(pre):
+                continue
+            if not pre and folder != "_unsaved":
+                continue
+            if os.path.isfile(p):
+                out.append(p)
+        return out
+
     def cache_dir_for(self, session_path):
         """Return (and create) the step-cache subfolder for a given pipeline JSON.
         Each JSON gets its own folder under step_caches/ so caches for different

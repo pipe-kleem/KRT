@@ -6,6 +6,7 @@ from .cache_mixin import CacheMixin
 from .dialogs import ErrorDialog, GraphNodeOrderDialog
 from .flow_layout import FlowLayout
 from .style import type_accent, type_bg_tint, type_icon
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class ModuleBubble(QtWidgets.QFrame):
@@ -565,6 +566,10 @@ class SortableBubblePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.
             actions_map[m.addAction("Add Parent Panel")] = ("PARENT", "PARENT_OBJ", offset)
             actions_map[m.addAction("Add Instance Panel")] = ("INSTANCE", "INSTANCE_OBJ", offset)
             actions_map[m.addAction("Add CC Import Panel (Character Creator FBX)")] = ("CC IMPORT", "CC_IMPORT", offset)
+            actions_map[m.addAction("Add Joint Transfer Panel (fit CC joints to body)")] = ("JOINT TRANSFER", "JOINT_TRANSFER", offset)
+            actions_map[m.addAction("Add Finger Fix Panel (match fingers to hand rig)")] = ("FINGER FIX", "FINGER_FIX", offset)
+            actions_map[m.addAction("Add Joint Positions Panel (save/load joints)")] = ("JOINT POSITIONS", "JOINT_POS", offset)
+            actions_map[m.addAction("Add Breathing Panel")] = ("BREATHING", "BREATHING", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
@@ -584,6 +589,7 @@ class SortableBubblePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.
         a_build_till = menu.addAction("🚀 Build Till Here (run every step)")
         a_build_till_cached = menu.addAction("⚡ Build Till Here (resume from newest cache)")
         a_dup = menu.addAction("📋 Duplicate Panel")
+        a_del_panel = menu.addAction(self.workspace.panel_copy_label(self, "🗑 Delete"))
 
         action = menu.exec(QtGui.QCursor.pos()) if IS_PYSIDE6 else menu.exec_(QtGui.QCursor.pos())
 
@@ -605,6 +611,7 @@ class SortableBubblePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.
             print("[KRT] menu: Build Till Here (cached) ->", self.title_edit.text())
             self.workspace.build_till_panel(self, resume_from_cache=True)
         elif action == a_dup: self.workspace.duplicate_panel(self)
+        elif action == a_del_panel: self.workspace.delete_panels(self)
 
     def toggle_active(self, state):
         self.is_active = state
@@ -690,7 +697,7 @@ class SortableBubblePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.
                     sd = guides if guides and os.path.isdir(guides) else root
                 if sd and os.path.exists(sd): kwargs['dir'] = sd
 
-                res = cmds.fileDialog2(**kwargs)
+                res = file_dialog2(**kwargs)
                 if not res: return
                 pre_path = self.workspace.relativize_path(res[0])   # Stage 41
                 

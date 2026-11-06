@@ -17,7 +17,7 @@
 | **Size** | ~24,000 lines, 87 `.py` files (excluding `archive/`). |
 | **Last stages** | 49 panel collapse · 50 white titles · 51 LOD sidebar collapse. |
 
-**Bump `__version__` on every change** — it is the only way to tell from inside Maya whether the running code is the code we just edited.
+**Bump `__version__` on every change** — it is the only way to tell from inside Maya whether the running code is the code we just edited. Every bump also gets an entry (version, date + time, changes) at the TOP of `changelog.py` — the version button in KRT's top bar shows it.
 
 **Still untested in a live Maya / live AYON session** (nothing here can be verified from a chat session):
 - AYON publish: reviewable upload (movie *and* image), representation `tags`, `review` product creation, `CreateContext.create()` arguments in the installed ayon-core, whether the four companion sets come back as direct members of the instance node, and whether `rigMain` now shows up in the official AYON Publisher.

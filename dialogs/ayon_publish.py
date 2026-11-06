@@ -686,7 +686,9 @@ class AyonPublishDialog(QtWidgets.QDialog):
             self._set_status("🔨 Running full rig build …  (this may take a while)")
             QtWidgets.QApplication.processEvents()
             try:
+                print("[AYON PUBLISH] >> rebuild: starting (dialog will hide)", flush=True)
                 build_ok = self._run_build_unblocked()
+                print("[AYON PUBLISH] >> rebuild: returned", build_ok, flush=True)
             except Exception:
                 traceback.print_exc()
                 build_ok = False
@@ -712,6 +714,11 @@ class AyonPublishDialog(QtWidgets.QDialog):
         # not ready is never written or published.
         if do_rig:
             set_ok, rig_set_name = self._validate_rig_set(prod_rig)
+            if not set_ok:
+                # Scene was not built with KRT's "Rig Sets" step. Offer to
+                # create them now with the same rules, through AYON's creator
+                # (so the official Publisher sees the instance too).
+                set_ok, rig_set_name = self._offer_create_rig_sets(prod_rig)
             if not set_ok:
                 self._set_status(
                     f"❌ No '{prod_rig}' SET in the scene - rig not published.", color="#f44336")
@@ -857,12 +864,15 @@ class AyonPublishDialog(QtWidgets.QDialog):
         dialog comes straight back afterwards.
         """
         was_visible = self.isVisible()
+        print("[AYON PUBLISH] >> hiding dialog", flush=True)
         if was_visible:
             self.hide()
         QtWidgets.QApplication.processEvents()
         try:
+            print("[AYON PUBLISH] >> run_full_build()", flush=True)
             return self.workspace.run_full_build()
         finally:
+            print("[AYON PUBLISH] >> build finished, re-showing dialog", flush=True)
             if was_visible:
                 self.show()
                 self.raise_()
@@ -1053,6 +1063,38 @@ class AyonPublishDialog(QtWidgets.QDialog):
     # Path helpers
     # ══════════════════════════════════════════════════════════════════
     # ══════════════════════════════════════════════════════════════════
+    def _offer_create_rig_sets(self, prod_name):
+        """No usable rig set in the scene: ask, then run KRT's own 'Rig Sets'
+        script (workspace.RIG_SETS_CODE) and validate again. Returns the same
+        (ok, set_name) as _validate_rig_set. Nothing is created unless the
+        user says yes - the set is the rigger's statement of what the rig is."""
+        code = getattr(self.workspace, "RIG_SETS_CODE", None)
+        if not code:
+            return False, None
+        ans = cmds.confirmDialog(
+            title="No rig set in scene",
+            message=("This scene has no '%s' set (it was not built with KRT's Rig Sets step).\n\n"
+                     "The open scene will be published as %s either way.\n"
+                     "A set only helps AYON's own Publisher / Loader list it.\n\n"
+                     "Create the set first?  (Rig Sets rules: *ctl, geo*, *geo, joints, char_*_a)"
+                     % (prod_name, prod_name)),
+            button=["Publish scene as-is", "Create sets first", "Skip rig"],
+            defaultButton="Publish scene as-is",
+            cancelButton="Skip rig", dismissString="Skip rig")
+        if ans == "Publish scene as-is":
+            cmds.warning("[AYON PUBLISH] No rig set - publishing the open scene as-is.")
+            return True, None
+        if ans != "Create sets first":
+            return False, None
+        print("[AYON PUBLISH] Creating rig sets from the scene ...")
+        try:
+            exec(compile(code, "<KRT Rig Sets>", "exec"), {"__name__": "krt_rig_sets"})
+        except Exception:
+            traceback.print_exc()
+            cmds.warning("[AYON PUBLISH] Creating the rig sets failed - see Script Editor.")
+            return False, None
+        return self._validate_rig_set(prod_name)
+
     def _validate_rig_set(self, prod_name):
         """The rig product is only published when its objectSet is ALREADY in
         the scene. Returns (ok, set_name).

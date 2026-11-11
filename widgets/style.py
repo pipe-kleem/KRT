@@ -45,7 +45,7 @@ def panel_run_label(p_type):
     # (ordered Build Till Here, etc) exactly like a normal step - "LOAD"
     # implied it was a separate, special action, so it now reads RUN too.
     if p_type == "LOD_LOADER": return "RUN"
-    if p_type == "IMPORT_LOD": return "IMPORT & ORGANIZE"
+    if p_type in ("IMPORT_LOD", "IMPORT_BLEND"): return "IMPORT & ORGANIZE"
     if p_type == "DELETE_OBJ": return "DELETE"
     if p_type == "ZERO_OUT": return "ZERO OUT"
     if p_type == "PARENT_OBJ": return "PARENT"

@@ -359,6 +359,18 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             mat_mesh_layout.addWidget(btn_select_meshes_mat)
             main_layout.addLayout(mat_mesh_layout)
 
+        if p_type == "IMPORT_3D":
+            ai_row = QtWidgets.QHBoxLayout()
+            ai_row.setContentsMargins(25, 0, 0, 0)
+            self.chk_delete_ai = QtWidgets.QCheckBox("Delete AI models (*ai_lod*)")
+            self.chk_delete_ai.setChecked(True)
+            self.chk_delete_ai.setToolTip(
+                "ON (default): objects with 'ai_lod' in their name are deleted after the import.\n"
+                "OFF: they are kept.")
+            ai_row.addWidget(self.chk_delete_ai)
+            ai_row.addStretch()
+            main_layout.addLayout(ai_row)
+
         if p_type == "IMPORT_LOD":
             # Same file field/Browse/Import as IMPORT_3D (reuses self.field,
             # browse_file(), workspace.import_3d_logic - see execute()
@@ -378,6 +390,80 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                 "currently in the scene, not just this import.")
             lod_asset_layout.addWidget(self.asset_name_field)
             main_layout.addLayout(lod_asset_layout)
+            ai_row = QtWidgets.QHBoxLayout()
+            ai_row.setContentsMargins(25, 0, 0, 0)
+            self.chk_delete_ai = QtWidgets.QCheckBox("Delete AI models (*ai_lod*)")
+            self.chk_delete_ai.setChecked(True)
+            self.chk_delete_ai.setToolTip(
+                "ON (default): objects with 'ai_lod' in their name are deleted after the import.\n"
+                "OFF: they are kept.")
+            ai_row.addWidget(self.chk_delete_ai)
+            ai_row.addStretch()
+            main_layout.addLayout(ai_row)
+
+        if p_type == "IMPORT_BLEND":
+            # Same Asset Name field as IMPORT_LOD (own copy here), plus the
+            # Blender source. The main path field above is the ABC the BUILD
+            # imports; the one-time button below makes that ABC from a .blend
+            # (tool lives in KRT/blend_abc_tool - removable folder, see
+            # _blend_to_abc_run). It is NOT part of the build sequence.
+            lod_asset_layout = QtWidgets.QHBoxLayout()
+            lod_asset_layout.setContentsMargins(25, 0, 0, 0)
+            lod_asset_layout.addWidget(QtWidgets.QLabel("Asset Name:"))
+            self.asset_name_field = QtWidgets.QLineEdit()
+            self.asset_name_field.setPlaceholderText("filled automatically from the Blender / ABC file name")
+            self.asset_name_field.setToolTip(
+                "Used to build <AssetName>/<AssetName>_geo/<AssetName>_lod_<N> "
+                "groups after the import. Filled automatically from the file name\n"
+                "(KL_kvaspidershape_a_workfileModel_lod_v01 -> kvaspidershape_a); you can still edit it.")
+            lod_asset_layout.addWidget(self.asset_name_field)
+            main_layout.addLayout(lod_asset_layout)
+
+            blend_row = QtWidgets.QHBoxLayout()
+            blend_row.setContentsMargins(25, 0, 0, 0)
+            blend_row.addWidget(QtWidgets.QLabel("Blender File:"))
+            self.blend_field = QtWidgets.QLineEdit()
+            self.blend_field.setPlaceholderText("Path to the .blend file (used only by the one-time button)")
+            self.blend_field.editingFinished.connect(self._autofill_asset_name)
+            blend_row.addWidget(self.blend_field)
+            btn_blend_browse = QtWidgets.QPushButton("📂")
+            btn_blend_browse.setFixedWidth(30)
+            btn_blend_browse.setToolTip("Browse for the .blend file")
+            btn_blend_browse.clicked.connect(self._browse_blend_file)
+            blend_row.addWidget(btn_blend_browse)
+            main_layout.addLayout(blend_row)
+
+            blend_run_row = QtWidgets.QHBoxLayout()
+            blend_run_row.setContentsMargins(25, 0, 0, 0)
+            self.chk_skip_wrinkle = QtWidgets.QCheckBox("Skip wrinkle check")
+            self.chk_skip_wrinkle.setToolTip(
+                "Ticked: no wrinkle-map render/preview window - just export + import the ABC (fastest).\n"
+                "Unticked: render the wrinkle check and show it once before importing.")
+            blend_run_row.addWidget(self.chk_skip_wrinkle)
+            self.chk_delete_ai = QtWidgets.QCheckBox("Delete AI models (*ai_lod*)")
+            self.chk_delete_ai.setChecked(True)
+            self.chk_delete_ai.setToolTip(
+                "ON (default): objects with 'ai_lod' in their name are deleted after the import.\n"
+                "OFF: they are kept.")
+            blend_run_row.addWidget(self.chk_delete_ai)
+            self.btn_blend_abc = QtWidgets.QPushButton("▶ Blend → ABC (one time)")
+            self.btn_blend_abc.setStyleSheet("background-color: #5a7d2b; color: white; font-weight: bold; padding: 4px 10px;")
+            self.btn_blend_abc.setToolTip(
+                "Runs ONCE, by hand - never during a rig build.\n"
+                "Finalises + exports the .blend to an ABC (saved in the folder of the path above,\n"
+                "or <Rig Root>/model), imports it into Maya, and puts the new ABC in the path field\n"
+                "so the build imports it from then on.")
+            self.btn_blend_abc.clicked.connect(self._blend_to_abc_run)
+            blend_run_row.addWidget(self.btn_blend_abc)
+            self.btn_compare_abc = QtWidgets.QPushButton("🔍 Compare Old vs New ABC")
+            self.btn_compare_abc.setStyleSheet("background-color: #3b6ea5; color: white; font-weight: bold; padding: 4px 10px;")
+            self.btn_compare_abc.setToolTip(
+                "Opens the mesh comparison tool with the NEW ABC (the path above) and the\n"
+                "previous ABC found next to it already loaded - not part of the build.")
+            self.btn_compare_abc.clicked.connect(self._compare_old_new_abc)
+            blend_run_row.addWidget(self.btn_compare_abc)
+            blend_run_row.addStretch()
+            main_layout.addLayout(blend_run_row)
 
         if p_type in ("DELETE_OBJ", "ZERO_OUT"):
             # One name field, reused for both types - Delete removes
@@ -875,7 +961,351 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         else:
             self.workspace.add_panel(title, p_type, default_val, index=idx)
 
+<<<<<<< Updated upstream
     def copy_panel(self):
+=======
+    # ── Stage 55: CC Import panel helpers ─────────────────────────────
+    def _cc_output_path(self):
+        from ..utils import cc_import
+        root = self.workspace.rig_root() if hasattr(self.workspace, "rig_root") else ""
+        return cc_import.output_path(root or "<Rig Root>", self.cc_version_field.text())
+
+    def _update_cc_output_label(self, *_):
+        if hasattr(self, "lbl_cc_out"):
+            self.lbl_cc_out.setText("→ " + self._cc_output_path())
+
+    def _cc_delete_from_selection(self):
+        """'soldier1:grp|soldier1:Boots' -> 'Boots': take the leaf of the DAG
+        path, then drop the namespace, since namespaces are gone by the
+        time the delete step runs."""
+        sel = cmds.ls(selection=True, long=True) or []
+        names = []
+        for n in sel:
+            short = n.split("|")[-1].split(":")[-1]
+            if short not in names:
+                names.append(short)
+        if not names:
+            cmds.warning("[KRT CC] Select the meshes to delete first.")
+            return
+        self.cc_delete_field.setText(", ".join(names))
+
+    def _cc_save_overwrite(self):
+        """... menu: write the CURRENT scene to cc_built_<version>.ma, e.g.
+        after fixing something by hand - no import/cleanup is re-run."""
+        from ..utils import cc_import
+        root = self.workspace.rig_root()
+        if not root:
+            cmds.warning("[KRT CC] Rig Root is not set.")
+            return
+        path = cc_import.output_path(root, self.cc_version_field.text())
+        cc_import.export_ma(path)
+        cmds.warning("[KRT CC] Saved current scene -> " + path)
+
+    def _browse_cc_tex_dir(self):
+        kwargs = {"fm": 3, "caption": "Select Texture Folder"}
+        start = self.workspace.resolve_path(self.cc_tex_field.text()) or self.get_start_dir()
+        if start and os.path.isdir(start):
+            kwargs["dir"] = start
+        res = file_dialog2(**kwargs)
+        if res:
+            self.cc_tex_field.setText(self.workspace.relativize_path(res[0]))
+
+    # ── STEPS panels: JOINT TRANSFER (Stage 60), FINGER FIX (Stage 61) ────
+    # One row per step of the panel's module (its STEPS list): tick = part of
+    # RUN / the build, > = run just that step now, then a status mark. The
+    # steps share state inside the module, so you can run a few, adjust the
+    # scene by hand, and carry on. A new steps panel type = one entry in
+    # STEP_PANEL_TYPES + its option widgets in _build_steps_options().
+    STEP_PANEL_TYPES = ("JOINT_TRANSFER", "FINGER_FIX")
+    _STEP_STATE_STYLE = {"": ("", "#888"), "running": ("...", "#ffca28"),
+                         "ok": ("\u2714", "#4CAF50"), "error": ("\u2718", "#f44336")}
+
+    def _steps_module(self):
+        if self.p_type == "JOINT_TRANSFER":
+            from ..utils import joint_transfer as mod
+        else:
+            from ..utils import finger_fix as mod
+        return mod
+
+    def _build_steps_ui(self, main_layout):
+        mod = self._steps_module()
+        self._build_steps_options(main_layout, mod)
+        grid = QtWidgets.QGridLayout()
+        grid.setContentsMargins(25, 0, 0, 0)
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(2)
+        self.step_checks, self.step_status = {}, {}
+        per_col = (len(mod.STEPS) + 1) // 2           # two columns
+        for i, (key, label) in enumerate(mod.STEPS):
+            chk = QtWidgets.QCheckBox(label)
+            chk.setChecked(True)
+            chk.setToolTip("Included when the panel runs (RUN / full build).")
+            btn = QtWidgets.QPushButton("\u25B6")
+            btn.setFixedSize(26, 22)
+            btn.setToolTip("Run only this step now")
+            btn.clicked.connect(lambda _=False, k=key: self._steps_run_single(k))
+            status = QtWidgets.QLabel()
+            status.setFixedWidth(18)
+            hbox = QtWidgets.QHBoxLayout()
+            hbox.setSpacing(4)
+            hbox.addWidget(btn)
+            hbox.addWidget(status)
+            hbox.addWidget(chk)
+            hbox.addStretch()
+            grid.addLayout(hbox, i % per_col, (i // per_col) * 3)
+            self.step_checks[key], self.step_status[key] = chk, status
+        main_layout.addLayout(grid)
+
+    def _build_steps_options(self, main_layout, mod):
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(25, 0, 0, 0)
+        if self.p_type == "JOINT_TRANSFER":
+            # main field = sphere JSON; extra field = the reference .ma
+            self.field.setPlaceholderText("Sphere JSON (empty = " + mod.SPHERE_JSON + ")")
+            row.addWidget(QtWidgets.QLabel("Reference:"))
+            self.step_ref_field = QtWidgets.QLineEdit()
+            self.step_ref_field.setPlaceholderText("empty = " + mod.REFERENCE_FILE)
+            self.step_ref_field.setToolTip("The FullBodyJntTransfer .ma to reference (namespace %s)" % mod.NAMESPACE)
+            row.addWidget(self.step_ref_field)
+            btn_ref = QtWidgets.QPushButton("\U0001F4C2")
+            btn_ref.setFixedWidth(30)
+            btn_ref.setToolTip("Browse the reference .ma")
+            btn_ref.clicked.connect(self._browse_step_reference)
+            row.addWidget(btn_ref)
+        else:
+            # main field = the hand rig .ma; extras = namespace + side
+            self.field.setPlaceholderText("Hand rig .ma (empty = " + mod.HAND_RIG_FILE + ")")
+            row.addWidget(QtWidgets.QLabel("Namespace:"))
+            self.step_ns_field = QtWidgets.QLineEdit(mod.NAMESPACE)
+            self.step_ns_field.setFixedWidth(130)
+            self.step_ns_field.setToolTip("Namespace the hand rig is referenced under")
+            row.addWidget(self.step_ns_field)
+            row.addWidget(QtWidgets.QLabel("Side:"))
+            self.step_side_combo = QtWidgets.QComboBox()
+            for text, data in (("Both", "LR"), ("Left only", "L"), ("Right only", "R")):
+                self.step_side_combo.addItem(text, data)
+            row.addWidget(self.step_side_combo)
+            row.addStretch()
+        main_layout.addLayout(row)
+
+    def _browse_step_reference(self):
+        res = file_dialog2(fm=1, ff="Maya Files (*.ma *.mb);;All Files (*.*)",
+                               caption="Select Joint Transfer Reference")
+        if res:
+            self.step_ref_field.setText(res[0])
+
+    def _steps_options(self):
+        main = self.path().strip() or None
+        if self.p_type == "JOINT_TRANSFER":
+            return {"json_path": main, "ref_path": self.step_ref_field.text().strip() or None}
+        return {"ref_path": main, "ns": self.step_ns_field.text().strip(),
+                "sides": self.step_side_combo.currentData()}
+
+    def _steps_set_status(self, key, state):
+        text, color = self._STEP_STATE_STYLE.get(state, ("", "#888"))
+        lbl = self.step_status.get(key)
+        if lbl:
+            lbl.setText(text)
+            lbl.setStyleSheet("color: %s; font-weight: bold;" % color)
+        QtWidgets.QApplication.processEvents()
+
+    def _steps_run(self, keys):
+        return self._steps_module().run_steps(keys, on_step=self._steps_set_status,
+                                              **self._steps_options())
+
+    def _steps_run_single(self, key):
+        """One step by hand. A failure uses the panel's normal SHOW ERROR button."""
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            ok, err = self._steps_run([key])
+        finally:
+            QtWidgets.QApplication.restoreOverrideCursor()
+        if ok:
+            self.reset_run_button()
+        else:
+            self.btn_run.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
+            self.btn_run.setText("SHOW ERROR")
+            self.last_error_msg = err
+            self.btn_reset_err.setVisible(True)
+
+    # ── JOINT POSITIONS (Stage 66) ───────────────────────────────────────
+    # Field = the joint position file (cc_rig/joint_positions_v###.json).
+    # RUN loads it - UNLESS a JOINT TRANSFER or FINGER FIX panel above it is
+    # switched on: then the fixes just ran, so RUN saves a NEW version
+    # instead. Normal builds: fixes off -> fast load. Model update: tick the
+    # fixes on, run everything, the new positions are recorded.
+    FIX_PANEL_TYPES = ("JOINT_TRANSFER", "FINGER_FIX")
+
+    def _build_joint_pos_ui(self, main_layout):
+        from ..utils import joint_positions as jp
+        self.field.setPlaceholderText("Joint position file - '...' > Save Joint Positions")
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(25, 0, 0, 0)
+        row.addWidget(QtWidgets.QLabel("Root joint:"))
+        self.jp_root_field = QtWidgets.QLineEdit(jp.DEFAULT_ROOT)
+        self.jp_root_field.setFixedWidth(160)
+        self.jp_root_field.setToolTip("Every joint under (and including) this one is saved.")
+        row.addWidget(self.jp_root_field)
+        self.lbl_jp_mode = QtWidgets.QLabel()
+        self.lbl_jp_mode.setStyleSheet("color: #888; margin-left: 10px;")
+        row.addWidget(self.lbl_jp_mode)
+        row.addStretch()
+        main_layout.addLayout(row)
+        self.lbl_jp_mode.setText("RUN = load (or save a new version when a fix panel above is ON)")
+
+    def _fixes_active_above(self):
+        container = self.parentWidget()
+        lay = getattr(container, "layout", None)
+        lay = lay() if callable(lay) else lay
+        if lay is None:
+            return []
+        on = []
+        for i in range(lay.count()):
+            w = lay.itemAt(i).widget()
+            if w is self:
+                break
+            if getattr(w, "p_type", None) in self.FIX_PANEL_TYPES and getattr(w, "is_active", False):
+                on.append(w.title_edit.text())
+        return on
+
+    def _joint_pos_path(self):
+        path = self.path().strip()
+        if not path:
+            root = self.workspace.rig_root() or ""
+            path = os.path.join(root, "cc_rig", "joint_positions_v001.json").replace("\\", "/")
+        return path
+
+    def _joint_pos_run(self):
+        from ..utils import joint_positions as jp
+        try:
+            fixes = self._fixes_active_above()
+            path = self._joint_pos_path()
+            if fixes:
+                save_path = get_versioned_path(path, get_latest=False)
+                jp.save(save_path, self.jp_root_field.text().strip() or jp.DEFAULT_ROOT)
+                self.field.setText(self.workspace.relativize_path(save_path))
+                self.lbl_jp_mode.setText("saved new version (fixes ON: {})".format(", ".join(fixes)))
+            else:
+                if not os.path.isfile(path):
+                    path = get_versioned_path(path, get_latest=True)
+                jp.load(path)
+                self.lbl_jp_mode.setText("loaded " + os.path.basename(path))
+            return True, ""
+        except Exception:
+            return False, traceback.format_exc()
+
+    # ── BREATHING (Stage 66) ─────────────────────────────────────────────
+    def _build_breathing_ui(self, main_layout):
+        self.field.setVisible(False)
+        default_body = self.field.text().strip()      # template default lands here
+        self.field.setText("")
+        for label, attr, tip in (
+                ("Main Mesh:", "br_body_field", "The body mesh the breathing is built on"),
+                ("Extra Meshes:", "br_meshes_field", "Costume/groom meshes that breathe with the body, comma-separated")):
+            row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(25, 0, 0, 0)
+            lbl = QtWidgets.QLabel(label)
+            lbl.setFixedWidth(85)
+            row.addWidget(lbl)
+            edit = QtWidgets.QLineEdit()
+            edit.setToolTip(tip)
+            setattr(self, attr, edit)
+            row.addWidget(edit)
+            btn = QtWidgets.QPushButton("Get Selected")
+            btn.clicked.connect(lambda _=False, e=edit: self._get_selection_into(e))
+            row.addWidget(btn)
+            main_layout.addLayout(row)
+        self.br_body_field.setText(default_body)
+        self.br_meshes_field.setPlaceholderText("optional - e.g. geo_x_upper_cloth_lod_0, geo_x_chest_armor_lod_0")
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(25, 0, 0, 0)
+        self.chk_br_001 = QtWidgets.QCheckBox("0.01 scaling (use_001_scaling)")
+        row.addWidget(self.chk_br_001)
+        row.addStretch()
+        main_layout.addLayout(row)
+
+    def _breathing_run(self):
+        from ..utils import breathing
+        body = self.br_body_field.text().strip()
+        if not body:
+            return False, "BREATHING: fill in the Main Mesh."
+        meshes = [m.strip() for m in self.br_meshes_field.text().split(",") if m.strip()]
+        missing = [m for m in [body] + meshes if not cmds.objExists(m)]
+        if missing:
+            return False, "BREATHING: these meshes are not in the scene: " + ", ".join(missing)
+        try:
+            breathing.run_breathing(Body_Mesh=body, mesh_list=meshes,
+                                    use_001_scaling=self.chk_br_001.isChecked())
+            return True, ""
+        except Exception:
+            return False, traceback.format_exc()
+
+    # Generic "extra fields" hook (Stage 55): every save/load/copy/paste/
+    # duplicate/undo path calls these two instead of growing another
+    # per-type if-branch. A new panel type only has to fill them in here.
+    def extra_data(self):
+        if self.p_type == "CC_IMPORT":
+            return {"cc_version": self.cc_version_field.text(),
+                    "cc_tex_dir": self.workspace.relativize_path(self.cc_tex_field.text()),
+                    "cc_new_scene": self.chk_cc_new_scene.isChecked(),
+                    "cc_delete_meshes": self.cc_delete_field.text(),
+                    "cc_face_gui_pos": self.cc_face_gui_field.text()}
+        if self.p_type == "IMPORT_BLEND":
+            return {"asset_name": self.asset_name_field.text(),
+                    "blend_path": self.workspace.relativize_path(self.blend_field.text()),
+                    "skip_wrinkle": self.chk_skip_wrinkle.isChecked(),
+                    "delete_ai": self.chk_delete_ai.isChecked()}
+        if self.p_type in ("IMPORT_3D", "IMPORT_LOD"):
+            return {"delete_ai": self.chk_delete_ai.isChecked()}
+        if self.p_type == "JOINT_POS":
+            return {"jp_root": self.jp_root_field.text()}
+        if self.p_type == "BREATHING":
+            return {"br_body": self.br_body_field.text(), "br_meshes": self.br_meshes_field.text(),
+                    "br_001": self.chk_br_001.isChecked()}
+        if self.p_type in self.STEP_PANEL_TYPES:
+            data = {"steps": [k for k, c in self.step_checks.items() if c.isChecked()]}
+            if self.p_type == "JOINT_TRANSFER":
+                data["jt_ref"] = self.step_ref_field.text()
+            else:
+                data["ff_ns"] = self.step_ns_field.text()
+                data["ff_sides"] = self.step_side_combo.currentData()
+            return data
+        return {}
+
+    def apply_extra_data(self, data):
+        if self.p_type == "CC_IMPORT":
+            if data.get("cc_version"): self.cc_version_field.setText(data["cc_version"])
+            if data.get("cc_tex_dir"): self.cc_tex_field.setText(self.workspace.relativize_path(data["cc_tex_dir"]))
+            if "cc_new_scene" in data: self.chk_cc_new_scene.setChecked(bool(data["cc_new_scene"]))
+            if data.get("cc_delete_meshes"): self.cc_delete_field.setText(data["cc_delete_meshes"])
+            if data.get("cc_face_gui_pos"): self.cc_face_gui_field.setText(data["cc_face_gui_pos"])
+        if self.p_type in ("IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND") and "delete_ai" in data:
+            self.chk_delete_ai.setChecked(bool(data["delete_ai"]))
+        if self.p_type == "IMPORT_BLEND":
+            if data.get("asset_name"): self.asset_name_field.setText(data["asset_name"])
+            if data.get("blend_path"): self.blend_field.setText(self.workspace.relativize_path(data["blend_path"]))
+            if "skip_wrinkle" in data: self.chk_skip_wrinkle.setChecked(bool(data["skip_wrinkle"]))
+        if self.p_type == "JOINT_POS" and data.get("jp_root"):
+            self.jp_root_field.setText(data["jp_root"])
+        if self.p_type == "BREATHING":
+            if "br_body" in data: self.br_body_field.setText(data["br_body"])
+            if "br_meshes" in data: self.br_meshes_field.setText(data["br_meshes"])
+            if "br_001" in data: self.chk_br_001.setChecked(bool(data["br_001"]))
+        if self.p_type in self.STEP_PANEL_TYPES:
+            steps = data.get("steps", data.get("jt_steps"))     # jt_steps = v45.4 files
+            if steps is not None:
+                for k, c in self.step_checks.items():
+                    c.setChecked(k in steps)
+            if self.p_type == "JOINT_TRANSFER":
+                if data.get("jt_ref"): self.step_ref_field.setText(data["jt_ref"])
+            else:
+                if data.get("ff_ns"): self.step_ns_field.setText(data["ff_ns"])
+                idx = self.step_side_combo.findData(data.get("ff_sides", "LR"))
+                if idx >= 0: self.step_side_combo.setCurrentIndex(idx)
+
+    def clipboard_data(self):
+        """This panel as a clipboard dict (paths ABSOLUTE - see copy note)."""
+>>>>>>> Stashed changes
         data = {"type": self.p_type, "title": self.title_edit.text(), "active": self.is_active, "bg_color": self.bg_color}
         # The clipboard is shared by every session tab, and each tab has its
         # own Rig Root - so a relative path copied out of rig A would silently
@@ -1399,6 +1829,11 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         "GLOBAL_SCRIPT": "scripts",
         "IMPORT_3D": "model",
         "IMPORT_LOD": "model",
+<<<<<<< Updated upstream
+=======
+        "IMPORT_BLEND": "model",
+        "CC_IMPORT": "model",
+>>>>>>> Stashed changes
         "JSON": "skinCluster",
         "TWEAKER": "skinCluster",
         "SHAPES": "controlShape",
@@ -1406,6 +1841,153 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         "PUBLISH": "rig",
         "MODULE": "guides",
     }
+
+    # ── IMPORT_BLEND: one-time Blender .blend -> ABC (KRT/blend_abc_tool) ──
+    def _browse_blend_file(self):
+        start = self.workspace.resolve_path(self.blend_field.text()) or ""
+        kwargs = {"fm": 1, "ff": "Blender (*.blend);;All Files (*.*)"}
+        if start and os.path.exists(os.path.dirname(start)):
+            kwargs["dir"] = os.path.dirname(start)
+        res = file_dialog2(**kwargs)
+        if res:
+            self.blend_field.setText(self.workspace.relativize_path(res[0]))
+            self._autofill_asset_name()
+
+    def _blend_to_abc_run(self):
+        """One-time, manual: .blend -> finalise -> ABC -> import into Maya.
+        The new ABC path replaces the panel's path field."""
+        import sys
+        blend = (self.workspace.resolve_path(self.blend_field.text()) or "").strip()
+        if not blend or not os.path.isfile(blend):
+            cmds.warning("[KRT] Blender File not found: '{}'".format(blend))
+            return
+        tool_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "blend_abc_tool")
+        if not os.path.isdir(tool_dir):
+            cmds.warning("[KRT] blend_abc_tool folder is missing: " + tool_dir)
+            return
+        cur = (self.workspace.resolve_path(self.path()) or "").strip()
+        out_dir = os.path.dirname(cur) if cur else ""
+        if not out_dir:
+            root = self.workspace.rig_root()
+            out_dir = os.path.join(root, "model") if root else ""
+        if not out_dir:
+            cmds.warning("[KRT] Set the ABC path (or the Rig Root) so the ABC has a folder to be saved in.")
+            return
+        out_dir = out_dir.replace("\\", "/")
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+        except OSError as e:
+            cmds.warning("[KRT] Cannot create {}: {}".format(out_dir, e))
+            return
+        if tool_dir not in sys.path:
+            sys.path.insert(0, tool_dir)
+        self._autofill_asset_name()
+        self.btn_blend_abc.setEnabled(False)
+
+        def _on_imported(abc, _nodes):
+            # Only now - the ABC really is in the scene - does it become the panel's path.
+            old_cur = (self.workspace.resolve_path(self.field.text()) or "").strip()
+            if old_cur and os.path.normcase(old_cur) != os.path.normcase(abc):
+                self._prev_abc = old_cur        # becomes the 'old' ABC of the comparison
+            self.field.setText(self.workspace.relativize_path(abc.replace("\\", "/")))
+            cmds.warning("[KRT] Blend -> ABC imported: " + abc)
+
+        def _on_rejected(_abc):
+            cmds.warning("[KRT] Wrinkles not OK - ABC was not imported and has been deleted.")
+
+        try:
+            import importlib
+            import blend_to_abc_api
+            importlib.reload(blend_to_abc_api)
+            blend_to_abc_api.blend_to_abc(
+                blend_path=blend, output_dir=out_dir, blender_exe="",
+                wrinkle_playblast=not self.chk_skip_wrinkle.isChecked(),
+                import_into_maya=True, forbidden_roots=["P:/kl_assets"],
+                on_imported=_on_imported, on_rejected=_on_rejected)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            cmds.warning("[KRT] Blend -> ABC failed - see the Script Editor.")
+        finally:
+            self.btn_blend_abc.setEnabled(True)
+
+    def _find_old_abc(self, new_abc):
+        """The ABC to compare against: the one this panel pointed at before the
+        last Blend->ABC run, else the highest lower _vNNN of the same family in
+        the folder, else the newest older .abc there."""
+        import re
+        prev = getattr(self, "_prev_abc", "")
+        if prev and os.path.isfile(prev) and os.path.normcase(prev) != os.path.normcase(new_abc):
+            return prev
+        folder = os.path.dirname(new_abc)
+        if not os.path.isdir(folder):
+            return ""
+        rx = re.compile(r"^(?P<base>.+)_v(?P<n>\d+)\.abc$", re.I)
+        m = rx.match(os.path.basename(new_abc))
+        best = None
+        if m:
+            cur_n = int(m.group("n"))
+            for f in os.listdir(folder):
+                mm = rx.match(f)
+                if mm and mm.group("base") == m.group("base") and int(mm.group("n")) < cur_n:
+                    if best is None or int(mm.group("n")) > best[0]:
+                        best = (int(mm.group("n")), f)
+        if best:
+            return os.path.join(folder, best[1]).replace("\\", "/")
+        new_t = os.path.getmtime(new_abc)
+        older = [(os.path.getmtime(os.path.join(folder, f)), f) for f in os.listdir(folder)
+                 if f.lower().endswith(".abc") and os.path.join(folder, f) != new_abc
+                 and os.path.getmtime(os.path.join(folder, f)) < new_t]
+        return os.path.join(folder, max(older)[1]).replace("\\", "/") if older else ""
+
+    def _compare_old_new_abc(self):
+        """Open KRT/blend_abc_tool/mesh_compare with old + new ABC preloaded."""
+        import sys
+        new_abc = (self.workspace.resolve_path(self.field.text()) or "").strip()
+        if not new_abc or not os.path.isfile(new_abc):
+            cmds.warning("[KRT] The ABC path above is empty or the file does not exist: '{}'".format(new_abc))
+            return
+        tool_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "blend_abc_tool")
+        if not os.path.isdir(tool_dir):
+            cmds.warning("[KRT] blend_abc_tool folder is missing: " + tool_dir)
+            return
+        if tool_dir not in sys.path:
+            sys.path.insert(0, tool_dir)
+        try:
+            import importlib
+            import mesh_compare
+            importlib.reload(mesh_compare)
+            old_abc = self._find_old_abc(new_abc)
+            mesh_compare.show(old_abc, new_abc)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            cmds.warning("[KRT] Could not open the comparison tool - see the Script Editor.")
+
+    @staticmethod
+    def asset_name_from_file(path):
+        """'KL_kvaspidershape_a_workfileModel_lod_v01.blend' -> 'kvaspidershape_a'
+        (drops the 'KL_' style prefix and everything from '_workfile' / '_model' /
+        '_lod' / '_vNN' on)."""
+        import re
+        base = os.path.splitext(os.path.basename(path or ""))[0]
+        base = re.sub(r"^[A-Za-z]{2,4}_", "", base)
+        return re.split(r"_(?:workfile|model|lod|master|v\d+)", base, flags=re.I)[0]
+
+    def _autofill_asset_name(self):
+        """Fill Asset Name from the Blender file (else the ABC) - but never
+        overwrite a name the user typed by hand."""
+        cur = self.asset_name_field.text().strip()
+        if cur and cur != getattr(self, "_auto_asset", None):
+            return
+        for src in (self.blend_field.text(), self.field.text()):
+            name = self.asset_name_from_file(src)
+            if name:
+                self._auto_asset = name
+                self.asset_name_field.setText(name)
+                return
 
     def get_start_dir(self):
         """Where this panel's file browser should open.
@@ -1464,6 +2046,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
             actions_map[m.addAction("Add LOD Loader Panel (build entire LODs)")] = ("LOD LOADER", "LOD_LOADER", offset)
             actions_map[m.addAction("Add Note Panel (free-text, not a build step)")] = ("NOTE", "NOTE", offset)
             actions_map[m.addAction("Add Import 3D Model + LOD Organize")] = ("IMPORT 3D + LOD ORGANIZE", "IMPORT_LOD", offset)
+            actions_map[m.addAction("Add Import 3D + LOD Organize + Blender (.blend -> ABC)")] = ("IMPORT 3D + LOD ORGANIZE (BLENDER)", "IMPORT_BLEND", offset)
             actions_map[m.addAction("Add Delete-by-Name Panel")] = ("DELETE", "DELETE_OBJ", offset)
             actions_map[m.addAction("Add Zero Out Panel")] = ("ZERO OUT", "ZERO_OUT", offset)
             actions_map[m.addAction("Add Parent Panel")] = ("PARENT", "PARENT_OBJ", offset)
@@ -1508,7 +2091,11 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                 # path - this is the only way back to a normal, editable,
                 # type-your-own-code field.
                 a_rem = menu.addAction("❌ Clear (type code instead)")
+<<<<<<< Updated upstream
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD"):
+=======
+        elif self.p_type in ("IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT"):
+>>>>>>> Stashed changes
             a_load = menu.addAction("📂 Load 3D file (.ma/.mb/.fbx/.obj/.abc)")
             a_rem = menu.addAction("❌ Remove file")
         elif self.p_type == "JSON":
@@ -1626,7 +2213,15 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         # default; the type-specific filters remain available as options.
         if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"): kwargs['ff'] = "All Files (*.*);;Scripts (*.py *.mel);;Python (*.py);;MEL (*.mel)"
         elif self.p_type in ["JSON", "SHAPES", "TWEAKER", "MATERIAL"]: kwargs['ff'] = "All Files (*.*);;JSON (*.jSkin *.json)"
+<<<<<<< Updated upstream
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD"): kwargs['ff'] = "All Files (*.*);;3D Files (*.fbx *.obj *.abc *.ma *.mb);;FBX (*.fbx);;OBJ (*.obj);;Alembic (*.abc);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
+=======
+        elif self.p_type in ("IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND"): kwargs['ff'] = "All Files (*.*);;3D Files (*.fbx *.obj *.abc *.ma *.mb);;FBX (*.fbx);;OBJ (*.obj);;Alembic (*.abc);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
+        elif self.p_type == "CC_IMPORT": kwargs['ff'] = "FBX (*.fbx);;All Files (*.*)"
+        elif self.p_type == "JOINT_TRANSFER": kwargs['ff'] = "JSON (*.json);;All Files (*.*)"
+        elif self.p_type == "FINGER_FIX": kwargs['ff'] = "Maya Files (*.ma *.mb);;All Files (*.*)"
+        elif self.p_type == "JOINT_POS": kwargs['ff'] = "Joint Positions (*.json);;All Files (*.*)"
+>>>>>>> Stashed changes
         elif self.p_type == "PUBLISH": kwargs['fm'] = 3; kwargs['caption'] = "Select Publish Directory"
         else: return
         
@@ -1682,7 +2277,10 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                     # import_3d_logic already auto-detects by extension
                     # (.abc/.fbx/.obj get their dedicated importer, anything
                     # else - including .ma/.mb - falls back to cmds.file()).
+                    _before = set(cmds.ls(type="mesh", long=True) or []) if self.chk_delete_ai.isChecked() else None
                     success, error_msg = self.workspace.import_3d_logic(self.path())
+                    if success and _before is not None:
+                        self.workspace.delete_ai_models_logic(_before)     # only what this import added
                 elif self.p_type == "JSON":
                     success, error_msg = self.workspace.load_skin_cluster_logic(
                         self.path(), self.mesh_field.text(),
@@ -1728,13 +2326,15 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                     else:
                         success = False
                         error_msg = "Publish Path does not exist!"
-                elif self.p_type == "IMPORT_LOD":
+                elif self.p_type in ("IMPORT_LOD", "IMPORT_BLEND"):
                     # Same import_3d_logic() as IMPORT_3D, then
                     # organize_lod_logic() runs over the scene the import
                     # just landed in. A blank file path is allowed (the
                     # rigger may just want to re-organize a scene that's
                     # already been imported/assembled by hand) - only the
                     # organize step is required to have run.
+                    if self.p_type == "IMPORT_BLEND":
+                        self._autofill_asset_name()
                     path = self.path().strip()
                     if path:
                         success, error_msg = self.workspace.import_3d_logic(path)
@@ -1742,10 +2342,35 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                             pass  # don't attempt to organize on a failed import
                         else:
                             success, error_msg = self.workspace.organize_lod_logic(
-                                self.asset_name_field.text())
+                                self.asset_name_field.text(),
+                                delete_ai_lod=self.chk_delete_ai.isChecked())
                     else:
                         success, error_msg = self.workspace.organize_lod_logic(
+<<<<<<< Updated upstream
                             self.asset_name_field.text())
+=======
+                            self.asset_name_field.text(),
+                            delete_ai_lod=self.chk_delete_ai.isChecked())
+                elif self.p_type == "CC_IMPORT":
+                    from ..utils import cc_import
+                    success, error_msg = cc_import.run(
+                        self.path(), self.cc_version_field.text(),
+                        self.workspace.rig_root(),
+                        tex_dir=self.workspace.resolve_path(self.cc_tex_field.text()),
+                        new_scene=self.chk_cc_new_scene.isChecked(),
+                        delete_meshes_text=self.cc_delete_field.text(),
+                        face_gui_pos=self.cc_face_gui_field.text())
+                    self._update_cc_output_label()
+                elif self.p_type == "JOINT_POS":
+                    success, error_msg = self._joint_pos_run()
+                elif self.p_type == "BREATHING":
+                    success, error_msg = self._breathing_run()
+                elif self.p_type in self.STEP_PANEL_TYPES:
+                    keys = [k for k, c in self.step_checks.items() if c.isChecked()]
+                    for k in self.step_status:
+                        self._steps_set_status(k, "")
+                    success, error_msg = self._steps_run(keys)
+>>>>>>> Stashed changes
                 elif self.p_type == "DELETE_OBJ":
                     success, error_msg = self.workspace.delete_by_name_logic(self.target_field.text())
                 elif self.p_type == "ZERO_OUT":

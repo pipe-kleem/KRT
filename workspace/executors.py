@@ -190,6 +190,33 @@ class WorkspaceExecutorsMixin(object):
         except Exception as e:
             return False, str(e)
 
+    def delete_ai_models_logic(self, before_meshes=None):
+        """Delete mesh objects with 'ai_lod' in their name. With `before_meshes`
+        (the set of mesh shapes that existed before an import) only objects the
+        import added are touched. Returns how many were deleted; never raises."""
+        import re
+        try:
+            shapes = cmds.ls(type="mesh", long=True) or []
+            if before_meshes is not None:
+                shapes = [s for s in shapes if s not in before_meshes]
+            to_del = []
+            for sh in shapes:
+                for par in cmds.listRelatives(sh, parent=True, fullPath=True) or []:
+                    short = par.split("|")[-1].split(":")[-1]
+                    if re.search(r"ai_lod", short, re.I) and par not in to_del:
+                        to_del.append(par)
+            n = 0
+            for par in to_del:
+                if cmds.objExists(par):
+                    cmds.delete(par)
+                    n += 1
+            if n:
+                cmds.warning("[KRT] Deleted {} AI model object(s).".format(n))
+            return n
+        except Exception as e:
+            cmds.warning("[KRT] AI model delete skipped: {}".format(e))
+            return 0
+
     def organize_lod_logic(self, asset_name, delete_ai_lod=True):
         """Organize every mesh currently in the scene into
         <asset_name>/<asset_name>_geo/<asset_name>_lod_<N> groups, folding

@@ -35,6 +35,7 @@ PANEL_TYPE_ACCENTS = {
     "MATERIAL":      "#ff8a65",   # deep orange - shader/material + texture save-load
     "NOTE":          "#ffd54f",   # yellow      - sticky-note style, for a plain reminder panel
     "IMPORT_LOD":    "#9ccc65",   # light green - Import 3D Model + organize into LOD groups
+    "IMPORT_BLEND":  "#aed581",   # lighter green - same, plus a one-time Blender .blend -> ABC step
     "DELETE_OBJ":    "#e53935",   # strong red  - deletes named object(s), deliberately alarming
     "ZERO_OUT":      "#64b5f6",   # sky blue    - resets named object(s)/control(s) to default
     "PARENT_OBJ":    "#ffa726",   # orange      - parents child object(s) under a parent
@@ -71,6 +72,7 @@ PANEL_TYPE_ICONS = {
     # Import 3D + LOD Organize: same cube as IMPORT_3D plus a building -
     # imports, then organizes the scene into LOD groups.
     "IMPORT_LOD":    "🏢",
+    "IMPORT_BLEND":  "🅱️",
     # Delete-by-name: a plain trash can - deliberately unambiguous.
     "DELETE_OBJ":    "🗑️",
     # Zero Out: a target/reset symbol for "back to default".
@@ -102,6 +104,7 @@ PANEL_TYPE_BG_TINT = {
     "MATERIAL":      "#452f28",
     "NOTE":          "#252526",
     "IMPORT_LOD":    "#334a2c",
+    "IMPORT_BLEND":  "#2f4a35",
     "DELETE_OBJ":    "#452a29",
     "ZERO_OUT":      "#2a3c47",
     "PARENT_OBJ":    "#453b28",
@@ -115,7 +118,11 @@ PANEL_TYPE_BG_TINT = {
 # excluded on purpose: that field can hold raw pasted code instead of a
 # path. Stage 18 adds IMPORT_3D (now that MA/IMPORT_3D are one merged,
 # always-Browse-set panel type - request #1).
+<<<<<<< Updated upstream
 READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD"}
+=======
+READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT", "JOINT_POS"}
+>>>>>>> Stashed changes
 
 # Stage 18, request #4: every read-only field across the Rig Workspace uses
 # this SAME colour, regardless of which panel type it belongs to - a single

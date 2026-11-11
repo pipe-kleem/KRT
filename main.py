@@ -50,6 +50,19 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         self.autosave_timer.timeout.connect(self.trigger_global_autosave)
         self.autosave_timer.start(300000) # 5 minutes
 
+        # Stage 58: log the Python stack whenever the UI freezes > 8 s.
+        try:
+            from .utils.hang_watch import HangWatch
+            self.hang_watch = HangWatch(threshold=8, parent=self)
+            self.hang_watch.start()
+        except Exception:
+            self.hang_watch = None
+
+    def open_changelog(self):
+        from .dialogs import ChangelogDialog
+        dlg = ChangelogDialog(self)
+        dlg.exec() if IS_PYSIDE6 else dlg.exec_()
+
     def trigger_global_autosave(self):
         for i in range(self.session_stack.count()):
             self.session_stack.widget(i).perform_autosave()
@@ -132,6 +145,11 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         self.btn_load_path.setStyleSheet("background-color: #3e3e42; color: white;")
         self.btn_load_path.clicked.connect(self.load_path_from_field)
 
+        self.btn_changelog = QtWidgets.QPushButton("v" + KRT_VERSION)
+        self.btn_changelog.setToolTip("Changelog - what changed in each version (build " + KRT_BUILD + ")")
+        self.btn_changelog.setStyleSheet("background-color: #3e3e42; color: #2bb5a8; font-weight: bold; padding: 5px;")
+        self.btn_changelog.clicked.connect(self.open_changelog)
+        sc_layout.addWidget(self.btn_changelog)
         sc_layout.addWidget(self.btn_load_json)
         sc_layout.addWidget(self.btn_reset)
         sc_layout.addWidget(self.btn_save_session)

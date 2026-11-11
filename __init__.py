@@ -2,12 +2,8 @@
 
 __version__ is stamped into the window title and printed by the installer,
 so it is always obvious WHICH copy of KRT is actually running. Bump it
-whenever a change is delivered.
+whenever a change is delivered, and add the matching entry at the TOP of
+changelog.py (the Changelog window in the UI reads it).
 """
-<<<<<<< Updated upstream
-__version__ = "43.9"
-__build__ = "2026-09-23"
-=======
 __version__ = "46.8"
 __build__ = "2026-11-07 10:00"
->>>>>>> Stashed changes

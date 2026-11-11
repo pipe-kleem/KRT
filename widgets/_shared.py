@@ -118,11 +118,7 @@ PANEL_TYPE_BG_TINT = {
 # excluded on purpose: that field can hold raw pasted code instead of a
 # path. Stage 18 adds IMPORT_3D (now that MA/IMPORT_3D are one merged,
 # always-Browse-set panel type - request #1).
-<<<<<<< Updated upstream
-READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD"}
-=======
 READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT", "JOINT_POS"}
->>>>>>> Stashed changes
 
 # Stage 18, request #4: every read-only field across the Rig Workspace uses
 # this SAME colour, regardless of which panel type it belongs to - a single

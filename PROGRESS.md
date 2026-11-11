@@ -7,6 +7,29 @@
 
 ---
 
+## 0. START HERE (state as of 2026-09-23)
+
+| | |
+|---|---|
+| **Version** | `46.3` (`__init__.py`: `__version__` / `__build__`) — the window title shows it; if Maya shows an older number you are running a different copy of the folder. |
+| **Location** | `C:\pipeline\KRT_02` on device **kla04**. Package name `KRT`. |
+| **Git** | Branch **`pipe`**, remote `origin` = `https://github.com/pipe-kleem/KRT.git` (also has `master`). Push with `git push origin pipe`. |
+| **Size** | ~24,000 lines, 87 `.py` files (excluding `archive/`). |
+| **Last stages** | 49 panel collapse · 50 white titles · 51 LOD sidebar collapse. |
+
+**Bump `__version__` on every change** — it is the only way to tell from inside Maya whether the running code is the code we just edited. Every bump also gets an entry (version, date + time, changes) at the TOP of `changelog.py` — the version button in KRT's top bar shows it.
+
+**Still untested in a live Maya / live AYON session** (nothing here can be verified from a chat session):
+- AYON publish: reviewable upload (movie *and* image), representation `tags`, `review` product creation, `CreateContext.create()` arguments in the installed ayon-core, whether the four companion sets come back as direct members of the instance node, and whether `rigMain` now shows up in the official AYON Publisher.
+- Guessed defaults to confirm: product name `reviewRigging` vs `reviewMain`; folder names `skinCluster` / `controlShape` vs the older `skin` / `ctrls`.
+
+**Decisions made 2026-09-23:**
+1. **KRISHNA rename** — labels only (done in v44.0). Script Editor log prefixes (`[AYON]`, `[AYON PUBLISH]`), warnings, comments and all internals stay "AYON".
+2. **Package name stays `KRT`** — do not move it to the `ssd_` convention.
+3. **Git remote** = `https://github.com/pipe-kleem/KRT.git`, work happens on branch `pipe`.
+
+---
+
 ## 1. What this project is
 
 **KRT (Kleem Rigging Tool)** — a PySide2/PySide6 Maya tool for procedural biped/creature rig building on top of

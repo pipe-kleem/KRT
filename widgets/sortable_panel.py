@@ -961,9 +961,6 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         else:
             self.workspace.add_panel(title, p_type, default_val, index=idx)
 
-<<<<<<< Updated upstream
-    def copy_panel(self):
-=======
     # ── Stage 55: CC Import panel helpers ─────────────────────────────
     def _cc_output_path(self):
         from ..utils import cc_import
@@ -1305,7 +1302,6 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
 
     def clipboard_data(self):
         """This panel as a clipboard dict (paths ABSOLUTE - see copy note)."""
->>>>>>> Stashed changes
         data = {"type": self.p_type, "title": self.title_edit.text(), "active": self.is_active, "bg_color": self.bg_color}
         # The clipboard is shared by every session tab, and each tab has its
         # own Rig Root - so a relative path copied out of rig A would silently
@@ -1829,11 +1825,8 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         "GLOBAL_SCRIPT": "scripts",
         "IMPORT_3D": "model",
         "IMPORT_LOD": "model",
-<<<<<<< Updated upstream
-=======
         "IMPORT_BLEND": "model",
         "CC_IMPORT": "model",
->>>>>>> Stashed changes
         "JSON": "skinCluster",
         "TWEAKER": "skinCluster",
         "SHAPES": "controlShape",
@@ -2091,11 +2084,7 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                 # path - this is the only way back to a normal, editable,
                 # type-your-own-code field.
                 a_rem = menu.addAction("❌ Clear (type code instead)")
-<<<<<<< Updated upstream
-        elif self.p_type in ("IMPORT_3D", "IMPORT_LOD"):
-=======
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT"):
->>>>>>> Stashed changes
             a_load = menu.addAction("📂 Load 3D file (.ma/.mb/.fbx/.obj/.abc)")
             a_rem = menu.addAction("❌ Remove file")
         elif self.p_type == "JSON":
@@ -2213,15 +2202,11 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
         # default; the type-specific filters remain available as options.
         if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"): kwargs['ff'] = "All Files (*.*);;Scripts (*.py *.mel);;Python (*.py);;MEL (*.mel)"
         elif self.p_type in ["JSON", "SHAPES", "TWEAKER", "MATERIAL"]: kwargs['ff'] = "All Files (*.*);;JSON (*.jSkin *.json)"
-<<<<<<< Updated upstream
-        elif self.p_type in ("IMPORT_3D", "IMPORT_LOD"): kwargs['ff'] = "All Files (*.*);;3D Files (*.fbx *.obj *.abc *.ma *.mb);;FBX (*.fbx);;OBJ (*.obj);;Alembic (*.abc);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
-=======
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND"): kwargs['ff'] = "All Files (*.*);;3D Files (*.fbx *.obj *.abc *.ma *.mb);;FBX (*.fbx);;OBJ (*.obj);;Alembic (*.abc);;Maya ASCII (*.ma);;Maya Binary (*.mb)"
         elif self.p_type == "CC_IMPORT": kwargs['ff'] = "FBX (*.fbx);;All Files (*.*)"
         elif self.p_type == "JOINT_TRANSFER": kwargs['ff'] = "JSON (*.json);;All Files (*.*)"
         elif self.p_type == "FINGER_FIX": kwargs['ff'] = "Maya Files (*.ma *.mb);;All Files (*.*)"
         elif self.p_type == "JOINT_POS": kwargs['ff'] = "Joint Positions (*.json);;All Files (*.*)"
->>>>>>> Stashed changes
         elif self.p_type == "PUBLISH": kwargs['fm'] = 3; kwargs['caption'] = "Select Publish Directory"
         else: return
         
@@ -2346,9 +2331,6 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                                 delete_ai_lod=self.chk_delete_ai.isChecked())
                     else:
                         success, error_msg = self.workspace.organize_lod_logic(
-<<<<<<< Updated upstream
-                            self.asset_name_field.text())
-=======
                             self.asset_name_field.text(),
                             delete_ai_lod=self.chk_delete_ai.isChecked())
                 elif self.p_type == "CC_IMPORT":
@@ -2370,7 +2352,6 @@ class SortablePanel(CollapseMixin, CacheMixin, QtWidgets.QFrame):
                     for k in self.step_status:
                         self._steps_set_status(k, "")
                     success, error_msg = self._steps_run(keys)
->>>>>>> Stashed changes
                 elif self.p_type == "DELETE_OBJ":
                     success, error_msg = self.workspace.delete_by_name_logic(self.target_field.text())
                 elif self.p_type == "ZERO_OUT":

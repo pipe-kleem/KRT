@@ -1,6 +1,7 @@
 """Auto-split from graph.py."""
 from ._shared import *
 from .catalog import _find_guide_root
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class CustomStepListEditor(QtWidgets.QWidget):
@@ -40,7 +41,7 @@ class CustomStepListEditor(QtWidgets.QWidget):
         self.on_change = None
 
     def add_script(self):
-        res = cmds.fileDialog2(fm=4, ff="Python (*.py)")  # fm=4: multiple existing files
+        res = file_dialog2(fm=4, ff="Python (*.py)")  # fm=4: multiple existing files
         if not res:
             return
         for path in res:
@@ -348,7 +349,7 @@ class GuideSettingsPanel(QtWidgets.QWidget):
 
     # -- scene <-> UI sync --------------------------------------------------
     def _browse_into(self, attr_name, line_edit):
-        res = cmds.fileDialog2(fm=1, ff="All Files (*.*)")
+        res = file_dialog2(fm=1, ff="All Files (*.*)")
         if res:
             line_edit.setText(res[0])
             self._set_attr(attr_name, res[0])

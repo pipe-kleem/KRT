@@ -6,6 +6,7 @@ utils.py template, replacing the current LOD's panels).
 """
 from ._shared import *
 from ..utils.paths import DEFAULT_RIGS_ROOT
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class ProjectInitDialog(QtWidgets.QDialog):
@@ -33,6 +34,17 @@ class ProjectInitDialog(QtWidgets.QDialog):
         self.edit_name.setPlaceholderText("e.g. parshuram_a")
         self.edit_name.textChanged.connect(self._refresh_preview)
         form.addWidget(self.edit_name, 1, 1, 1, 2)
+
+        # Stage 56: which default panel stack to build.
+        form.addWidget(QtWidgets.QLabel("<b>Rig type:</b>"), 2, 0)
+        self.cmb_type = QtWidgets.QComboBox()
+        self.cmb_type.addItem("Prop", "prop")
+        self.cmb_type.addItem("Character", "character")
+        self.cmb_type.setCurrentIndex(1)       # Stage 59: Character is the default
+        self.cmb_type.setToolTip(
+            "Prop: the standard panel stack.\n"
+            "Character: the same stack plus character steps (CC Import, off by default).")
+        form.addWidget(self.cmb_type, 2, 1, 1, 2)
         lay.addLayout(form)
 
         self.lbl_preview = QtWidgets.QLabel()
@@ -67,7 +79,7 @@ class ProjectInitDialog(QtWidgets.QDialog):
         kwargs = {"fm": 3, "caption": "Select the folder that holds all rigs"}
         if start and os.path.isdir(start):
             kwargs["dir"] = start
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res:
             self.edit_parent.setText(res[0].replace("\\", "/"))
             self._refresh_preview()
@@ -80,6 +92,9 @@ class ProjectInitDialog(QtWidgets.QDialog):
         exists = " (already exists - nothing is overwritten)" if os.path.isdir(root) else ""
         self.lbl_preview.setText(
             "<b>{}</b>{}<br>&nbsp;&nbsp;{}".format(root, exists, "&nbsp;&nbsp;".join(f + "/" for f in self.folders)))
+
+    def rig_type(self):
+        return self.cmb_type.currentData() or "prop"
 
     def rig_name(self):
         return self.edit_name.text().strip()

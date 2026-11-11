@@ -1,6 +1,7 @@
 """ModuleGraphWidget - io methods (mixin, auto-split from graph.py)."""
 from ._shared import *
 from .items import RigNode, RigWire
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class GraphIoMixin(object):
@@ -67,7 +68,7 @@ class GraphIoMixin(object):
                   "caption": "Browse Guide JSON"}
         if start_dir:
             kwargs["startingDirectory"] = start_dir
-        file_path = cmds.fileDialog2(**kwargs)
+        file_path = file_dialog2(**kwargs)
         if file_path:
             self.path_field.setText(file_path[0])
 
@@ -165,6 +166,17 @@ class GraphIoMixin(object):
         """
         path = self.workspace.resolve_path(self.path_field.text()).strip()
         if not path: return
+
+        # Stage 54: never write into another user's profile folder (a guide
+        # path inherited from a colleague's pipeline JSON) - use the default
+        # guide location next to the current pipeline JSON instead.
+        from ..utils import relpath as _relpath
+        if _relpath.foreign_home(path):
+            fallback = self.compute_default_guide_path()
+            cmds.warning(f"[KRT] Guide path '{path}' is in another user's folder - "
+                         f"saving to '{fallback}' instead.")
+            path = fallback
+            self.path_field.setText(self.workspace.relativize_path(path))
 
         if not overwrite:
             from ..utils import get_versioned_path

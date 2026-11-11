@@ -1,0 +1,140 @@
+global proc teethCtrlAdded()
+{
+
+    select -r CC_Base_Teeth ;
+    duplicate -n "teeth_bs" -rr;
+    parent -w;
+    
+    select -cl  ;
+    select -r teeth_bs.vtx[0:1289] teeth_bs.vtx[2642:3822] teeth_bs.vtx[5063:7516] ;
+    cluster -n "upper_teeth_";
+    select -cl  ;
+    joint -n "upper_teeth";
+    parentConstraint "upper_teeth_Handle" "upper_teeth";
+    delete "upper_teeth_parentConstraint1";
+    //setAttr "upper_teeth.jointOrientY" -90;
+    select -cl  ;
+    
+    select -cl  ;
+    select -r teeth_bs.vtx[1290:2641] teeth_bs.vtx[3823:5062] teeth_bs.vtx[7517:10091] ;
+    cluster -n "lower_teeth_";
+    select -cl  ;
+    joint -n "lower_teeth";
+    parentConstraint "lower_teeth_Handle" "lower_teeth";
+    delete "lower_teeth_parentConstraint1";
+    //setAttr "lower_teeth.jointOrientY" -90;
+    select -cl  ;
+    
+    delete "upper_teeth_Handle"  "lower_teeth_Handle" ;
+    skinCluster -n "testSkinCluster" -tsb "upper_teeth" "lower_teeth" "teeth_bs";
+    
+    
+    {
+        // --- Configuration ---
+        string $targetJoint   = "upper_teeth";
+        float  $weightVal     = 1.0; 
+        string $targetMesh    = "teeth_bs";
+    
+        string $vtxList[]   = {
+            "teeth_bs.vtx[0:1289]", 
+            "teeth_bs.vtx[2642:3822]", 
+            "teeth_bs.vtx[5063:7516]"
+        };
+    
+        // --- Auto-Find SkinCluster ---
+        string $currentSkinCluster = `findRelatedSkinCluster $targetMesh`;
+    
+        // --- Execution ---
+        if ($currentSkinCluster == "") {
+            error ("Could not find a valid skinCluster on '" + $targetMesh + "'. Check if the mesh is bound.");
+        } else {
+            for ($vertexRange in $vtxList) {
+                skinPercent -transformValue $targetJoint $weightVal $currentSkinCluster $vertexRange;
+            }
+            print ("Successfully updated weights for " + $targetMesh + " using " + $currentSkinCluster + ".\n");
+        }
+    };
+    
+    
+    {
+        // --- Configuration ---
+        string $targetJoint   = "lower_teeth";
+        float  $weightVal     = 1.0; 
+        string $targetMesh    = "teeth_bs";
+    
+        string $vtxList[]   = {
+            "teeth_bs.vtx[1290:2641]", 
+            "teeth_bs.vtx[3823:5062]", 
+            "teeth_bs.vtx[7517:10091]"
+        };
+    
+        // --- Auto-Find SkinCluster ---
+        string $currentSkinCluster = `findRelatedSkinCluster $targetMesh`;
+    
+        // --- Execution ---
+        if ($currentSkinCluster == "") {
+            error ("Could not find a valid skinCluster on '" + $targetMesh + "'. Check if the mesh is bound.");
+        } else {
+            for ($vertexRange in $vtxList) {
+                skinPercent -transformValue $targetJoint $weightVal $currentSkinCluster $vertexRange;
+            }
+            print ("Successfully updated weights for " + $targetMesh + " using " + $currentSkinCluster + ".\n");
+        }
+    };
+    
+    
+    blendShape -e  -t CC_Base_Teeth 2 teeth_bs 1 Morpher_CC_Base_Teeth;
+    setAttr "Morpher_CC_Base_Teeth.teeth_bs" 1;
+    
+    
+    select -cl  ;
+    circle -c 0 0 0 -nr 0 1 0 -sw 360 -r 5 -d 3 -ut 0 -tol 0.01 -s 8 -ch 1; objectMoveCommand;
+    select -r nurbsCircle1.cv[0:3] nurbsCircle1.cv[7] ;
+    scale -r -p 0cm 0cm -2.770485cm 1 1 1e-05 ;
+    select -cl  ;
+    setAttr "nurbsCircleShape1.overrideEnabled" 1;
+    setAttr "nurbsCircleShape1.overrideColor" 17;
+    rename "nurbsCircle1" "upper_teeth_ctl";
+    
+    parentConstraint "upper_teeth" "upper_teeth_ctl";
+    delete "upper_teeth_ctl_parentConstraint1";
+    setAttr "upper_teeth_ctl.rotateY" 0;
+    
+    select -r upper_teeth_ctl ;
+    duplicate -n lower_teeth_ctl ;
+    parentConstraint "lower_teeth" "lower_teeth_ctl";
+    delete "lower_teeth_ctl_parentConstraint1";
+    setAttr "lower_teeth_ctl.rotateY" 0;
+    select -cl  ;
+    
+    
+    duplicate upper_teeth_ctl lower_teeth_ctl;
+    duplicate upper_teeth_ctl lower_teeth_ctl;
+    select -r upper_teeth_ctl1 lower_teeth_ctl1 upper_teeth_ctl2 lower_teeth_ctl2 ;
+    pickWalk -d down;
+    doDelete;
+    rename upper_teeth_ctl1 upper_teeth_ctl_grp;
+    rename lower_teeth_ctl1 lower_teeth_ctl_grp;
+    rename upper_teeth_ctl2 upper_teeth_jnt_grp;
+    rename lower_teeth_ctl2 lower_teeth_jnt_grp;
+    
+    
+    parent upper_teeth_ctl upper_teeth_ctl_grp ;
+    parent lower_teeth_ctl lower_teeth_ctl_grp ;
+    
+    parent upper_teeth upper_teeth_jnt_grp ;
+    parent lower_teeth lower_teeth_jnt_grp ;
+    
+    
+    connectAttr -f upper_teeth_ctl.translate upper_teeth.translate;
+    connectAttr -f upper_teeth_ctl.rotate upper_teeth.rotate;
+    connectAttr -f upper_teeth_ctl.scale upper_teeth.scale;
+    
+    connectAttr -f lower_teeth_ctl.translate lower_teeth.translate;
+    connectAttr -f lower_teeth_ctl.rotate lower_teeth.rotate;
+    connectAttr -f lower_teeth_ctl.scale lower_teeth.scale;
+    
+    parent upper_teeth_ctl_grp CC_Base_UpperJaw ;
+    parent lower_teeth_ctl_grp CC_Base_JawRoot ;
+
+}

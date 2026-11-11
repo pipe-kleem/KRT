@@ -14,6 +14,7 @@ import maya.cmds as cmds
 import os
 import re
 import time
+import traceback
 from maya.app.general.mayaMixin import MayaQWidgetBaseMixin
 from .compat import QtWidgets, QtCore, QtGui, IS_PYSIDE6
 from . import __version__ as KRT_VERSION, __build__ as KRT_BUILD
@@ -22,11 +23,21 @@ from .dialogs import AdvancedSaveDialog
 from .workspace import SessionWorkspace, CurrentPageStackedWidget
 from .widgets import PBCameraViewWidget
 from .utils import log_crash, mark_session_start, mark_session_clean_exit, check_last_session_health
+from .utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
     def __init__(self, parent=None):
         # Initialize Maya's native workspace mixin layer safely
         super(KRT_Tool, self).__init__(parent=parent)
+
+        # Stage 68: load KRT's rig library (UniUtils, rig_lib, Fan, ...) before
+        # any session tab exists - aliases `import UniUtils`/`import wrapToBs`
+        # to the KRT copies and puts the helpers into Maya's Script Editor.
+        try:
+            from .rigutils import install as _install_rig_library
+            _install_rig_library()
+        except Exception:
+            cmds.warning("[KRT] rig library install failed:\n" + traceback.format_exc())
 
         # Version in the title: the fastest way to tell whether the copy
         # Maya actually loaded is the one you just installed.
@@ -67,10 +78,23 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         for i in range(self.session_stack.count()):
             self.session_stack.widget(i).perform_autosave()
 
+    def on_tab_moved(self, from_index, to_index):
+        """Keep session_stack in the same order as the tab bar."""
+        ws = self.session_stack.widget(from_index)
+        if ws is None:
+            return
+        self.session_stack.blockSignals(True)
+        self.session_stack.removeWidget(ws)
+        self.session_stack.insertWidget(to_index, ws)
+        self.session_stack.blockSignals(False)
+        self.session_stack.setCurrentIndex(self.tab_bar.currentIndex())
+
     def closeEvent(self, event):
         """Native Qt intercept to kill background timers before C++ deletion."""
         if hasattr(self, 'autosave_timer') and self.autosave_timer.isActive():
             self.autosave_timer.stop()
+        if getattr(self, 'hang_watch', None) is not None:
+            self.hang_watch.stop()
         # Maya modelPanels are not Qt children - they outlive this window
         # unless explicitly deleted. See PBCameraViewWidget.stop().
         try:
@@ -98,6 +122,11 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         self.tab_bar = QtWidgets.QTabBar()
         self.tab_bar.setTabsClosable(True)
         self.tab_bar.setExpanding(False)
+        # Stage 54: drag tabs to reorder them. The tab bar and the stack of
+        # workspaces are separate widgets, so on_tab_moved() moves the
+        # matching workspace too - otherwise tab N would show workspace M.
+        self.tab_bar.setMovable(True)
+        self.tab_bar.tabMoved.connect(self.on_tab_moved)
         self.tab_bar.currentChanged.connect(self.on_tab_changed)
         self.tab_bar.tabCloseRequested.connect(self.close_session)
         
@@ -117,16 +146,24 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         sc_layout.setSpacing(8)
         sc_layout.setAlignment(QtCore.Qt.AlignRight)
 
-        self.btn_load_json = QtWidgets.QPushButton("📂 Load JSON Pipeline")
-        self.btn_load_json.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px 10px;")
+        # Stage 54: icon-only buttons (full name in the tooltip) - leaves the
+        # top bar's width to the session tabs.
+        self.btn_load_json = QtWidgets.QPushButton("📂")
+        self.btn_load_json.setToolTip("Load JSON Pipeline")
+        self.btn_load_json.setFixedWidth(34)
+        self.btn_load_json.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px;")
         self.btn_load_json.clicked.connect(self.trigger_browse_pipeline)
 
-        self.btn_reset = QtWidgets.QPushButton("🔄 Reset Scene & UI")
-        self.btn_reset.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px 10px;")
+        self.btn_reset = QtWidgets.QPushButton("🔄")
+        self.btn_reset.setToolTip("Reset Scene & UI")
+        self.btn_reset.setFixedWidth(34)
+        self.btn_reset.setStyleSheet("background-color: #3e3e42; font-weight: bold; padding: 5px;")
         self.btn_reset.clicked.connect(self.trigger_reset_scene)
 
-        self.btn_save_session = QtWidgets.QPushButton("💾 Save Session")
-        self.btn_save_session.setStyleSheet("background-color: #2bb5a8; font-weight: bold; color: white; padding: 5px 10px;")
+        self.btn_save_session = QtWidgets.QPushButton("💾")
+        self.btn_save_session.setToolTip("Save Session")
+        self.btn_save_session.setFixedWidth(34)
+        self.btn_save_session.setStyleSheet("background-color: #2bb5a8; font-weight: bold; color: white; padding: 5px;")
         self.btn_save_session.clicked.connect(self.open_advanced_save_dialog)
 
         self.btn_browse_path = QtWidgets.QPushButton("📂")
@@ -290,7 +327,7 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
                 kwargs["dir"] = start
         except Exception:
             pass
-        res = cmds.fileDialog2(**kwargs)
+        res = file_dialog2(**kwargs)
         if res:
             self.session_path_field.setText(res[0])
             self.load_path_from_field()

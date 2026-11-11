@@ -286,7 +286,7 @@ class WorkspaceLodsMixin(object):
     # ------------------------------------------------------------------
     def sidebar_is_collapsed(self):
         """True when the LOD Manager sidebar is folded away to the left."""
-        return bool(getattr(self, "_sidebar_collapsed", False))
+        return bool(getattr(self, "_sidebar_collapsed", True))
 
     def set_sidebar_collapsed(self, state):
         """Fold the sidebar to a thin rail (state=True) or restore it.

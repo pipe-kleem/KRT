@@ -14,7 +14,7 @@ class WorkspaceBuildMixin(object):
         reset_scene parameter) instead of starting from an empty file."""
         if wipe_scene:
             cmds.file(new=True, force=True)
-            self.shared_namespace = {'__name__': '__main__', 'cmds': cmds, 'mel': mel, 'om': om}
+            self.shared_namespace = self.fresh_script_namespace()
 
         for i in range(self.lod_stack.count()):
             container = self.lod_stack.widget(i).panels_container
@@ -32,7 +32,7 @@ class WorkspaceBuildMixin(object):
             cmds.warning("UI Buttons Reset. (Scene left as-is.)")
 
     def reset_namespace_only(self):
-        self.shared_namespace = {'__name__': '__main__', 'cmds': cmds, 'mel': mel, 'om': om}
+        self.shared_namespace = self.fresh_script_namespace()
 
     def restore_namespace_preamble(self, target_panel):
         """Rebuild the Python helper namespace after loading a cache, by re-running
@@ -57,6 +57,10 @@ class WorkspaceBuildMixin(object):
         the caches that actually exist in the current pipeline's folder."""
         if not hasattr(self, 'lod_stack'):
             return
+        try:
+            self.session_manager.invalidate_cache_index()
+        except Exception:
+            pass
         for i in range(self.lod_stack.count()):
             page = self.lod_stack.widget(i)
             container = getattr(page, 'panels_container', None)
@@ -86,6 +90,21 @@ class WorkspaceBuildMixin(object):
                             pass
         except Exception:
             pass
+        # Stage 67: this pipeline's steps may also have caches in an older
+        # JSON version's folder - remove those (by uuid) too.
+        self.session_manager.invalidate_cache_index()
+        for i in range(self.lod_stack.count() if hasattr(self, 'lod_stack') else 0):
+            container = getattr(self.lod_stack.widget(i), 'panels_container', None)
+            if not container:
+                continue
+            for j in range(container.layout.count()):
+                panel = container.layout.itemAt(j).widget()
+                for p in (panel.all_cache_paths() if hasattr(panel, 'all_cache_paths') else []):
+                    try:
+                        os.remove(p); removed += 1
+                    except Exception:
+                        pass
+        self.session_manager.invalidate_cache_index()
         self.refresh_all_cache_ui()
         return removed
 
@@ -112,13 +131,15 @@ class WorkspaceBuildMixin(object):
         removed = 0
         for i in range(container.layout.count()):
             panel = container.layout.itemAt(i).widget()
-            if hasattr(panel, 'get_cache_path'):
-                p = panel.get_cache_path()
-                try:
-                    if p and os.path.isfile(p):
+            if hasattr(panel, 'all_cache_paths'):
+                for p in panel.all_cache_paths():
+                    try:
                         os.remove(p); removed += 1
-                except Exception: pass
-                if hasattr(panel, 'refresh_cache_ui'): panel.refresh_cache_ui()
+                    except Exception: pass
+        self.session_manager.invalidate_cache_index()
+        for i in range(container.layout.count()):
+            panel = container.layout.itemAt(i).widget()
+            if hasattr(panel, 'refresh_cache_ui'): panel.refresh_cache_ui()
         return removed
 
     def remove_caches_from(self, panel, inclusive=True):
@@ -135,14 +156,18 @@ class WorkspaceBuildMixin(object):
         removed = 0
         for i in range(start, container.layout.count()):
             p = container.layout.itemAt(i).widget()
-            if hasattr(p, 'get_cache_path'):
-                cp = p.get_cache_path()
-                try:
-                    if cp and os.path.isfile(cp):
+            if hasattr(p, 'all_cache_paths'):
+                # every copy (own folder + older JSON versions' folders) -
+                # otherwise a stale older copy would show up as "cached"
+                for cp in p.all_cache_paths():
+                    try:
                         os.remove(cp); removed += 1
-                except Exception:
-                    pass
-                if hasattr(p, 'refresh_cache_ui'): p.refresh_cache_ui()
+                    except Exception:
+                        pass
+        self.session_manager.invalidate_cache_index()
+        for i in range(start, container.layout.count()):
+            p = container.layout.itemAt(i).widget()
+            if hasattr(p, 'refresh_cache_ui'): p.refresh_cache_ui()
         return removed
 
     def _begin_fast_build(self):
@@ -400,7 +425,7 @@ class WorkspaceBuildMixin(object):
         if not hasattr(panel, 'has_cache') or not panel.has_cache():
             cmds.warning("No cache exists for this step yet.")
             return False
-        ok = self._open_scene_tolerant(panel.get_cache_path())
+        ok = self._open_scene_tolerant(panel.find_cache_path())
         if not ok:
             cmds.warning(f"Failed to load cache: {panel.title_edit.text()}")
             return False

@@ -2,6 +2,7 @@
 from ._shared import *
 from .dialogs import AutoScriptEditDialog, CustomScriptDialog
 from .items import RigNode
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class GraphScriptsMixin(object):
@@ -187,7 +188,7 @@ class GraphScriptsMixin(object):
     def browse_control_shapes_library(self):
         start = self.workspace.resolve_path(self.edit_control_shapes_lib.text().strip())
         start_dir = os.path.dirname(start) if start else self.workspace.default_browse_dir()
-        res = cmds.fileDialog2(
+        res = file_dialog2(
             fm=1, ff="Maya Files (*.ma *.mb);;Maya ASCII (*.ma);;Maya Binary (*.mb);;All Files (*.*)",
             caption="Choose Control Shapes Library",
             dir=start_dir if os.path.exists(start_dir) else "")

@@ -104,7 +104,7 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
         # context menu) can put it back. Capped so it can't grow forever.
         self.panel_undo_stack = []
 
-        self.shared_namespace = {'__name__': '__main__', 'cmds': cmds, 'mel': mel, 'om': om}
+        self.shared_namespace = self.fresh_script_namespace()
 
         # Playblast QC capture (Stage 36): HUD-visibility/camera-gate state
         # saved by pb_hide_all_huds()/pb_hide_camera_gates() right before a
@@ -142,6 +142,8 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
         tab_index = self.main_window.session_stack.indexOf(self)
         tab_name = os.path.basename(path) if path else "Untitled Session"
         self.main_window.tab_bar.setTabText(tab_index, tab_name)
+        # Stage 54: hover a tab to see which JSON it is (names can repeat).
+        self.main_window.tab_bar.setTabToolTip(tab_index, path or "Not saved yet")
 
         if self.main_window.session_stack.currentIndex() == tab_index:
             self.main_window.session_path_field.setText(path)
@@ -156,6 +158,19 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
             elif refresh_guide_default:
                 self.graph_widget.refresh_default_guide_path()
             # else: leave the Guide Path field untouched - see docstring.
+
+    def fresh_script_namespace(self):
+        """A new script-panel namespace: cmds/mel/om plus the whole KRT rig
+        library (Stage 68 - UniUtils, replace_and_rename_mesh, run_Fan, ...),
+        so panels can call those helpers with no import or utils.py."""
+        ns = {}
+        try:
+            from ..rigutils import namespace as _rig_namespace
+            ns.update(_rig_namespace())
+        except Exception:
+            cmds.warning("[KRT] rig library not available in script panels:\n" + traceback.format_exc())
+        ns.update({'__name__': '__main__', 'cmds': cmds, 'mel': mel, 'om': om})
+        return ns
 
     def get_cache_dir(self):
         """The step-cache folder for the currently open pipeline JSON."""
@@ -215,6 +230,9 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
             "font-size:10px;}QToolButton:hover{background-color:#3e3e42;}")
         self.btn_sidebar_collapse.clicked.connect(self.toggle_sidebar_collapsed)
         side_layout.addWidget(self.btn_sidebar_collapse)
+        # Stage 58: collapsed by default. Deferred one event-loop turn so
+        # self.sidebar and every page inside it exist first.
+        QtCore.QTimer.singleShot(0, lambda: self.set_sidebar_collapsed(True))
 
         self.sidebar_empty = QtWidgets.QWidget()
         self.sidebar_stack.addWidget(self.sidebar_empty)

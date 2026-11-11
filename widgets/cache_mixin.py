@@ -16,9 +16,39 @@ class CacheMixin(object):
             self.uuid = uuid.uuid4().hex
         return os.path.join(cdir, self.uuid + ".ma").replace("\\", "/")
 
-    def has_cache(self):
+    def find_cache_path(self):
+        """The cache to LOAD: this JSON's own folder first, else the newest
+        copy of this step's uuid in any other step_caches folder (Stage 67 -
+        caches made while an older version / copy of the JSON was open)."""
         p = self.get_cache_path()
-        return bool(p) and os.path.isfile(p)
+        if p and os.path.isfile(p):
+            return p
+        try:
+            found = self.workspace.session_manager.find_caches(
+                getattr(self, "uuid", ""), self._cache_rig_prefix())
+        except Exception:
+            found = []
+        return found[0] if found else ""
+
+    def _cache_rig_prefix(self):
+        root = (self.workspace.rig_root() or "").rstrip("/\\")
+        return os.path.basename(root)
+
+    def all_cache_paths(self):
+        """Every existing cache file of this step (own folder + other folders)."""
+        paths = []
+        p = self.get_cache_path()
+        if p and os.path.isfile(p):
+            paths.append(p)
+        try:
+            paths += [x for x in self.workspace.session_manager.find_caches(
+                self.uuid, self._cache_rig_prefix()) if x not in paths]
+        except Exception:
+            pass
+        return paths
+
+    def has_cache(self):
+        return bool(self.find_cache_path())
 
     def cache_marked(self):
         """True when this step is ticked for automatic caching during a build."""
@@ -74,7 +104,14 @@ class CacheMixin(object):
         self.btn_cache_rem.setEnabled(has)
         if has:
             self.btn_cache_save.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold;")
-            self.btn_cache_save.setToolTip("Cached ✓ - click to re-cache the current scene")
+            found = self.find_cache_path()
+            own = self.get_cache_path()
+            if found and found != own:
+                self.btn_cache_save.setToolTip(
+                    "Cached ✓ (made with another version of this JSON:\n{})\n"
+                    "click to re-cache the current scene".format(found))
+            else:
+                self.btn_cache_save.setToolTip("Cached ✓ - click to re-cache the current scene")
         else:
             self.btn_cache_save.setStyleSheet("")
             self.btn_cache_save.setToolTip("Cache this step (save current scene snapshot)")
@@ -88,6 +125,10 @@ class CacheMixin(object):
             cmds.file(path, force=True, type="mayaAscii", exportAll=True,
                       preserveReferences=False, constructionHistory=True,
                       channels=True, constraints=True, expressions=True, shader=True)
+            try:
+                self.workspace.session_manager.invalidate_cache_index()
+            except Exception:
+                pass
             self.refresh_cache_ui()
             if not silent:
                 cmds.warning(f"Cached step: {self.title_edit.text()}")

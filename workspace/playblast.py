@@ -1,5 +1,6 @@
 """SessionWorkspace - playblast methods (mixin, auto-split from workspace.py)."""
 from ._shared import *
+from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
 class WorkspacePlayblastMixin(object):
@@ -1085,9 +1086,14 @@ class WorkspacePlayblastMixin(object):
         self.pb_preview_stack.setMinimumHeight(360)
 
         # -- page 0: live camera view -----------------------------------
-        self.pb_camera_view = PBCameraViewWidget(
-            self.pb_preview_stack, on_transform_changed=self.pb_on_live_camera_transform)
-        self.pb_preview_stack.addWidget(self.pb_camera_view)
+        # Stage 62: the embedded live Maya viewport (PBCameraViewWidget)
+        # is switched off - Maya's updateModelPanelBar MEL choked on the
+        # '||||' Qt path of a modelPanel inside KRT and printed syntax errors.
+        # Every pb_camera_view use is behind hasattr(), so nothing else changes.
+        live_placeholder = QtWidgets.QLabel("Pick a playblast below to review it here.")
+        live_placeholder.setAlignment(QtCore.Qt.AlignCenter)
+        live_placeholder.setStyleSheet("color: #777; font-size: 14px;")
+        self.pb_preview_stack.addWidget(live_placeholder)
 
         # -- page 1: single-video playback (unchanged from before) ------
         preview_frame = QtWidgets.QFrame()
@@ -1378,7 +1384,7 @@ class WorkspacePlayblastMixin(object):
     def pb_browse_compare_path(self):
         current = self.pb_compare_field.text().strip()
         start_dir = os.path.dirname(current) if current else self.get_playblast_dir()
-        res = cmds.fileDialog2(
+        res = file_dialog2(
             fileMode=1, caption="Select an Older Playblast to Compare Against",
             startingDirectory=start_dir if os.path.exists(start_dir) else "",
             fileFilter="Video (*.mp4 *.mov *.avi)")
@@ -1638,7 +1644,7 @@ class WorkspacePlayblastMixin(object):
         clip's own frame range (still editable) so the Playblast's
         capture range matches the clip by default."""
         start_dir = self.get_playblast_dir()
-        res = cmds.fileDialog2(fileMode=3, caption="Select a Studio Library Animation (.anim) Folder",
+        res = file_dialog2(fileMode=3, caption="Select a Studio Library Animation (.anim) Folder",
                                startingDirectory=start_dir if os.path.exists(start_dir) else "")
         if not res:
             return
@@ -1667,7 +1673,7 @@ class WorkspacePlayblastMixin(object):
         naming (see create_playblast)."""
         current = self.pb_output_field.text().strip()
         start_dir = os.path.dirname(current) if current else self.get_playblast_dir()
-        selected = cmds.fileDialog2(
+        selected = file_dialog2(
             fileMode=0, dialogStyle=2, caption="Save QC Playblast MP4",
             startingDirectory=start_dir if os.path.exists(start_dir) else "",
             fileFilter="MP4 Video (*.mp4)")

@@ -225,6 +225,37 @@ class WorkspacePagesMixin(object):
         root_layout.addWidget(btn_init_project)
         main_vbox.addLayout(root_layout)
 
+        # Permanent Python Path row: always present (never part of a pipeline
+        # JSON, so loading/saving a KRT file can't remove it). The folder is
+        # put on sys.path so rig scripts can import UniUtils etc. from it.
+        pypath_layout = QtWidgets.QHBoxLayout()
+        pypath_layout.setContentsMargins(15, 0, 15, 5)
+        lbl_pp = QtWidgets.QLabel("<b>Python Path:</b>")
+        lbl_pp.setStyleSheet("color: #cccccc; font-size: 13px;")
+        pypath_layout.addWidget(lbl_pp)
+        self.edit_rig_utils = QtWidgets.QLineEdit(self._get_rig_utils_path())
+        self.edit_rig_utils.setPlaceholderText(DEFAULT_RIG_UTILS_PATH)
+        self.edit_rig_utils.setToolTip(
+            "Always-on Python path (cannot be deleted, not saved in the KRT file).\n"
+            "Added to sys.path for every build, so scripts can 'import UniUtils'.\n"
+            "Separate several folders with ';'. Edit to change it for this user.")
+        self.edit_rig_utils.setStyleSheet(
+            "QLineEdit { background: #1e1e1e; border: 1px solid #9575cd; color: #ffd27f; padding: 5px;"
+            " font-size: 13px; border-radius: 3px; }")
+        self.edit_rig_utils.editingFinished.connect(self.on_rig_utils_edited)
+        pypath_layout.addWidget(self.edit_rig_utils, 1)
+        btn_pp_browse = QtWidgets.QPushButton("...")
+        btn_pp_browse.setFixedWidth(34)
+        btn_pp_browse.setToolTip("Browse for the Python path folder.")
+        btn_pp_browse.clicked.connect(self.browse_rig_utils)
+        pypath_layout.addWidget(btn_pp_browse)
+        btn_pp_reset = QtWidgets.QPushButton("Reset")
+        btn_pp_reset.setToolTip("Back to the studio default: " + DEFAULT_RIG_UTILS_PATH)
+        btn_pp_reset.clicked.connect(self.reset_rig_utils)
+        pypath_layout.addWidget(btn_pp_reset)
+        main_vbox.addLayout(pypath_layout)
+        self.apply_rig_utils_path()
+
         # Panel search bar: filters the panels of the current LOD live.
         search_layout = QtWidgets.QHBoxLayout()
         search_layout.setContentsMargins(15, 0, 15, 5)

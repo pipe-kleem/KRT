@@ -53,6 +53,52 @@ class WorkspaceRootPathMixin(object):
         return relpath.relativize(self.rig_root(), text)
 
     # ── UI handlers ──────────────────────────────────────────────────────
+    # ---- permanent Python Path (RigUtils) ---------------------------------
+    def _get_rig_utils_path(self):
+        try:
+            return self.session_manager.data.get("rig_utils_path") or DEFAULT_RIG_UTILS_PATH
+        except Exception:
+            return DEFAULT_RIG_UTILS_PATH
+
+    def apply_rig_utils_path(self):
+        """Put the Python Path folder(s) on sys.path (front), dropping the
+        previously applied ones so edits don't leave stale entries."""
+        import sys, os
+        try:
+            old = getattr(self, "_applied_rig_utils", [])
+            for p in old:
+                while p in sys.path:
+                    sys.path.remove(p)
+            paths = [p.strip().strip('"') for p in self._get_rig_utils_path().split(";") if p.strip()]
+            applied = []
+            for p in paths:
+                p = p.replace("\\", "/").rstrip("/") if not p.endswith(":") else p
+                if p not in sys.path:
+                    sys.path.insert(0, p)
+                applied.append(p)
+                if not os.path.isdir(p):
+                    cmds.warning("[KRT] Python Path not reachable (is P: mapped?): " + p)
+            self._applied_rig_utils = applied
+        except Exception as e:
+            cmds.warning("[KRT] Could not apply Python Path: %s" % e)
+
+    def on_rig_utils_edited(self):
+        val = self.edit_rig_utils.text().strip() or DEFAULT_RIG_UTILS_PATH
+        self.edit_rig_utils.setText(val)
+        self.session_manager.data["rig_utils_path"] = val
+        self.session_manager.save_session()
+        self.apply_rig_utils_path()
+
+    def browse_rig_utils(self):
+        d = QtWidgets.QFileDialog.getExistingDirectory(self, "Python Path folder", self._get_rig_utils_path().split(";")[0])
+        if d:
+            self.edit_rig_utils.setText(d)
+            self.on_rig_utils_edited()
+
+    def reset_rig_utils(self):
+        self.edit_rig_utils.setText(DEFAULT_RIG_UTILS_PATH)
+        self.on_rig_utils_edited()
+
     def on_rig_root_edited(self):
         self.set_rig_root(self.edit_rig_root.text(), relativize_existing=True)
 

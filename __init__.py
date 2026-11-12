@@ -5,5 +5,5 @@ so it is always obvious WHICH copy of KRT is actually running. Bump it
 whenever a change is delivered, and add the matching entry at the TOP of
 changelog.py (the Changelog window in the UI reads it).
 """
-__version__ = "46.9"
-__build__ = "2026-11-12 12:00"
+__version__ = "46.10"
+__build__ = "2026-11-12 15:00"

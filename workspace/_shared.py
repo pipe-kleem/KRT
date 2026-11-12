@@ -42,3 +42,5 @@ SECTION_GROUPBOX_STYLE = (
     "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }")
 
 __all__ = ['AdvancedSaveDialog', 'BuildProgressDialog', 'DEFAULT_SCRIPTS_LIB_PATH', 'DEFAULT_STUDIOLIBRARY_SRC_PATH', 'DragDropContainer', 'HAS_MULTIMEDIA', 'IS_PYSIDE6', 'LodLoaderPanel', 'ModuleGraphWidget', 'PBCameraViewWidget', 'PBWipeCompareWidget', 'QAudioOutput', 'QMediaContent', 'QMediaPlayer', 'QVideoWidget', 'QtCore', 'QtGui', 'QtWidgets', 'RigNode', 'RigWire', 'SECTION_GROUPBOX_STYLE', 'SimpleCodeEditorDialog', 'SortableBubblePanel', 'SortablePanel', 'cmds', 'fnmatch', 'getpass', 'json', 'log_crash', 'math', 'mel', 'om', 'os', 'panel_run_label', 'prompt_skincluster_naming_check', 're', 'read_skin_file_meshes', 'shutil', 'subprocess', 'sys', 'tempfile', 'time', 'traceback']
+
+DEFAULT_RIG_UTILS_PATH = r"P:\rigging_team\Pipeline_share\RigUtils"

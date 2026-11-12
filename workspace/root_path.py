@@ -65,6 +65,19 @@ class WorkspaceRootPathMixin(object):
         previously applied ones so edits don't leave stale entries."""
         import sys, os
         try:
+            # Drop stale modules left by the old bundled rigutils (e.g. 'UniUtils'
+            # whose __name__ is 'KRT.rigutils.UniUtils'): they make
+            # importlib.reload() fail. They re-import fresh from the Utilities path.
+            for _n, _m in list(sys.modules.items()):
+                if str(getattr(_m, "__name__", "")).startswith("KRT.rigutils") or str(getattr(_m, "__file__", "") or "").replace("\\", "/").find("/KRT/rigutils/") >= 0:
+                    sys.modules.pop(_n, None)
+            try:
+                import __main__ as _mn
+                for _k, _v in list(vars(_mn).items()):
+                    if str(getattr(_v, "__name__", "")).startswith("KRT.rigutils"):
+                        delattr(_mn, _k)
+            except Exception:
+                pass
             old = getattr(self, "_applied_rig_utils", [])
             for p in old:
                 while p in sys.path:

@@ -160,15 +160,10 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
             # else: leave the Guide Path field untouched - see docstring.
 
     def fresh_script_namespace(self):
-        """A new script-panel namespace: cmds/mel/om plus the whole KRT rig
-        library (Stage 68 - UniUtils, replace_and_rename_mesh, run_Fan, ...),
-        so panels can call those helpers with no import or utils.py."""
+        """A new script-panel namespace: cmds/mel/om only.
+        The KRT rig library (UniUtils etc.) is no longer auto-loaded; a rig's own
+        scripts import what they need."""
         ns = {}
-        try:
-            from ..rigutils import namespace as _rig_namespace
-            ns.update(_rig_namespace())
-        except Exception:
-            cmds.warning("[KRT] rig library not available in script panels:\n" + traceback.format_exc())
         ns.update({'__name__': '__main__', 'cmds': cmds, 'mel': mel, 'om': om})
         return ns
 

@@ -30,15 +30,6 @@ class KRT_Tool(MayaQWidgetBaseMixin, QtWidgets.QDialog):
         # Initialize Maya's native workspace mixin layer safely
         super(KRT_Tool, self).__init__(parent=parent)
 
-        # Stage 68: load KRT's rig library (UniUtils, rig_lib, Fan, ...) before
-        # any session tab exists - aliases `import UniUtils`/`import wrapToBs`
-        # to the KRT copies and puts the helpers into Maya's Script Editor.
-        try:
-            from .rigutils import install as _install_rig_library
-            _install_rig_library()
-        except Exception:
-            cmds.warning("[KRT] rig library install failed:\n" + traceback.format_exc())
-
         # Version in the title: the fastest way to tell whether the copy
         # Maya actually loaded is the one you just installed.
         self.setWindowTitle(f"KRT {KRT_VERSION} | Procedural Builder")

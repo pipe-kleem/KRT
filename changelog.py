@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.9", "date": "2026-11-12 12:00", "changes": [
+        "Removed the auto-loaded rig library folder (rigutils: UniUtils, rig_lib, Fan, ...). KRT no longer imports it when the window opens, and script panels no longer start with those helpers.",
+    ]},
     {"version": "46.8", "date": "2026-11-07 10:00", "changes": [
         "Import 3D, Import 3D + LOD Organize and the Blender panel: new 'Delete AI models (*ai_lod*)' checkbox, ON by default. Untick it to keep AI models. Import 3D deletes only the AI objects its own import added.",
     ]},

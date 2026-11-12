@@ -230,15 +230,16 @@ class WorkspacePagesMixin(object):
         # put on sys.path so rig scripts can import UniUtils etc. from it.
         pypath_layout = QtWidgets.QHBoxLayout()
         pypath_layout.setContentsMargins(15, 0, 15, 5)
-        lbl_pp = QtWidgets.QLabel("<b>Python Path:</b>")
+        lbl_pp = QtWidgets.QLabel("<b>Utilities:</b>")
         lbl_pp.setStyleSheet("color: #cccccc; font-size: 13px;")
         pypath_layout.addWidget(lbl_pp)
         self.edit_rig_utils = QtWidgets.QLineEdit(self._get_rig_utils_path())
         self.edit_rig_utils.setPlaceholderText(DEFAULT_RIG_UTILS_PATH)
+        self.edit_rig_utils.setReadOnly(True)   # shown only; change via Browse / Reset
         self.edit_rig_utils.setToolTip(
-            "Always-on Python path (cannot be deleted, not saved in the KRT file).\n"
+            "Utilities folder (always on, cannot be deleted, not typed into).\n"
             "Added to sys.path for every build, so scripts can 'import UniUtils'.\n"
-            "Separate several folders with ';'. Edit to change it for this user.")
+            "Separate several folders with ';'. Use Browse to change it for this user, Reset for the default.")
         self.edit_rig_utils.setStyleSheet(
             "QLineEdit { background: #1e1e1e; border: 1px solid #9575cd; color: #ffd27f; padding: 5px;"
             " font-size: 13px; border-radius: 3px; }")

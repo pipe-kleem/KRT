@@ -265,11 +265,28 @@ class ReferenceToolkitUI(object):
         cmds.separator(height=10, style="none", parent=self.result_column_comparer)
         cmds.text(label=f"  {title}", font="boldLabelFont", align="left", bgc=(0.6, 0.6, 0.6), height=25, parent=self.result_column_comparer)
 
-    def add_comparer_row(self, old_text, new_text, bg_color):
+    def _select_in_maya(self, node):
+        """Click a mesh name in the results -> select that mesh in the Maya scene."""
+        try:
+            found = cmds.ls(node, long=True) or []
+            if found:
+                cmds.select(found[0], replace=True)
+            else:
+                cmds.warning("[Compare] not in the scene: %s" % node)
+        except Exception as e:
+            cmds.warning("[Compare] could not select %s: %s" % (node, e))
+
+    def add_comparer_row(self, old_text, new_text, bg_color, old_node=None, new_node=None):
         self.comparer_log += f"OLD: {old_text}  |  NEW: {new_text}\n"
         form = cmds.formLayout(parent=self.result_column_comparer, bgc=bg_color)
         t1 = cmds.textField(text=f" {old_text}", editable=True, bgc=bg_color)
         t2 = cmds.textField(text=f" {new_text}", editable=True, bgc=bg_color)
+        if old_node:
+            cmds.textField(t1, edit=True, annotation="Click to select in Maya: " + old_node,
+                           receiveFocusCommand=lambda *a, n=old_node: self._select_in_maya(n))
+        if new_node:
+            cmds.textField(t2, edit=True, annotation="Click to select in Maya: " + new_node,
+                           receiveFocusCommand=lambda *a, n=new_node: self._select_in_maya(n))
         cmds.formLayout(form, edit=True,
             attachForm=[(t1, 'left', 1), (t1, 'top', 1), (t1, 'bottom', 1),
                         (t2, 'right', 1), (t2, 'top', 1), (t2, 'bottom', 1)],
@@ -334,8 +351,8 @@ class ReferenceToolkitUI(object):
         if missing_in_new or added_in_new:
             self.add_comparer_header("❌ MESH HIERARCHY MISMATCH")
             error_found = True
-            for m in missing_in_new: self.add_comparer_row(f"➖ {ns_old}:{m}", "❌ (Deleted / Missing)", (0.9, 0.6, 0.6))
-            for m in added_in_new: self.add_comparer_row("❌ (Did not exist)", f"➕ {ns_new}:{m}", (0.6, 0.85, 0.6))
+            for m in missing_in_new: self.add_comparer_row(f"➖ {ns_old}:{m}", "❌ (Deleted / Missing)", (0.9, 0.6, 0.6), old_node=f"{ns_old}:{m}")
+            for m in added_in_new: self.add_comparer_row("❌ (Did not exist)", f"➕ {ns_new}:{m}", (0.6, 0.85, 0.6), new_node=f"{ns_new}:{m}")
 
         vtx_issues, shape_issues, transform_issues, bbox_issues = [], [], [], []
 
@@ -362,23 +379,23 @@ class ReferenceToolkitUI(object):
         if vtx_issues:
             self.add_comparer_header("🔢 VERTEX COUNT MISMATCH")
             error_found = True
-            for mesh, old_v, new_v in vtx_issues: self.add_comparer_row(f"⚠️ {ns_old}:{mesh}: {old_v} vtx", f"⚠️ {ns_new}:{mesh}: {new_v} vtx", (0.9, 0.8, 0.5))
+            for mesh, old_v, new_v in vtx_issues: self.add_comparer_row(f"⚠️ {ns_old}:{mesh}: {old_v} vtx", f"⚠️ {ns_new}:{mesh}: {new_v} vtx", (0.9, 0.8, 0.5), old_node=f"{ns_old}:{mesh}", new_node=f"{ns_new}:{mesh}")
 
         if transform_issues:
             self.add_comparer_header("📐 TRANSFORM VALUES MODIFIED")
             error_found = True
-            for mesh, changes in transform_issues: self.add_comparer_row(f"🔄 {ns_old}:{mesh} (Original)", f"🔄 {ns_new}:{mesh} ({changes} modified)", (0.7, 0.7, 0.9))
+            for mesh, changes in transform_issues: self.add_comparer_row(f"🔄 {ns_old}:{mesh} (Original)", f"🔄 {ns_new}:{mesh} ({changes} modified)", (0.7, 0.7, 0.9), old_node=f"{ns_old}:{mesh}", new_node=f"{ns_new}:{mesh}")
 
         if bbox_issues:
             self.add_comparer_header("📦 BOUNDING BOX SCALE / VOLUME CHANGED")
             error_found = True
-            for mesh in bbox_issues: self.add_comparer_row(f"📏 {ns_old}:{mesh} (Base Size)", f"📏 {ns_new}:{mesh} (Changed)", (0.6, 0.8, 0.9))
+            for mesh in bbox_issues: self.add_comparer_row(f"📏 {ns_old}:{mesh} (Base Size)", f"📏 {ns_new}:{mesh} (Changed)", (0.6, 0.8, 0.9), old_node=f"{ns_old}:{mesh}", new_node=f"{ns_new}:{mesh}")
 
         if shape_issues:
             self.add_comparer_header("📛 SHAPE NAMING ISSUES")
             error_found = True
             for mesh, old_sh, new_sh, expected in shape_issues:
-                self.add_comparer_row(f"❗ {ns_old}:{mesh} -> '{old_sh}'", f"❗ {ns_new}:{mesh} -> '{new_sh}'", (0.9, 0.7, 0.9))
+                self.add_comparer_row(f"❗ {ns_old}:{mesh} -> '{old_sh}'", f"❗ {ns_new}:{mesh} -> '{new_sh}'", (0.9, 0.7, 0.9), old_node=f"{ns_old}:{mesh}", new_node=f"{ns_new}:{mesh}")
 
         if not error_found:
             self.add_comparer_header("✅ ALL CLEAR")

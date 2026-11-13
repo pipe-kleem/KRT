@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.12", "date": "2026-11-13 16:00", "changes": [
+        "CC import: Auto Setup is now found automatically wherever it is installed (already loaded in Maya, Maya script/module/Python paths, user maya folders, C:/pipeline), instead of only two fixed folders. KRT_AUTOSETUP_PATH can override it.",
+    ]},
     {"version": "46.11", "date": "2026-11-13 14:00", "changes": [
         "Blender panel: meshes that carry hair particle systems (eyebrow, head hair, eyelashes) were coming into Maya as an empty transform with no shape. The export now turns on their emitter mesh in memory, so they arrive with their geometry.",
     ]},

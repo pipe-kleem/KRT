@@ -54,6 +54,68 @@ def _candidate_paths():
     ]
 
 
+def _has_autosetup(folder):
+    return bool(folder) and os.path.isfile(os.path.join(folder, "AutoSetupMain.py"))
+
+
+def _search_roots():
+    """Folders worth looking in for an existing Auto Setup install."""
+    roots = []
+    env = os.environ
+    for var in ("KRT_AUTOSETUP_PATH", "MAYA_SCRIPT_PATH", "MAYA_MODULE_PATH", "PYTHONPATH", "MAYA_PLUG_IN_PATH"):
+        for e in env.get(var, "").split(os.pathsep):
+            if e.strip():
+                roots.append(e.strip())
+    roots.extend(sys.path)
+    try:
+        user_maya = cmds.internalVar(userAppDir=True)
+        roots += [cmds.internalVar(userScriptDir=True), cmds.internalVar(userPrefDir=True),
+                  os.path.join(user_maya, "scripts"), os.path.join(user_maya, "modules"), user_maya]
+    except Exception:
+        pass
+    roots += [r"C:/pipeline", r"C:/Pipeline", env.get("ProgramFiles", r"C:/Program Files"),
+              os.path.expanduser("~/Documents")]
+    seen, out = set(), []
+    for r in roots:
+        r = os.path.normpath(r)
+        if r not in seen and os.path.isdir(r):
+            seen.add(r)
+            out.append(r)
+    return out
+
+
+def find_autosetup_dir():
+    """Locate the AutoSetupForMaya folder (the one holding AutoSetupMain.py + lib/).
+    Order: already imported -> fixed known paths -> sys.path / Maya env paths ->
+    a shallow (depth<=4) scan of the user's maya folders and C:/pipeline."""
+    mod = sys.modules.get("AutoSetupMain")
+    f = getattr(mod, "__file__", None)
+    if f and _has_autosetup(os.path.dirname(f)):
+        return os.path.dirname(f)
+    for c in _candidate_paths():
+        if _has_autosetup(c):
+            return c
+    roots = _search_roots()
+    for r in roots:                                  # the root itself, or a direct sub-folder
+        if _has_autosetup(r):
+            return r
+        for sub in ("AutoSetupForMaya", "AutoSetup", "CC_Auto_Setup_for_Maya_2026"):
+            for cand in (os.path.join(r, sub), os.path.join(r, sub, "AutoSetupForMaya")):
+                if _has_autosetup(cand):
+                    return cand
+    skip = {"__pycache__", ".git", "step_caches", "autosaves", "backup", "backups"}
+    for r in roots:
+        base_depth = r.rstrip("\\/").count(os.sep)
+        for cur, dirs, files in os.walk(r):
+            if "AutoSetupMain.py" in files:
+                return cur
+            if cur.count(os.sep) - base_depth >= 4:
+                dirs[:] = []
+            else:
+                dirs[:] = [d for d in dirs if d not in skip]
+    return None
+
+
 def _log(msg):
     print("[ssd_cc_autosetup] " + msg)
 
@@ -222,13 +284,14 @@ def open_ui():
     tabs = _find_main_tabs()
     if tabs is not None and tabs.isVisible():
         return tabs
-    for p in _candidate_paths():
-        if os.path.isdir(p):
-            if p not in sys.path:
-                sys.path.append(p)
-            break
-    else:
-        raise RuntimeError("Auto Setup not found in: " + ", ".join(_candidate_paths()))
+    p = find_autosetup_dir()
+    if not p:
+        raise RuntimeError("Auto Setup (AutoSetupMain.py) not found. Looked in: " +
+                           ", ".join(_candidate_paths()) + " and the Maya script/module/Python paths. "
+                           "Set the KRT_AUTOSETUP_PATH environment variable to the AutoSetupForMaya folder.")
+    _log("Auto Setup found: " + p)
+    if p not in sys.path:
+        sys.path.append(p)
     _isolate_autosetup_imports(p)
     _check_pymel()
     import AutoSetupMain

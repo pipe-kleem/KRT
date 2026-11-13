@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.16", "date": "2026-11-14 10:00", "changes": [
+        "Fixes 'attempted relative import beyond top-level package' in other tools (e.g. Auto Setup from the shelf): if the KRT folder itself is on sys.path, KRT now removes it when it loads. Only the PARENT folder belongs on the path.",
+    ]},
     {"version": "46.15", "date": "2026-11-13 22:00", "changes": [
         "CC import: Auto Setup is now found from the Maya shelf button / shelf file that launches it (any install path), and AutoSetupMain is accepted as .py, .pyc, .pyd or a package.",
     ]},

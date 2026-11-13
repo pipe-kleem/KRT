@@ -27,6 +27,7 @@ tool's OWN window: it finds the widgets by their visible text ("Import",
 runs as when you click. If Reallusion changes a label, update the TEXT_*
 constants below.
 """
+import io
 import os
 import sys
 import time
@@ -55,13 +56,19 @@ def _candidate_paths():
 
 
 def _has_autosetup(folder):
-    """True if `folder` is the Auto Setup folder (has AutoSetupMain as .py/.pyc/package)."""
+    """True if `folder` is the Auto Setup folder: has AutoSetupMain.py/.pyc/.pyd or an AutoSetupMain package."""
     if not folder or not os.path.isdir(folder):
         return False
-    for n in ("AutoSetupMain.py", "AutoSetupMain.pyc"):
-        if os.path.isfile(os.path.join(folder, n)):
-            return True
-    return os.path.isfile(os.path.join(folder, "AutoSetupMain", "__init__.py"))
+    try:
+        for n in os.listdir(folder):
+            low = n.lower()
+            if low.startswith("autosetupmain.") and low.rsplit(".", 1)[-1] in ("py", "pyc", "pyd", "so"):
+                return True
+            if low == "autosetupmain" and os.path.isfile(os.path.join(folder, n, "__init__.py")):
+                return True
+    except OSError:
+        pass
+    return False
 
 
 _OPT_VAR = "KRT_AutoSetupPath"
@@ -119,6 +126,47 @@ def _scan(roots, max_depth, budget_s):
     return None
 
 
+def _paths_from_shelves():
+    """Install folders mentioned by the Maya shelf buttons / saved shelf files that launch Auto Setup
+    (their command is e.g.  path = 'C:/.../AutoSetupForMaya' ... import AutoSetupMain)."""
+    import re
+    quoted = re.compile(r"""r?['"]([A-Za-z]:[/\\][^'"\r\n]+|/[^'"\r\n]+)['"]""")
+    texts = []
+    try:
+        for b in cmds.lsUI(type="shelfButton") or []:
+            for kw in ("command", "doubleClickCommand"):
+                try:
+                    t = cmds.shelfButton(b, q=True, **{kw: True})
+                except Exception:
+                    t = ""
+                if t and "AutoSetupMain" in t:
+                    texts.append(t)
+    except Exception:
+        pass
+    try:
+        shelf_dir = os.path.join(cmds.internalVar(userPrefDir=True), "shelves")
+        for fn in os.listdir(shelf_dir):
+            if fn.lower().endswith(".mel"):
+                try:
+                    with io.open(os.path.join(shelf_dir, fn), "r", encoding="utf-8", errors="ignore") as fh:
+                        body = fh.read()
+                except Exception:
+                    continue
+                if "AutoSetupMain" in body:
+                    for chunk in body.split("shelfButton"):
+                        if "AutoSetupMain" in chunk:
+                            texts.append(chunk.replace("\\\\", "/").replace("\\/", "/"))
+    except Exception:
+        pass
+    out = []
+    for t in texts:
+        for m in quoted.finditer(t.replace("\\\\", "/")):
+            d = m.group(1).replace("\\", "/").rstrip("/")
+            if d not in out:
+                out.append(d)
+    return out
+
+
 def _ask_user_for_folder():
     """Last resort: ask once for the folder, and remember it (Maya optionVar)."""
     try:
@@ -150,6 +198,10 @@ def find_autosetup_dir(allow_prompt=True):
     env_p = os.environ.get("KRT_AUTOSETUP_PATH", "")
     if _has_autosetup(env_p):
         return env_p
+    for d in _paths_from_shelves():                  # how this Maya already launches Auto Setup
+        for cand in (d, os.path.join(d, "AutoSetupForMaya"), os.path.dirname(d)):
+            if _has_autosetup(cand):
+                return cand
     mod = sys.modules.get("AutoSetupMain")
     f = getattr(mod, "__file__", None)
     if f and _has_autosetup(os.path.dirname(f)):

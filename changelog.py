@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.15", "date": "2026-11-13 22:00", "changes": [
+        "CC import: Auto Setup is now found from the Maya shelf button / shelf file that launches it (any install path), and AutoSetupMain is accepted as .py, .pyc, .pyd or a package.",
+    ]},
     {"version": "46.14", "date": "2026-11-13 20:00", "changes": [
         "Compare tool: click a mesh name in the results (old or new side) to select that mesh in Maya.",
     ]},

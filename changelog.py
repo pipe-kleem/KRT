@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.11", "date": "2026-11-13 14:00", "changes": [
+        "Blender panel: meshes that carry hair particle systems (eyebrow, head hair, eyelashes) were coming into Maya as an empty transform with no shape. The export now turns on their emitter mesh in memory, so they arrive with their geometry.",
+    ]},
     {"version": "46.10", "date": "2026-11-12 15:00", "changes": [
         "New permanent Python Path row under Rig Root (default P:/rigging_team/Pipeline_share/RigUtils). Always present, not saved in KRT files, editable with Browse and Reset, saved per user and added to sys.path so scripts can import UniUtils.",
     ]},

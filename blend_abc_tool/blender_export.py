@@ -24,6 +24,14 @@ def clean_export(abc_path):
     for o in view_layer.objects:
         o.select_set(False)
 
+    # Meshes that carry hair particle systems (eyebrows, hair cards, eyelashes) are skipped by the
+    # Alembic exporter - they come out as an empty transform - when 'Show Instancer' (the emitter
+    # mesh) is off. Turn it on in memory so the mesh itself is exported (file is never saved).
+    for obj in view_layer.objects:
+        if obj.type == 'MESH' and len(obj.particle_systems):
+            obj.show_instancer_for_viewport = True
+            obj.show_instancer_for_render = True
+
     meshes = []
     for obj in view_layer.objects:
         if obj.type != 'MESH':

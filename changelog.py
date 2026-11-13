@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.13", "date": "2026-11-13 18:00", "changes": [
+        "CC import: Auto Setup detection is much broader - Python's own import lookup, Program Files / AppData / Documents, then every drive (time-limited). If it still cannot be found KRT asks once for the AutoSetupForMaya folder and remembers it.",
+    ]},
     {"version": "46.12", "date": "2026-11-13 16:00", "changes": [
         "CC import: Auto Setup is now found automatically wherever it is installed (already loaded in Maya, Maya script/module/Python paths, user maya folders, C:/pipeline), instead of only two fixed folders. KRT_AUTOSETUP_PATH can override it.",
     ]},

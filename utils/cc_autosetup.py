@@ -55,7 +55,16 @@ def _candidate_paths():
 
 
 def _has_autosetup(folder):
-    return bool(folder) and os.path.isfile(os.path.join(folder, "AutoSetupMain.py"))
+    """True if `folder` is the Auto Setup folder (has AutoSetupMain as .py/.pyc/package)."""
+    if not folder or not os.path.isdir(folder):
+        return False
+    for n in ("AutoSetupMain.py", "AutoSetupMain.pyc"):
+        if os.path.isfile(os.path.join(folder, n)):
+            return True
+    return os.path.isfile(os.path.join(folder, "AutoSetupMain", "__init__.py"))
+
+
+_OPT_VAR = "KRT_AutoSetupPath"
 
 
 def _search_roots():
@@ -73,8 +82,11 @@ def _search_roots():
                   os.path.join(user_maya, "scripts"), os.path.join(user_maya, "modules"), user_maya]
     except Exception:
         pass
-    roots += [r"C:/pipeline", r"C:/Pipeline", env.get("ProgramFiles", r"C:/Program Files"),
-              os.path.expanduser("~/Documents")]
+    roots += [r"C:/pipeline", r"C:/Pipeline", os.path.expanduser("~/Documents"), os.path.expanduser("~/Downloads"),
+              os.path.expanduser("~/Desktop")]
+    for var in ("ProgramFiles", "ProgramFiles(x86)", "ProgramData", "LOCALAPPDATA", "APPDATA"):
+        if env.get(var):
+            roots.append(env[var])
     seen, out = set(), []
     for r in roots:
         r = os.path.normpath(r)
@@ -84,14 +96,75 @@ def _search_roots():
     return out
 
 
-def find_autosetup_dir():
-    """Locate the AutoSetupForMaya folder (the one holding AutoSetupMain.py + lib/).
-    Order: already imported -> fixed known paths -> sys.path / Maya env paths ->
-    a shallow (depth<=4) scan of the user's maya folders and C:/pipeline."""
+_SKIP_DIRS = {"__pycache__", ".git", "step_caches", "autosaves", "backup", "backups", "windows", "$recycle.bin",
+              "system volume information", "node_modules", "winsxs", "installer", "temp", "cache"}
+
+
+def _scan(roots, max_depth, budget_s):
+    """Walk `roots` (depth-limited, time-limited) for a folder that is the Auto Setup folder."""
+    t0 = time.time()
+    for r in roots:
+        base_depth = r.rstrip("\\/").count(os.sep)
+        for cur, dirs, files in os.walk(r):
+            if time.time() - t0 > budget_s:
+                return None
+            if "AutoSetupMain.py" in files or "AutoSetupMain.pyc" in files or \
+               os.path.basename(cur).lower() == "autosetupformaya" and _has_autosetup(cur):
+                if _has_autosetup(cur):
+                    return cur
+            if cur.count(os.sep) - base_depth >= max_depth:
+                dirs[:] = []
+            else:
+                dirs[:] = [d for d in dirs if d.lower() not in _SKIP_DIRS]
+    return None
+
+
+def _ask_user_for_folder():
+    """Last resort: ask once for the folder, and remember it (Maya optionVar)."""
+    try:
+        from ..compat import QtWidgets
+        d = QtWidgets.QFileDialog.getExistingDirectory(
+            None, "Select the AutoSetupForMaya folder (the one containing AutoSetupMain.py)", "C:/")
+        if d and _has_autosetup(d):
+            return d
+        if d:                                   # picked a parent - look one level down
+            found = _scan([d], 3, 10)
+            if found:
+                return found
+    except Exception as e:
+        _log("folder prompt failed: %s" % e)
+    return None
+
+
+def find_autosetup_dir(allow_prompt=True):
+    """Locate the AutoSetupForMaya folder. Order: remembered choice -> env override ->
+    already imported / importable -> fixed known paths -> Maya & Python paths ->
+    scan of the usual install places -> scan of every drive -> ask the user once."""
+    try:
+        if cmds.optionVar(exists=_OPT_VAR):
+            saved = cmds.optionVar(q=_OPT_VAR)
+            if _has_autosetup(saved):
+                return saved
+    except Exception:
+        pass
+    env_p = os.environ.get("KRT_AUTOSETUP_PATH", "")
+    if _has_autosetup(env_p):
+        return env_p
     mod = sys.modules.get("AutoSetupMain")
     f = getattr(mod, "__file__", None)
     if f and _has_autosetup(os.path.dirname(f)):
         return os.path.dirname(f)
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("AutoSetupMain")
+        if spec and spec.origin and spec.origin not in ("built-in", "frozen"):
+            d = os.path.dirname(spec.origin)
+            if os.path.basename(d) == "AutoSetupMain":           # package form
+                d = os.path.dirname(d)
+            if _has_autosetup(d):
+                return d
+    except Exception:
+        pass
     for c in _candidate_paths():
         if _has_autosetup(c):
             return c
@@ -103,16 +176,21 @@ def find_autosetup_dir():
             for cand in (os.path.join(r, sub), os.path.join(r, sub, "AutoSetupForMaya")):
                 if _has_autosetup(cand):
                     return cand
-    skip = {"__pycache__", ".git", "step_caches", "autosaves", "backup", "backups"}
-    for r in roots:
-        base_depth = r.rstrip("\\/").count(os.sep)
-        for cur, dirs, files in os.walk(r):
-            if "AutoSetupMain.py" in files:
-                return cur
-            if cur.count(os.sep) - base_depth >= 4:
-                dirs[:] = []
-            else:
-                dirs[:] = [d for d in dirs if d not in skip]
+    found = _scan(roots, 5, 12)
+    if found:
+        return found
+    drives = [d + ":/" for d in "CDEFGHIJKLMNOPQRSTUVWXYZ" if os.path.isdir(d + ":/")] if os.name == "nt" else ["/"]
+    found = _scan(drives, 3, 20)
+    if found:
+        return found
+    if allow_prompt:
+        picked = _ask_user_for_folder()
+        if picked:
+            try:
+                cmds.optionVar(sv=(_OPT_VAR, picked))
+            except Exception:
+                pass
+            return picked
     return None
 
 
@@ -288,7 +366,7 @@ def open_ui():
     if not p:
         raise RuntimeError("Auto Setup (AutoSetupMain.py) not found. Looked in: " +
                            ", ".join(_candidate_paths()) + " and the Maya script/module/Python paths. "
-                           "Set the KRT_AUTOSETUP_PATH environment variable to the AutoSetupForMaya folder.")
+                           "Pick the AutoSetupForMaya folder when asked (or set KRT_AUTOSETUP_PATH).")
     _log("Auto Setup found: " + p)
     if p not in sys.path:
         sys.path.append(p)

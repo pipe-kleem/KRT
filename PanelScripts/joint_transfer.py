@@ -4,7 +4,7 @@ Headless version of the "Joint Relocator" tab of jointTransferPro2.py.
 Used by the JOINT TRANSFER panel (each step has its own button, so you can
 stop, adjust spheres by hand, and carry on), or in one line from a script:
 
-    from KRT.utils import joint_transfer; joint_transfer.run()
+    from KRT.PanelScripts import joint_transfer; joint_transfer.run()
 
 Steps (STEPS below - each key is a function in this module):
     1. load_reference      reference FullBodyJntTransfer_01.ma

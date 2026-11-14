@@ -4,7 +4,7 @@ Everything lives under  KRT/resources/rig_utils/  so moving to another PC or
 server means copying one folder. resource() returns the in-KRT copy and only
 falls back to the old P: share path if the copy is missing.
 
-    from KRT.utils import rig_resources; rig_resources.report()
+    from KRT.PanelScripts import rig_resources; rig_resources.report()
 
 report() says which files are local, and lists any absolute paths found
 inside the .ma files (textures / nested references) that would still point
@@ -38,7 +38,7 @@ def resource(rel):
 def read(rel):
     """Source text of a script resource, for exec() inside a KRT script
     panel - runs in that panel's namespace, so UniUtils/utils helpers work:
-        from KRT.utils import rig_resources
+        from KRT.PanelScripts import rig_resources
         exec(rig_resources.read("Tongue.py"))
     """
     path = resource(rel)

@@ -1,5 +1,6 @@
 """SessionWorkspace - pages methods (mixin, auto-split from workspace.py)."""
 from ._shared import *
+import io
 from ..utils.file_dialog import file_dialog2   # Stage 65: Qt dialog instead of cmds.fileDialog2
 
 
@@ -480,8 +481,8 @@ class WorkspacePagesMixin(object):
         <p>A browsable library of your own scripts/tools, independent of any pipeline file - always
         available regardless of what session is open. Defaults to
         <code>P:\\pipeline_database\\Maya\\Scripts\\ONE</code> but you can point it anywhere; your
-        choice is remembered per-user. Double-click a script to open it in VS Code (or KRT's own
-        built-in editor if VS Code isn't installed on this machine); "Show in Explorer" jumps to
+        choice is remembered per-user. Each script has its own <b>Copy script</b> button (puts the script text on the clipboard) and
+        <b>Run script</b> button (runs it now in Maya); "Show in Explorer" jumps to
         the file on disk.</p>
 
         <h3>🎬 Playblast</h3>
@@ -683,16 +684,11 @@ class WorkspacePagesMixin(object):
             "QListWidget::item { padding: 6px 8px; border-bottom: 1px solid #333; }"
             "QListWidget::item:selected { background:#2c3e47; border: 1px solid #2bb5a8; color: white; }"
             "QListWidget::item:hover { background:#262626; }")
-        self.scripts_lib_list.itemDoubleClicked.connect(self.open_scripts_lib_item)
         lib_layout.addWidget(self.scripts_lib_list, 1)
 
         btn_row = QtWidgets.QHBoxLayout()
-        btn_open = QtWidgets.QPushButton("📝 Open (VS Code / Editor)")
-        btn_open.setStyleSheet("background-color: #2bb5a8; color: white; font-weight: bold; padding: 6px 12px;")
-        btn_open.clicked.connect(self.open_selected_scripts_lib_item)
         btn_show = QtWidgets.QPushButton("📂 Show in Explorer")
         btn_show.clicked.connect(self.show_selected_scripts_lib_item)
-        btn_row.addWidget(btn_open)
         btn_row.addWidget(btn_show)
         btn_row.addStretch()
         lib_layout.addLayout(btn_row)
@@ -740,10 +736,29 @@ class WorkspacePagesMixin(object):
                     found.append((rel, full))
         found.sort(key=lambda t: t[0].lower())
         for rel, full in found:
-            item = QtWidgets.QListWidgetItem(rel)
+            item = QtWidgets.QListWidgetItem("")
             item.setToolTip(full)
             item.setData(QtCore.Qt.UserRole, full)
+            item.setData(QtCore.Qt.UserRole + 1, rel)        # text the search box matches against
             self.scripts_lib_list.addItem(item)
+            row = QtWidgets.QWidget()
+            row_l = QtWidgets.QHBoxLayout(row)
+            row_l.setContentsMargins(6, 2, 6, 2)
+            lbl = QtWidgets.QLabel(rel)
+            lbl.setStyleSheet("color: white; font-family: 'Consolas'; background: transparent;")
+            lbl.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)   # clicks select the row
+            row_l.addWidget(lbl, 1)
+            b_copy = QtWidgets.QPushButton("Copy script")
+            b_copy.setToolTip("Copy the whole script text to the clipboard.")
+            b_copy.clicked.connect(lambda _=False, f=full: self.copy_script_from_lib(f))
+            b_run = QtWidgets.QPushButton("Run script")
+            b_run.setStyleSheet("background-color: #2bb5a8; color: white; font-weight: bold;")
+            b_run.setToolTip("Run this script now in Maya (same as running it from the Script Editor).")
+            b_run.clicked.connect(lambda _=False, f=full: self.run_script_from_lib(f))
+            row_l.addWidget(b_copy)
+            row_l.addWidget(b_run)
+            item.setSizeHint(row.sizeHint())
+            self.scripts_lib_list.setItemWidget(item, row)
         self.lbl_scripts_lib_status.setText("{} script(s) found in {}".format(len(found), root))
         # Stage 19: re-apply whatever search text is already typed, so a
         # Refresh mid-search doesn't silently drop back to showing everything.
@@ -763,22 +778,34 @@ class WorkspacePagesMixin(object):
         total = self.scripts_lib_list.count()
         for i in range(total):
             item = self.scripts_lib_list.item(i)
-            match = (not q) or (q in item.text().lower())
+            match = (not q) or (q in (item.data(QtCore.Qt.UserRole + 1) or "").lower())
             item.setHidden(not match)
             if match:
                 shown += 1
         if hasattr(self, "lbl_scripts_search_count"):
             self.lbl_scripts_search_count.setText("" if not q else "{} / {}".format(shown, total))
 
-    def open_scripts_lib_item(self, item):
-        self.open_script_externally(item.data(QtCore.Qt.UserRole))
+    def copy_script_from_lib(self, path):
+        """Library row button: put the script's text on the clipboard."""
+        try:
+            with io.open(path, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+            QtWidgets.QApplication.clipboard().setText(text)
+            self.lbl_scripts_lib_status.setText("Copied to clipboard: {}".format(os.path.basename(path)))
+        except Exception as e:
+            cmds.warning("[KRT] Could not copy {}: {}".format(path, e))
 
-    def open_selected_scripts_lib_item(self):
-        item = self.scripts_lib_list.currentItem()
-        if not item:
-            cmds.warning("Select a script first.")
+    def run_script_from_lib(self, path):
+        """Library row button: run the script in Maya's global namespace (like the Script Editor)."""
+        if not path or not os.path.isfile(path):
+            cmds.warning("[KRT] Script not found: {}".format(path))
             return
-        self.open_script_externally(item.data(QtCore.Qt.UserRole))
+        ok, err = self.run_script_global(path)
+        if ok:
+            self.lbl_scripts_lib_status.setText("Ran: {}".format(os.path.basename(path)))
+        else:
+            self.lbl_scripts_lib_status.setText("FAILED: {} (see Script Editor)".format(os.path.basename(path)))
+            cmds.warning("[KRT] {} failed:\n{}".format(os.path.basename(path), err))
 
     def show_selected_scripts_lib_item(self):
         item = self.scripts_lib_list.currentItem()

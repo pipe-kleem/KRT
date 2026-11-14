@@ -41,11 +41,11 @@ PANEL_TYPE_ACCENTS = {
     "PARENT_OBJ":    "#ffa726",   # orange      - parents child object(s) under a parent
     "INSTANCE_OBJ":  "#ab47bc",   # purple      - creates preset-transform instances of an object
     "CC_IMPORT":     "#ff8a65",   # coral       - Character Creator FBX -> cleaned cc_built .ma
-    "JOINT_TRANSFER": "#7986cb",  # indigo      - fit CC joints to the body (utils/joint_transfer.py)
-    "FINGER_FIX":    "#4db6ac",   # sea green   - match CC fingers to the hand rig (utils/finger_fix.py)
-    "JOINT_POS":     "#90a4ae",   # blue grey   - save/load joint positions (utils/joint_positions.py)
-    "BREATHING":     "#81c784",   # soft green  - breathing setup (utils/breathing.py)
-    "FACIAL_EXTRACT": "#f48fb1",   # pink        - facial shape extract (utils/facial_shape_extract.py)
+    "JOINT_TRANSFER": "#7986cb",  # indigo      - fit CC joints to the body (PanelScripts/joint_transfer.py)
+    "FINGER_FIX":    "#4db6ac",   # sea green   - match CC fingers to the hand rig (PanelScripts/finger_fix.py)
+    "JOINT_POS":     "#90a4ae",   # blue grey   - save/load joint positions (PanelScripts/joint_positions.py)
+    "BREATHING":     "#81c784",   # soft green  - breathing setup (PanelScripts/breathing.py)
+    "FACIAL_EXTRACT": "#f48fb1",   # pink        - facial shape extract (PanelScripts/facial_shape_extract.py)
 }
 
 # Stage 17, request "different design per panel type", REVISED Stage 18

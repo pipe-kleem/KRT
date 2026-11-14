@@ -3,7 +3,7 @@
 Headless version of the "Finger Fix" tab (HandRigMatchingUI) of
 jointTransferPro2.py. Used by the FINGER FIX panel, or from a script:
 
-    from KRT.utils import finger_fix; finger_fix.run(sides="LR")
+    from KRT.PanelScripts import finger_fix; finger_fix.run(sides="LR")
 
 Steps (STEPS below):
     0. create_tip_joints   duplicate each <Finger>3 joint as <Finger>4, push it

@@ -220,7 +220,7 @@ organize_rig_sets()
     PROJECT_TYPES = ("prop", "character")
     # Tongue.py ships in KRT/resources/rig_utils (P: share as fallback);
     # exec() runs it in the panel's own namespace like a pasted script.
-    TONGUE_CODE = ('from KRT.utils import rig_resources\n'
+    TONGUE_CODE = ('from KRT.PanelScripts import rig_resources\n'
                    'exec(rig_resources.read(rig_resources.TONGUE))')
     FAN_STRETCHY_CODE = 'UniUtils.run_Fan()\nUniUtils.run_stretchy()'
     CC_EXTRAS_CODE = ('import maya.mel as mel\n'

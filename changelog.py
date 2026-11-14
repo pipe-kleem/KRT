@@ -6,6 +6,10 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.18", "date": "2026-11-14 16:00", "changes": [
+        "Rigging Workspace > Script / Tools Library: removed double-click-to-open; every script row now has its own 'Copy script' and 'Run script' buttons.",
+        "Panel scripts (Breathing, Facial Shape Extract, CC Import + Auto Setup, Joint Transfer, Finger Fix, Joint Positions and their helpers, and the Blender tool) moved into the PanelScripts folder next to Tweaker.py, with a README listing which script belongs to which panel.",
+    ]},
     {"version": "46.17", "date": "2026-11-14 12:00", "changes": [
         "New panel: Facial Shape Extract. Give it a Source mesh (carries the facial blendShape) and Target meshes (Get Selected); it wraps the targets to the source and builds a blendShape on each target with every source shape, re-driven by the source rig's connections.",
     ]},

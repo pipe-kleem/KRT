@@ -4,7 +4,7 @@ Pipeline, in this order (each step is its own function so it can be run or
 tested alone from the Script Editor):
 
     1. import the FBX through Reallusion Auto Setup + Generate Face Rig
-       (utils/cc_autosetup.py drives the tool's own window)
+       (PanelScripts/cc_autosetup.py drives the tool's own window)
     2. import all references      - referenced nodes can't be edited/deleted,
                                      so this must happen BEFORE the deletes
     3. delete all keys            - time-based animCurves only (TL/TA/TU/TT);

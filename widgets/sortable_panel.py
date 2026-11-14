@@ -415,7 +415,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             # Same Asset Name field as IMPORT_LOD (own copy here), plus the
             # Blender source. The main path field above is the ABC the BUILD
             # imports; the one-time button below makes that ABC from a .blend
-            # (tool lives in KRT/blend_abc_tool - removable folder, see
+            # (tool lives in KRT/PanelScripts/blend_abc_tool - removable folder, see
             # _blend_to_abc_run). It is NOT part of the build sequence.
             lod_asset_layout = QtWidgets.QHBoxLayout()
             lod_asset_layout.setContentsMargins(25, 0, 0, 0)
@@ -478,7 +478,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         if p_type == "CC_IMPORT":
             # Stage 55: the main field is the CC FBX (Browse / "..." menu).
             # Extra inputs: the CC version (names the output file) and the
-            # texture folder to repath into. See utils/cc_import.py for the
+            # texture folder to repath into. See PanelScripts/cc_import.py for the
             # whole pipeline.
             cc_row = QtWidgets.QHBoxLayout()
             cc_row.setContentsMargins(25, 0, 0, 0)
@@ -527,7 +527,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                 "Untick if this step runs after other steps whose results you want kept.")
             cc_row2.addWidget(self.chk_cc_new_scene)
             # Stage 57: where CTRL_faceGUI is moved after the import.
-            from ..utils import cc_import as _cc
+            from ..PanelScripts import cc_import as _cc
             cc_row2.addWidget(QtWidgets.QLabel("Face GUI XYZ:"))
             self.cc_face_gui_field = QtWidgets.QLineEdit(_cc.DEFAULT_FACE_GUI_POS)
             self.cc_face_gui_field.setFixedWidth(150)
@@ -887,7 +887,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                 om.MGlobal.displayError(f"Failed to export skin: {e}")
 
         elif self.p_type == "JOINT_POS":
-            from ..utils import joint_positions as jp
+            from ..PanelScripts import joint_positions as jp
             try:
                 jp.save(save_path, self.jp_root_field.text().strip() or jp.DEFAULT_ROOT)
                 self.field.setText(self.workspace.relativize_path(save_path))
@@ -1062,7 +1062,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
 
     # ── Stage 55: CC Import panel helpers ─────────────────────────────
     def _cc_output_path(self):
-        from ..utils import cc_import
+        from ..PanelScripts import cc_import
         root = self.workspace.rig_root() if hasattr(self.workspace, "rig_root") else ""
         return cc_import.output_path(root or "<Rig Root>", self.cc_version_field.text())
 
@@ -1088,7 +1088,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
     def _cc_save_overwrite(self):
         """... menu: write the CURRENT scene to cc_built_<version>.ma, e.g.
         after fixing something by hand - no import/cleanup is re-run."""
-        from ..utils import cc_import
+        from ..PanelScripts import cc_import
         root = self.workspace.rig_root()
         if not root:
             cmds.warning("[KRT CC] Rig Root is not set.")
@@ -1118,9 +1118,9 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
 
     def _steps_module(self):
         if self.p_type == "JOINT_TRANSFER":
-            from ..utils import joint_transfer as mod
+            from ..PanelScripts import joint_transfer as mod
         else:
-            from ..utils import finger_fix as mod
+            from ..PanelScripts import finger_fix as mod
         return mod
 
     def _build_steps_ui(self, main_layout):
@@ -1233,7 +1233,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
     FIX_PANEL_TYPES = ("JOINT_TRANSFER", "FINGER_FIX")
 
     def _build_joint_pos_ui(self, main_layout):
-        from ..utils import joint_positions as jp
+        from ..PanelScripts import joint_positions as jp
         self.field.setPlaceholderText("Joint position file - '...' > Save Joint Positions")
         row = QtWidgets.QHBoxLayout()
         row.setContentsMargins(25, 0, 0, 0)
@@ -1272,7 +1272,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         return path
 
     def _joint_pos_run(self):
-        from ..utils import joint_positions as jp
+        from ..PanelScripts import joint_positions as jp
         try:
             fixes = self._fixes_active_above()
             path = self._joint_pos_path()
@@ -1318,7 +1318,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         self.fe_source_field.setText(default_src)
 
     def _facial_extract_run(self):
-        from ..utils import facial_shape_extract as fse
+        from ..PanelScripts import facial_shape_extract as fse
         src = self.fe_source_field.text().strip()
         if not src:
             return False, "FACIAL SHAPE EXTRACT: fill in the Source Mesh."
@@ -1366,7 +1366,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         main_layout.addLayout(row)
 
     def _breathing_run(self):
-        from ..utils import breathing
+        from ..PanelScripts import breathing
         body = self.br_body_field.text().strip()
         if not body:
             return False, "BREATHING: fill in the Main Mesh."
@@ -1922,7 +1922,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         "JOINT_POS": "cc_rig",
     }
 
-    # ── IMPORT_BLEND: one-time Blender .blend -> ABC (KRT/blend_abc_tool) ──
+    # ── IMPORT_BLEND: one-time Blender .blend -> ABC (KRT/PanelScripts/blend_abc_tool) ──
     def _browse_blend_file(self):
         start = self.workspace.resolve_path(self.blend_field.text()) or ""
         kwargs = {"fm": 1, "ff": "Blender (*.blend);;All Files (*.*)"}
@@ -1942,7 +1942,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             cmds.warning("[KRT] Blender File not found: '{}'".format(blend))
             return
         tool_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                "blend_abc_tool")
+                                "PanelScripts", "blend_abc_tool")
         if not os.path.isdir(tool_dir):
             cmds.warning("[KRT] blend_abc_tool folder is missing: " + tool_dir)
             return
@@ -2022,14 +2022,14 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         return os.path.join(folder, max(older)[1]).replace("\\", "/") if older else ""
 
     def _compare_old_new_abc(self):
-        """Open KRT/blend_abc_tool/mesh_compare with old + new ABC preloaded."""
+        """Open KRT/PanelScripts/blend_abc_tool/mesh_compare with old + new ABC preloaded."""
         import sys
         new_abc = (self.workspace.resolve_path(self.field.text()) or "").strip()
         if not new_abc or not os.path.isfile(new_abc):
             cmds.warning("[KRT] The ABC path above is empty or the file does not exist: '{}'".format(new_abc))
             return
         tool_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                "blend_abc_tool")
+                                "PanelScripts", "blend_abc_tool")
         if not os.path.isdir(tool_dir):
             cmds.warning("[KRT] blend_abc_tool folder is missing: " + tool_dir)
             return
@@ -2183,7 +2183,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             a_load = menu.addAction("📂 Load 3D file (.ma/.mb/.fbx/.obj/.abc)")
             a_rem = menu.addAction("❌ Remove file")
             if self.p_type == "CC_IMPORT":
-                from ..utils import cc_import
+                from ..PanelScripts import cc_import
                 menu.addSeparator()
                 a_cc_save = menu.addAction("💾 Save File (Overwrite) -> {}_{}.ma".format(
                     cc_import.OUTPUT_PREFIX, cc_import.normalize_version(self.cc_version_field.text())))
@@ -2450,7 +2450,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                             self.asset_name_field.text(),
                             delete_ai_lod=self.chk_delete_ai.isChecked())
                 elif self.p_type == "CC_IMPORT":
-                    from ..utils import cc_import
+                    from ..PanelScripts import cc_import
                     success, error_msg = cc_import.run(
                         self.path(), self.cc_version_field.text(),
                         self.workspace.rig_root(),

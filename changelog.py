@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.17", "date": "2026-11-14 12:00", "changes": [
+        "New panel: Facial Shape Extract. Give it a Source mesh (carries the facial blendShape) and Target meshes (Get Selected); it wraps the targets to the source and builds a blendShape on each target with every source shape, re-driven by the source rig's connections.",
+    ]},
     {"version": "46.16", "date": "2026-11-14 10:00", "changes": [
         "Fixes 'attempted relative import beyond top-level package' in other tools (e.g. Auto Setup from the shelf): if the KRT folder itself is on sys.path, KRT now removes it when it loads. Only the PARENT folder belongs on the path.",
     ]},

@@ -55,6 +55,7 @@ def panel_run_label(p_type):
     if p_type == "FINGER_FIX": return "FIX FINGERS"
     if p_type == "JOINT_POS": return "LOAD JOINTS"
     if p_type == "BREATHING": return "BUILD BREATHING"
+    if p_type == "FACIAL_EXTRACT": return "EXTRACT SHAPES"
     return "LOAD"
 
 

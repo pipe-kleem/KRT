@@ -91,7 +91,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         self.btn_run.setFixedWidth(130)
         self.btn_run.setStyleSheet("background-color: #2bb5a8; color: white; font-weight: bold;")
 
-        if p_type in ("NOTE", "DELETE_OBJ", "ZERO_OUT", "PARENT_OBJ", "BREATHING"):
+        if p_type in ("NOTE", "DELETE_OBJ", "ZERO_OUT", "PARENT_OBJ", "BREATHING", "FACIAL_EXTRACT"):
             # None of these types show the generic path/code field (see
             # below - it's hidden for all of them, they each have their
             # own dedicated name field instead), so Delete/More-Options go
@@ -547,6 +547,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             self._build_joint_pos_ui(main_layout)
         if p_type == "BREATHING":
             self._build_breathing_ui(main_layout)
+        if p_type == "FACIAL_EXTRACT":
+            self._build_facial_extract_ui(main_layout)
 
         if p_type in ("DELETE_OBJ", "ZERO_OUT"):
             # One name field, reused for both types - Delete removes
@@ -1288,6 +1290,51 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         except Exception:
             return False, traceback.format_exc()
 
+    # -- FACIAL SHAPE EXTRACT --------------------------------------------------
+    def _build_facial_extract_ui(self, main_layout):
+        self.field.setVisible(False)
+        default_src = self.field.text().strip()
+        self.field.setText("")
+        for label, attr, tip, ph in (
+                ("Source Mesh:", "fe_source_field",
+                 "The mesh that carries the facial blendShape (one mesh).", "e.g. geo_x_cc_base_body_lod_0"),
+                ("Target Meshes:", "fe_targets_field",
+                 "Meshes that receive the extracted shapes, comma-separated. Select them and press Get Selected.",
+                 "e.g. geo_x_beard_lod_0, geo_x_hair_lod_0, geo_x_eyebrows_lod_0")):
+            row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(25, 0, 0, 0)
+            lbl = QtWidgets.QLabel(label)
+            lbl.setFixedWidth(95)
+            row.addWidget(lbl)
+            edit = QtWidgets.QLineEdit()
+            edit.setToolTip(tip)
+            edit.setPlaceholderText(ph)
+            setattr(self, attr, edit)
+            row.addWidget(edit)
+            btn = QtWidgets.QPushButton("Get Selected")
+            btn.clicked.connect(lambda _=False, e=edit: self._get_selection_into(e))
+            row.addWidget(btn)
+            main_layout.addLayout(row)
+        self.fe_source_field.setText(default_src)
+
+    def _facial_extract_run(self):
+        from ..utils import facial_shape_extract as fse
+        src = self.fe_source_field.text().strip()
+        if not src:
+            return False, "FACIAL SHAPE EXTRACT: fill in the Source Mesh."
+        targets = [t.strip() for t in self.fe_targets_field.text().replace(";", ",").split(",") if t.strip()]
+        if not targets:
+            return False, "FACIAL SHAPE EXTRACT: fill in at least one Target Mesh."
+        targets = [t for t in targets if t != src]
+        missing = [m for m in [src] + targets if not cmds.objExists(m)]
+        if missing:
+            return False, "FACIAL SHAPE EXTRACT: these meshes are not in the scene: " + ", ".join(missing)
+        try:
+            made = fse.wrapToBs(src, targets)
+            return True, "" if made else "FACIAL SHAPE EXTRACT: no blendShape was created."
+        except Exception:
+            return False, traceback.format_exc()
+
     # ── BREATHING (Stage 66) ─────────────────────────────────────────────
     def _build_breathing_ui(self, main_layout):
         self.field.setVisible(False)
@@ -1351,6 +1398,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                     "delete_ai": self.chk_delete_ai.isChecked()}
         if self.p_type in ("IMPORT_3D", "IMPORT_LOD"):
             return {"delete_ai": self.chk_delete_ai.isChecked()}
+        if self.p_type == "FACIAL_EXTRACT":
+            return {"fe_source": self.fe_source_field.text(), "fe_targets": self.fe_targets_field.text()}
         if self.p_type == "JOINT_POS":
             return {"jp_root": self.jp_root_field.text()}
         if self.p_type == "BREATHING":
@@ -1379,6 +1428,9 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             if data.get("asset_name"): self.asset_name_field.setText(data["asset_name"])
             if data.get("blend_path"): self.blend_field.setText(self.workspace.relativize_path(data["blend_path"]))
             if "skip_wrinkle" in data: self.chk_skip_wrinkle.setChecked(bool(data["skip_wrinkle"]))
+        if self.p_type == "FACIAL_EXTRACT":
+            if "fe_source" in data: self.fe_source_field.setText(data["fe_source"])
+            if "fe_targets" in data: self.fe_targets_field.setText(data["fe_targets"])
         if self.p_type == "JOINT_POS" and data.get("jp_root"):
             self.jp_root_field.setText(data["jp_root"])
         if self.p_type == "BREATHING":
@@ -2084,6 +2136,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             actions_map[m.addAction("Add Finger Fix Panel (match fingers to hand rig)")] = ("FINGER FIX", "FINGER_FIX", offset)
             actions_map[m.addAction("Add Joint Positions Panel (save/load joints)")] = ("JOINT POSITIONS", "JOINT_POS", offset)
             actions_map[m.addAction("Add Breathing Panel")] = ("BREATHING", "BREATHING", offset)
+            actions_map[m.addAction("Add Facial Shape Extract Panel")] = ("FACIAL SHAPE EXTRACT", "FACIAL_EXTRACT", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
@@ -2410,6 +2463,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                     success, error_msg = self._joint_pos_run()
                 elif self.p_type == "BREATHING":
                     success, error_msg = self._breathing_run()
+                elif self.p_type == "FACIAL_EXTRACT":
+                    success, error_msg = self._facial_extract_run()
                 elif self.p_type in self.STEP_PANEL_TYPES:
                     keys = [k for k, c in self.step_checks.items() if c.isChecked()]
                     for k in self.step_status:

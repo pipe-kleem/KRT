@@ -45,6 +45,7 @@ PANEL_TYPE_ACCENTS = {
     "FINGER_FIX":    "#4db6ac",   # sea green   - match CC fingers to the hand rig (utils/finger_fix.py)
     "JOINT_POS":     "#90a4ae",   # blue grey   - save/load joint positions (utils/joint_positions.py)
     "BREATHING":     "#81c784",   # soft green  - breathing setup (utils/breathing.py)
+    "FACIAL_EXTRACT": "#f48fb1",   # pink        - facial shape extract (utils/facial_shape_extract.py)
 }
 
 # Stage 17, request "different design per panel type", REVISED Stage 18
@@ -92,6 +93,7 @@ PANEL_TYPE_ICONS = {
     "FINGER_FIX":    "✋",
     "JOINT_POS":     "📍",
     "BREATHING":     "🫁",
+    "FACIAL_EXTRACT": "\U0001F3AD",
 }
 
 # Stage 17: each panel type's DEFAULT background - a faint wash of its own
@@ -124,6 +126,7 @@ PANEL_TYPE_BG_TINT = {
     "FINGER_FIX":    "#2c3d3d",
     "JOINT_POS":     "#363a3d",
     "BREATHING":     "#323d33",
+    "FACIAL_EXTRACT": "#3d3036",
 }
 
 # Stage 17, "these fields are where we're loading/saving a path, not typing

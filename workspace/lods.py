@@ -98,6 +98,7 @@ class WorkspaceLodsMixin(object):
         menu_add.addAction("Add Finger Fix Panel (match fingers to hand rig)", lambda: self.add_panel("FINGER FIX", "FINGER_FIX", ""))
         menu_add.addAction("Add Joint Positions Panel (save/load joints)", lambda: self.add_panel("JOINT POSITIONS", "JOINT_POS", ""))
         menu_add.addAction("Add Breathing Panel", lambda: self.add_panel("BREATHING", "BREATHING", ""))
+        menu_add.addAction("Add Facial Shape Extract Panel", lambda: self.add_panel("FACIAL SHAPE EXTRACT", "FACIAL_EXTRACT", ""))
         btn_add_panel.setMenu(menu_add); rig_vbox.addWidget(btn_add_panel); rig_vbox.addStretch()
 
         scroll.setWidget(scroll_content); layout.addWidget(scroll)

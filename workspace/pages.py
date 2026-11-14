@@ -749,15 +749,20 @@ class WorkspacePagesMixin(object):
             lbl.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)   # clicks select the row
             row_l.addWidget(lbl, 1)
             b_copy = QtWidgets.QPushButton("Copy script")
+            b_copy.setFixedSize(100, 26)
+            b_copy.setStyleSheet("QPushButton { background-color: #3e3e42; color: white; border: 1px solid #666; "
+                                 "padding: 0px 6px; font-weight: bold; } QPushButton:hover { background-color: #505055; }")
             b_copy.setToolTip("Copy the whole script text to the clipboard.")
             b_copy.clicked.connect(lambda _=False, f=full: self.copy_script_from_lib(f))
             b_run = QtWidgets.QPushButton("Run script")
-            b_run.setStyleSheet("background-color: #2bb5a8; color: white; font-weight: bold;")
+            b_run.setFixedSize(100, 26)
+            b_run.setStyleSheet("QPushButton { background-color: #2bb5a8; color: white; border: 1px solid #1f8a80; "
+                                "padding: 0px 6px; font-weight: bold; } QPushButton:hover { background-color: #38d1c2; }")
             b_run.setToolTip("Run this script now in Maya (same as running it from the Script Editor).")
             b_run.clicked.connect(lambda _=False, f=full: self.run_script_from_lib(f))
             row_l.addWidget(b_copy)
             row_l.addWidget(b_run)
-            item.setSizeHint(row.sizeHint())
+            item.setSizeHint(QtCore.QSize(0, 36))
             self.scripts_lib_list.setItemWidget(item, row)
         self.lbl_scripts_lib_status.setText("{} script(s) found in {}".format(len(found), root))
         # Stage 19: re-apply whatever search text is already typed, so a

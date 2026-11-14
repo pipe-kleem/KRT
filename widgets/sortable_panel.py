@@ -791,8 +791,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             switch_menu.setEnabled(False)
         else:
             for v in versions:
-                v_name = os.path.basename(v)
-                v_actions[switch_menu.addAction(v_name)] = v
+                from ..utils import version_label
+                v_actions[switch_menu.addAction(version_label(v, mark=(v == base_path.replace('\\', '/'))))] = v
                 
         return v_actions
 
@@ -2140,6 +2140,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
+        from .menu_search import add_menu_search
+        add_menu_search(add_above_menu); add_menu_search(add_below_menu)
         menu.addSeparator()
 
         a_copy = menu.addAction(self.workspace.panel_copy_label(self, "📄 Copy"))

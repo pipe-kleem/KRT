@@ -6,6 +6,11 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.19", "date": "2026-11-14 19:00", "changes": [
+        "Script / Tools Library: the Copy script / Run script buttons now always show their names (fixed size and colours).",
+        "Switch Version menus (panels, guide path, whole pipeline JSON): every version now shows the date and time it was saved, and the loaded one is ticked.",
+        "Add Panel menus (right-click Add Panel Above/Below and the Add New Panel button): new search box at the top - type to filter, Enter picks the first match.",
+    ]},
     {"version": "46.18", "date": "2026-11-14 16:00", "changes": [
         "Rigging Workspace > Script / Tools Library: removed double-click-to-open; every script row now has its own 'Copy script' and 'Run script' buttons.",
         "Panel scripts (Breathing, Facial Shape Extract, CC Import + Auto Setup, Joint Transfer, Finger Fix, Joint Positions and their helpers, and the Blender tool) moved into the PanelScripts folder next to Tweaker.py, with a README listing which script belongs to which panel.",

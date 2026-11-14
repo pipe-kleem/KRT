@@ -424,10 +424,9 @@ class WorkspacePipelineIoMixin(object):
         if not versions:
             switch_menu.setEnabled(False)
         else:
+            from ..utils import version_label
             for v in versions:
-                v_name = os.path.basename(v)
-                label = f"● {v_name}" if v == base_path else v_name
-                v_actions[switch_menu.addAction(label)] = v
+                v_actions[switch_menu.addAction(version_label(v, mark=(v == base_path)))] = v
 
         return v_actions
 

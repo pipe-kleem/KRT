@@ -380,6 +380,8 @@ class LodLoaderPanel(CollapseMixin, SelectableMixin, QtWidgets.QFrame):
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
+        from .menu_search import add_menu_search
+        add_menu_search(add_above_menu); add_menu_search(add_below_menu)
         menu.addSeparator()
 
         # Stage 22, request #4: the same Copy/Cut/Paste and Build Till Here

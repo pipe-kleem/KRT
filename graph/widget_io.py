@@ -102,8 +102,9 @@ class GraphIoMixin(object):
         if not versions:
             switch_menu.setEnabled(False)
         else:
+            from ..utils import version_label
             for v in versions:
-                v_actions[switch_menu.addAction(os.path.basename(v))] = v
+                v_actions[switch_menu.addAction(version_label(v, mark=(v == base_path.replace('\\', '/'))))] = v
         return v_actions
 
     def show_guide_path_menu(self):

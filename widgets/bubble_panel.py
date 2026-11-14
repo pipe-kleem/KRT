@@ -574,6 +574,8 @@ class SortableBubblePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
+        from .menu_search import add_menu_search
+        add_menu_search(add_above_menu); add_menu_search(add_below_menu)
         menu.addSeparator()
 
         a_copy = menu.addAction(self.workspace.panel_copy_label(self, "📄 Copy"))

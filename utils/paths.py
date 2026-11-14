@@ -35,3 +35,14 @@ def get_versioned_path(file_path, get_latest=False):
         next_version = highest_version + 1
         new_name = "{}_v{:03d}{}".format(base_name, next_version, ext)
         return os.path.join(directory, new_name).replace('\\', '/')
+
+def version_label(path, mark=False):
+    """Menu text for one version file: '<file name>   (12 Nov 2026  14:30)' using the file's saved time.
+    mark=True prefixes a check mark (the version that is currently loaded)."""
+    name = os.path.basename(path)
+    try:
+        stamp = time.strftime("%d %b %Y  %H:%M", time.localtime(os.path.getmtime(path)))
+        text = "{}    ({})".format(name, stamp)
+    except OSError:
+        text = name
+    return ("\u2713 " + text) if mark else text

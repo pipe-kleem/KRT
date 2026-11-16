@@ -6,6 +6,12 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.37", "date": "2026-11-17 19:00", "changes": [
+        "Rig & Model Status: new date filter - Any date, Today, Yesterday, Last 7 days, Last 30 days, or Between two dates. Shows only assets whose model, CC or rig file was saved in that period; counts follow the filter.",
+    ]},
+    {"version": "46.36", "date": "2026-11-17 18:00", "changes": [
+        "Rig & Model Status: the CC cell now turns red when the rig is older than the .ccProject file (CC comes with modeling) or when there is no rig, green otherwise.",
+    ]},
     {"version": "46.35", "date": "2026-11-17 17:00", "changes": [
         "Rig & Model Status: the Type column is now a highlighted tag - characters (cyan), props (orange), locations (purple), any other type (grey-blue) - so the asset kind stands out at a glance.",
     ]},

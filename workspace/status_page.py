@@ -104,7 +104,7 @@ def scan_project(root):
             state = "old"
         else:
             state = "ok"
-        cc_state = "" if not cp else ("old" if (mt and ct < mt) else "ok")
+        cc_state = "" if not cp else ("old" if (not rp or rt < ct) else "ok")   # CC comes with modeling: red when the rig is older than it
         rows.append({"asset": rel, "type": atype, "model": mp, "model_t": mt, "cc": cp, "cc_t": ct, "cc_state": cc_state,
                      "rig": rp, "rig_t": rt, "state": state})
     return rows
@@ -132,6 +132,19 @@ class WorkspaceStatusMixin(object):
         self.status_search.setPlaceholderText("Filter assets...")
         self.status_search.setMinimumWidth(200)
         bar.addWidget(self.status_search)
+        self.status_when = QtWidgets.QComboBox()
+        for label, key in (("Any date", "all"), ("Today", "today"), ("Yesterday", "yesterday"),
+                           ("Last 7 days", "7d"), ("Last 30 days (1 month)", "30d"), ("Between dates...", "custom")):
+            self.status_when.addItem(label, key)
+        self.status_when.setToolTip("Only show assets whose model, CC or rig file was saved in this period")
+        bar.addWidget(self.status_when)
+        self.status_from = QtWidgets.QDateEdit(QtCore.QDate.currentDate().addDays(-7))
+        self.status_to = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
+        for d in (self.status_from, self.status_to):
+            d.setCalendarPopup(True)
+            d.setDisplayFormat("dd-MM-yyyy")
+            d.setVisible(False)
+            bar.addWidget(d)
         bar.addStretch()
         self.status_only_old = QtWidgets.QCheckBox("Only outdated")
         bar.addWidget(self.status_only_old)
@@ -172,6 +185,9 @@ class WorkspaceStatusMixin(object):
         self.status_project.currentIndexChanged.connect(lambda *_: self.status_refresh())
         self.status_search.textChanged.connect(lambda *_: self._status_render())
         self.status_only_old.toggled.connect(lambda *_: self._status_render())
+        self.status_when.currentIndexChanged.connect(self._status_when_changed)
+        self.status_from.dateChanged.connect(lambda *_: self._status_render())
+        self.status_to.dateChanged.connect(lambda *_: self._status_render())
         btn_refresh.clicked.connect(lambda *_: self.status_refresh())
         btn_copy.clicked.connect(self._status_copy_all)
         return w
@@ -190,6 +206,35 @@ class WorkspaceStatusMixin(object):
         except OSError:
             pass
         self.status_project.blockSignals(False)
+
+    def _status_when_changed(self, *_):
+        custom = self.status_when.currentData() == "custom"
+        self.status_from.setVisible(custom)
+        self.status_to.setVisible(custom)
+        self._status_render()
+
+    def _status_period(self):
+        """-> (start_ts, end_ts) of the chosen period, or None for any date. Local time, end exclusive."""
+        key = self.status_when.currentData()
+        if key == "all":
+            return None
+        today = QtCore.QDate.currentDate()
+
+        def ts(d):
+            return time.mktime((d.year(), d.month(), d.day(), 0, 0, 0, 0, 0, -1))
+        if key == "today":
+            a, b = today, today
+        elif key == "yesterday":
+            a = b = today.addDays(-1)
+        elif key == "7d":
+            a, b = today.addDays(-6), today
+        elif key == "30d":
+            a, b = today.addDays(-29), today
+        else:
+            a, b = self.status_from.date(), self.status_to.date()
+            if a > b:
+                a, b = b, a
+        return ts(a), ts(b.addDays(1))
 
     def _status_copy_all(self):
         """Copy the table as currently shown (filter + sort applied) as aligned plain text - readable in a .txt file.
@@ -269,6 +314,9 @@ class WorkspaceStatusMixin(object):
     def _status_render(self):
         QT = QtCore.Qt
         rows = self._status_rows
+        per = self._status_period()
+        if per:
+            rows = [r for r in rows if any(per[0] <= t < per[1] for t in (r["model_t"], r["cc_t"], r["rig_t"]) if t)]
         total = len(rows)
         n_model = sum(1 for r in rows if r["model"] or r["cc"])
         n_rig = sum(1 for r in rows if r["rig"])

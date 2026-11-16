@@ -122,8 +122,9 @@ studio's Studio Library (mutils) install to be reachable.</p>
 <li>Model = newest <code>.blend</code> in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/vNN/</code> (highest vNN);
 Rig = newest <code>.ma</code> in <code>&lt;asset&gt;/publish/rig/rigMain/vNN/</code>. Hover a cell for the file path.</li>
 <li>Assets inside group folders (for example <code>parshuramsubassets/bhargavakid_a</code>) are found too - any folder that has a <code>publish</code> folder is an asset.</li>
-<li><b>CC</b> columns: newest <code>.ccProject</code> in <code>publish/workfile/workfileCc_model/vNN/</code>; the CC cell is red when the model is newer than it, green otherwise. The rig counts as old if it is older than the newest model <i>or</i> CC file.</li>
+<li><b>CC</b> columns: newest <code>.ccProject</code> in <code>publish/workfile/workfileCc_model/vNN/</code>; the CC cell is red when the rig is older than it (or there is no rig), green otherwise. The rig counts as old if it is older than the newest model <i>or</i> CC file.</li>
 <li>The count line shows assets, models, rigs, up to date, outdated and missing.</li>
+<li><b>Date filter</b> (next to the filter box): Any date, Today, Yesterday, Last 7 days, Last 30 days, or Between dates (two date pickers appear). Only assets whose model, CC or rig file was saved in that period are shown; the counts follow the filter.</li>
 <li><b>Filter</b> by asset name, <b>Only outdated</b> toggle, and <b>Refresh</b> to re-scan (also refreshes when you open the tab).</li>
 <li>A row is <span class="red">red</span> when the latest model file is newer than the latest rig file (or there is no rig) and
 <span class="green">green</span> when the rig is at least as new as the model. Grey = no model.</li>

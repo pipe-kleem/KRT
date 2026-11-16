@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.43", "date": "2026-11-18 11:00", "changes": [
+        "Rig & Model Status: rig files published in a sub-folder of rigMain (e.g. rigMain/rigging/v001/chariotdriver_a_Rig_built.ma, or rigMain/hero) now count as the rig too; the newest rig file of rigMain/vNN and those sub-folders is used.",
+    ]},
     {"version": "46.42", "date": "2026-11-18 10:00", "changes": [
         "New white/black button CHECK PC2 IN BLENDER after Publish Krishna: loads the test animation (Playblast tab .anim) on the rig, exports PC2 for the Maya meshes that exist in the Blender panel's .blend, undoes the animation, and opens a temporary copy of that .blend in Blender with the PC2 applied by the pipeline tool's own Apply PC2 Caches & Rotate code, for a manual check. The temp copy and PC2 files are deleted when Blender closes; the server file is only read.",
     ]},

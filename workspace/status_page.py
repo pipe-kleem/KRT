@@ -58,8 +58,13 @@ def _latest(base, exts):
 
 
 def _ver(path):
-    """'v04' from a file name (first _vNN / vNN token), '' if none."""
+    """'v04' from the file name (first _vNN / vNN token); if the name has none, from the vNN folder it sits in."""
+    if not path:
+        return ""
     m = re.search(r"(?:^|[_\-.])v(\d+)", os.path.basename(path), re.I)
+    if m:
+        return "v" + m.group(1)
+    m = re.match(r"^v(\d+)$", os.path.basename(os.path.dirname(path)), re.I)
     return "v" + m.group(1) if m else ""
 
 
@@ -100,7 +105,19 @@ def scan_project(root):
             if p2 and t2 >= mt:
                 mp, mt = p2, t2
         cp, ct = _latest(os.path.join(a, *_CC_SUB), _CC_EXT)
-        rp, rt = _latest(os.path.join(a, *_RIG_SUB), _RIG_EXT)
+        # Rig = newest .ma/.mb in rigMain/vNN/ OR in a sub-folder of rigMain (e.g. rigMain/rigging/vNNN/*_Rig_built.ma, hero/)
+        rp, rt = "", 0.0
+        rbase = os.path.join(a, *_RIG_SUB)
+        cands = [rbase]
+        try:
+            cands += [os.path.join(rbase, n) for n in sorted(os.listdir(rbase))
+                      if os.path.isdir(os.path.join(rbase, n)) and not re.match(r"^v\d+$", n, re.I)]
+        except OSError:
+            pass
+        for c in cands:
+            p2, t2 = _latest(c, _RIG_EXT)
+            if p2 and t2 >= rt:
+                rp, rt = p2, t2
         src_t = max(mt, ct)               # the rig must be at least as new as the newest model / CC file
         if not mp and not cp:
             state = "nomodel"

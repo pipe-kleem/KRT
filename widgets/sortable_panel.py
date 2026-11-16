@@ -104,6 +104,20 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         else:
             body_layout.addLayout(ctrl_layout)
             body_layout.addWidget(self.field)
+            if p_type in self.VERSIONED_FIELD_TYPES:
+                self.btn_versions = QtWidgets.QPushButton("Versions")
+                self.btn_versions.setFixedWidth(70)
+                self.btn_versions.setToolTip("Switch to another version of this file (with its saved date).\n"
+                                             "The path turns dark red when a newer version exists, green when it is the latest.")
+                self.btn_versions.clicked.connect(self._field_versions_menu)
+                body_layout.addWidget(self.btn_versions)
+                self._field_base_tip = self.field.toolTip()
+                self._ver_timer = QtCore.QTimer(self)
+                self._ver_timer.setSingleShot(True)
+                self._ver_timer.setInterval(500)
+                self._ver_timer.timeout.connect(self._field_version_check)
+                self.field.textChanged.connect(lambda *_: self._ver_timer.start())
+                self._ver_timer.start()
 
         if self.p_type in ("SCRIPT", "GLOBAL_SCRIPT", "INSTANCE_OBJ"):
             self.func_field = QtWidgets.QLineEdit()
@@ -1125,6 +1139,10 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
     # scene by hand, and carry on. A new steps panel type = one entry in
     # STEP_PANEL_TYPES + its option widgets in _build_steps_options().
     STEP_PANEL_TYPES = ("JOINT_TRANSFER", "FINGER_FIX")
+    # Panels whose main path field holds a real file: they get the red/green latest-version colour and the
+    # left-click "Versions" button.
+    VERSIONED_FIELD_TYPES = ("SCRIPT", "GLOBAL_SCRIPT", "IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT",
+                             "JSON", "TWEAKER", "SHAPES", "MATERIAL", "JOINT_POS", "JOINT_TRANSFER")
     _STEP_STATE_STYLE = {"": ("", "#888"), "running": ("...", "#ffca28"),
                          "ok": ("\u2714", "#4CAF50"), "error": ("\u2718", "#f44336")}
 
@@ -1936,112 +1954,83 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
     }
 
     # ── IMPORT_BLEND: one-time Blender .blend -> ABC (KRT/PanelScripts/blend_abc_tool) ──
+    def _set_version_style(self, widget, state):
+        """Dark red = a newer version exists, green = latest, nothing = unknown. Appends to whatever style the
+        field already has and removes only its own previous addition."""
+        cur = widget.styleSheet() or ""
+        old = widget.property("verSuffix") or ""
+        if old and cur.endswith(old):
+            cur = cur[:-len(old)]
+        if state == "old":
+            suffix = " QLineEdit { color: #d32f2f; border: 1px solid #b71c1c; }"
+        elif state == "latest":
+            suffix = " QLineEdit { color: #4caf50; border: 1px solid #2e7d32; }"
+        else:
+            suffix = ""
+        if suffix and cur.strip() and "{" not in cur:
+            cur = "QLineEdit { " + cur + " }"
+        widget.setStyleSheet(cur + suffix)
+        widget.setProperty("verSuffix", suffix)
+
+    def _field_version_check(self, fresh=False):
+        """Colour this panel's main path field by whether the file is the latest version."""
+        if not hasattr(self, "btn_versions"):
+            return "unknown"
+        raw = self.field.text().strip()
+        state, latest = "unknown", ""
+        if raw and "\n" not in raw and len(raw) < 260:
+            try:
+                from ..utils import version_check
+                path = (self.workspace.resolve_path(raw) or "").strip()
+                state, latest = version_check.latest_info(path, fresh=fresh)
+            except Exception:
+                state, latest = "unknown", ""
+        self._set_version_style(self.field, state)
+        base_tip = getattr(self, "_field_base_tip", "")
+        if state == "old":
+            self.field.setToolTip("A NEWER version exists:\n" + latest)
+        elif state == "latest":
+            self.field.setToolTip((base_tip + "\n\n" if base_tip else "") + "This is the latest version.")
+        else:
+            self.field.setToolTip(base_tip)
+        return state
+
+    def _field_versions_menu(self):
+        """Left-click menu on the Versions button: every version with its saved date; pick one to switch."""
+        from ..utils import version_check, version_label
+        raw = self.field.text().strip()
+        path = (self.workspace.resolve_path(raw) or "").strip() if raw and "\n" not in raw and len(raw) < 260 else ""
+        versions = version_check.all_versions(path, fresh=True)
+        menu = QtWidgets.QMenu(self)
+        menu.setStyleSheet("background-color: #252526; color: white; border: 1px solid #2bb5a8;")
+        a_refresh = menu.addAction("Refresh check")
+        menu.addSeparator()
+        if not versions:
+            a = menu.addAction("No versions found (file missing, or no _vNN / vNN in its name)")
+            a.setEnabled(False)
+        actions = {}
+        cur = os.path.normcase(os.path.abspath(path)) if path else ""
+        for _n, vp in versions:
+            key = os.path.normcase(os.path.abspath(vp))
+            actions[menu.addAction(version_label(vp.replace("\\", "/"), mark=(key == cur)))] = vp
+        pos = self.btn_versions.mapToGlobal(self.btn_versions.rect().bottomLeft())
+        try:
+            chosen = menu.exec(pos)
+        except AttributeError:
+            chosen = menu.exec_(pos)
+        if chosen is a_refresh:
+            self._field_version_check(fresh=True)
+        elif chosen in actions:
+            self.field.setText(self.workspace.relativize_path(actions[chosen].replace("\\", "/")))
+            self._field_version_check(fresh=True)
+
     def _blend_latest_info(self, path):
-        """-> (state, latest_path). state: 'latest' | 'old' | 'unknown'.
-        Looks for a newer version two ways: sibling files <name>_vNN.blend in the same folder, and sibling
-        version folders (.../v04/<file>.blend -> .../v05/...) that hold a .blend."""
-        if not path or not os.path.isfile(path):
-            return "unknown", ""
-        d = os.path.dirname(path)
-        stem, ext = os.path.splitext(os.path.basename(path))
-        known = False
-        newer_n, newer_path = -1, ""
-
-        m = re.search(r"_v(\d+)$", stem, re.I)
-        if m:
-            known = True
-            cur_n = int(m.group(1))
-            base = re.sub(r"_v\d+$", "", stem, flags=re.I)
-            try:
-                names = os.listdir(d)
-            except OSError:
-                names = []
-            for n in names:
-                s2, e2 = os.path.splitext(n)
-                if e2.lower() != ext.lower():
-                    continue
-                mm = re.match(r"^" + re.escape(base) + r"_v(\d+)$", s2, re.I)
-                if mm and int(mm.group(1)) > cur_n and int(mm.group(1)) > newer_n:
-                    newer_n, newer_path = int(mm.group(1)), os.path.join(d, n)
-
-        fm = re.match(r"^v(\d+)$", os.path.basename(d), re.I)
-        if fm:
-            known = True
-            folder_n = int(fm.group(1))
-            parent = os.path.dirname(d)
-            try:
-                siblings = os.listdir(parent)
-            except OSError:
-                siblings = []
-            for n in siblings:
-                sm = re.match(r"^v(\d+)$", n, re.I)
-                if not sm or int(sm.group(1)) <= folder_n or int(sm.group(1)) <= newer_n:
-                    continue
-                cand_dir = os.path.join(parent, n)
-                try:
-                    blends = [f for f in os.listdir(cand_dir) if f.lower().endswith(ext.lower())]
-                except OSError:
-                    continue
-                if not blends:
-                    continue
-                same = re.sub(r"_v\d+(?=\.[^.]+$)", "_v" + sm.group(1).zfill(max(2, len(fm.group(1)))), os.path.basename(path), flags=re.I)
-                pick = same if same in blends else sorted(blends, key=lambda f: os.path.getmtime(os.path.join(cand_dir, f)))[-1]
-                newer_n, newer_path = int(sm.group(1)), os.path.join(cand_dir, pick)
-
-        if newer_path:
-            return "old", newer_path
-        return ("latest", "") if known else ("unknown", "")
+        from ..utils import version_check
+        return version_check.latest_info(path)
 
     def _blend_all_versions(self, path):
-        """[(number, path), ...] of every version of this .blend, oldest first (same folder _vNN files and
-        sibling vNN folders), always including the current file."""
-        found = {}
-        if not path or not os.path.isfile(path):
-            return []
-        d = os.path.dirname(path)
-        fname = os.path.basename(path)
-        stem, ext = os.path.splitext(fname)
-        m = re.search(r"_v(\d+)$", stem, re.I)
-        if m:
-            base = re.sub(r"_v\d+$", "", stem, flags=re.I)
-            try:
-                names = os.listdir(d)
-            except OSError:
-                names = []
-            for n in names:
-                s2, e2 = os.path.splitext(n)
-                mm = re.match(r"^" + re.escape(base) + r"_v(\d+)$", s2, re.I)
-                if mm and e2.lower() == ext.lower():
-                    found[int(mm.group(1))] = os.path.join(d, n)
-        fm = re.match(r"^v(\d+)$", os.path.basename(d), re.I)
-        if fm:
-            parent = os.path.dirname(d)
-            try:
-                siblings = os.listdir(parent)
-            except OSError:
-                siblings = []
-            for n in siblings:
-                sm = re.match(r"^v(\d+)$", n, re.I)
-                if not sm:
-                    continue
-                cand_dir = os.path.join(parent, n)
-                try:
-                    blends = [f for f in os.listdir(cand_dir) if f.lower().endswith(ext.lower())]
-                except OSError:
-                    continue
-                if not blends:
-                    continue
-                same = re.sub(r"_v\d+(?=\.[^.]+$)", "_v" + sm.group(1).zfill(max(2, len(fm.group(1)))), fname, flags=re.I)
-                pick = same if same in blends else sorted(blends, key=lambda f: os.path.getmtime(os.path.join(cand_dir, f)))[-1]
-                found.setdefault(int(sm.group(1)) + 100000, os.path.join(cand_dir, pick))   # folder versions sort after file versions
-        if os.path.normcase(os.path.abspath(path)) not in [os.path.normcase(os.path.abspath(v)) for v in found.values()]:
-            found[-1] = path
-        best = {}
-        for k, v in found.items():
-            nk = os.path.normcase(os.path.abspath(v))
-            if nk not in best or k > best[nk][0]:
-                best[nk] = (k, v)
-        return sorted(((k % 100000 if k >= 0 else k), v) for k, v in best.values())
+        from ..utils import version_check
+        return version_check.all_versions(path, fresh=True)
 
     def _blend_versions_menu(self):
         """Left-click menu on the Blender File row: every version with its date; pick one to switch."""
@@ -2090,8 +2079,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             color, tip = "#66bb6a", "This is the latest version."
         else:
             color, tip = "", "Path to the .blend file (used only by the one-time button)"
-        self.blend_field.setStyleSheet(
-            "QLineEdit {{ color: {0}; border: 1px solid {0}; }}".format(color) if color else "")
+        self._set_version_style(self.blend_field, state)
         self.blend_field.setToolTip(tip)
         self._blend_state = state
         return state
@@ -2524,6 +2512,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         # click (hidden in __init__) and nothing to run even if something
         # called this directly, so always succeed without doing anything.
         if self.p_type == "NOTE": return True
+        if self.p_type in self.VERSIONED_FIELD_TYPES:
+            self._field_version_check()
         success = False
         error_msg = ""
         self.btn_run.setText("RUNNING...")

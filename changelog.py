@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.22", "date": "2026-11-16 18:00", "changes": [
+        "Every file panel (script, import 3D, skin JSON, tweaker, control shapes, material, joint positions, joint transfer, CC import): the path field turns dark red when a newer version exists and green when it is the latest, and a new Versions button (left click) lists all versions with their saved date to switch between. The check runs on load, on edits and when the panel runs.",
+    ]},
     {"version": "46.21", "date": "2026-11-16 15:00", "changes": [
         "Import 3D + LOD Organize (Blender): new Versions button after the Blender File field - click it to see every version of the .blend with its saved date and switch to one. The ABC path now has Switch Version in the panel's ... menu too.",
     ]},

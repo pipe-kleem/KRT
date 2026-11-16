@@ -5,8 +5,8 @@ so it is always obvious WHICH copy of KRT is actually running. Bump it
 whenever a change is delivered, and add the matching entry at the TOP of
 changelog.py (the Changelog window in the UI reads it).
 """
-__version__ = "46.31"
-__build__ = "2026-11-17 14:00"
+__version__ = "46.32"
+__build__ = "2026-11-17 15:00"
 
 
 # KRT is a PACKAGE: its PARENT folder must be on sys.path, never the KRT folder itself.

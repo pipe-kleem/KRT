@@ -118,7 +118,7 @@ studio's Studio Library (mutils) install to be reachable.</p>
 <h2>Rig &amp; Model Status</h2>
 <p>One table with every asset of a project: its <b>latest model</b> (version, date) and <b>latest rig</b> (version, date).</p>
 <ul>
-<li><b>Project</b> is kl_assets (<code>P:\\kl_assets\\KL_ASSETS\\assets</code>); the dropdown picks the category, default <code>characters</code>.</li>
+<li><b>Project</b> is kl_assets (<code>P:\\kl_assets\\KL_ASSETS\\assets</code>); the dropdown filters by asset <b>Type</b> (characters, props, locations... - taken from the folder under <code>assets</code>); the <b>Type</b> column shows it for every asset, and the Filter box matches it too.</li>
 <li>Model = newest <code>.blend</code> in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/vNN/</code> (highest vNN);
 Rig = newest <code>.ma</code> in <code>&lt;asset&gt;/publish/rig/rigMain/vNN/</code>. Hover a cell for the file path.</li>
 <li>Assets inside group folders (for example <code>parshuramsubassets/bhargavakid_a</code>) are found too - any folder that has a <code>publish</code> folder is an asset.</li>

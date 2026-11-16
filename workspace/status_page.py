@@ -86,6 +86,9 @@ def scan_project(root):
     """-> list of dicts, one per asset (also assets inside group folders), sorted by name. Read only."""
     rows = []
     for rel, a in _find_assets(root):
+        atype, _, rel = rel.partition("/")        # first folder under assets = type (characters / props / locations ...)
+        if not rel:
+            continue
         mp, mt = _latest(os.path.join(a, *_MODEL_SUB), _MODEL_EXT)
         cp, ct = _latest(os.path.join(a, *_CC_SUB), _CC_EXT)
         rp, rt = _latest(os.path.join(a, *_RIG_SUB), _RIG_EXT)
@@ -99,7 +102,7 @@ def scan_project(root):
         else:
             state = "ok"
         cc_state = "" if not cp else ("old" if (mt and ct < mt) else "ok")
-        rows.append({"asset": rel, "model": mp, "model_t": mt, "cc": cp, "cc_t": ct, "cc_state": cc_state,
+        rows.append({"asset": rel, "type": atype, "model": mp, "model_t": mt, "cc": cp, "cc_t": ct, "cc_state": cc_state,
                      "rig": rp, "rig_t": rt, "state": state})
     return rows
 
@@ -143,7 +146,7 @@ class WorkspaceStatusMixin(object):
         self.status_counts.setStyleSheet("color: #cccccc; font-size: 12px;")
         lay.addWidget(self.status_counts)
 
-        cols = ["Asset", "Model version", "Model saved", "CC version", "CC saved", "Rig version", "Rig saved", "Status"]
+        cols = ["Asset", "Type", "Model version", "Model saved", "CC version", "CC saved", "Rig version", "Rig saved", "Status"]
         self.status_table = QtWidgets.QTableWidget(0, len(cols))
         self.status_table.setHorizontalHeaderLabels(cols)
         self.status_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -172,93 +175,25 @@ class WorkspaceStatusMixin(object):
 
     # ── data ──
     def _status_fill_projects(self):
-        """Project = kl_assets; the dropdown lists its asset categories (characters, ...)."""
+        """Project = kl_assets. The dropdown filters by asset TYPE, taken from the folder under assets
+        (characters, props, locations ...). 'All types' scans everything."""
         self.status_project.blockSignals(True)
         self.status_project.clear()
+        self.status_project.addItem("kl_assets - all types", "")
         try:
             for n in sorted(os.listdir(DEFAULT_STATUS_ROOT), key=str.lower):
-                p = os.path.join(DEFAULT_STATUS_ROOT, n)
-                if not n.startswith(".") and os.path.isdir(p):
-                    self.status_project.addItem("kl_assets / " + n, p)
+                if not n.startswith(".") and os.path.isdir(os.path.join(DEFAULT_STATUS_ROOT, n)):
+                    self.status_project.addItem("kl_assets - " + n, n)
         except OSError:
             pass
-        i = self.status_project.findText("kl_assets / characters")
-        self.status_project.setCurrentIndex(i if i >= 0 else 0)
         self.status_project.blockSignals(False)
 
-    def _status_copy_all(self):
-        """Copy the table as currently shown (filter + sort applied) as aligned plain text - readable in a .txt file.
-        Asset name, model / CC / rig version + date and status only; no file paths."""
-        t = self.status_table
-        heads = [t.horizontalHeaderItem(c).text() for c in range(t.columnCount())]
-        rows = []
-        for r in range(t.rowCount()):
-            rows.append([t.item(r, c).text() if t.item(r, c) else "" for c in range(t.columnCount())])
-        widths = [max(len(heads[c]), *(len(x[c]) for x in rows)) if rows else len(heads[c]) for c in range(len(heads))]
-
-        def line(cells):
-            return "  ".join(cells[c].ljust(widths[c]) for c in range(len(cells))).rstrip()
-        out = ["RIG & MODEL STATUS - %s - %s" % (self.status_project.currentText(), time.strftime("%d-%m-%Y %H:%M")),
-               self.status_counts.text().replace("&nbsp;", " ") if False else "", line(heads),
-               "  ".join("-" * w for w in widths)]
-        out = [o for o in out if o != ""]
-        out += [line(x) for x in rows]
-        QtWidgets.QApplication.clipboard().setText("\n".join(out))
-        try:
-            import maya.cmds as _c
-            _c.inViewMessage(amg="Copied %d rows" % len(rows), pos="midCenter", fade=True)
-        except Exception:
-            pass
-
-    def _status_menu(self, pos):
-        """Right-click a row: copy the model / CC / rig path (or open its folder). Read only - nothing is changed."""
-        t = self.status_table
-        it = t.itemAt(pos)
-        if it is None:
-            return
-        asset = t.item(it.row(), 0).text()
-        r = next((x for x in self._status_rows if x["asset"] == asset), None)
-        if not r:
-            return
-        menu = QtWidgets.QMenu(self)
-        acts = {}
-        for key, name in (("model", "model"), ("cc", "CC"), ("rig", "rig")):
-            p = r[key]
-            a = menu.addAction("Copy %s path" % name)
-            a.setEnabled(bool(p))
-            acts[a] = ("copy", p)
-        menu.addSeparator()
-        for key, name in (("model", "model"), ("cc", "CC"), ("rig", "rig")):
-            p = r[key]
-            a = menu.addAction("Open %s folder" % name)
-            a.setEnabled(bool(p))
-            acts[a] = ("open", p)
-        col = t.currentColumn()
-        a = menu.addAction("Copy this cell's path")
-        a.setEnabled(col in (1, 2, 3, 4, 5, 6))
-        key = {1: "model", 2: "model", 3: "cc", 4: "cc", 5: "rig", 6: "rig"}.get(col, "")
-        acts[a] = ("copy", r.get(key, "") if key else "")
-        try:
-            ch = menu.exec(t.viewport().mapToGlobal(pos))
-        except AttributeError:
-            ch = menu.exec_(t.viewport().mapToGlobal(pos))
-        if ch in acts:
-            kind, p = acts[ch]
-            if not p:
-                return
-            if kind == "copy":
-                QtWidgets.QApplication.clipboard().setText(p.replace("\\", "/"))
-            else:
-                try:
-                    os.startfile(os.path.dirname(p))
-                except Exception:
-                    pass
-
     def status_refresh(self):
-        root = self.status_project.currentData()
+        cat = self.status_project.currentData() or ""
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
-            self._status_rows = scan_project(root) if root else []
+            rows = scan_project(DEFAULT_STATUS_ROOT)
+            self._status_rows = [r for r in rows if not cat or r["type"] == cat]
         finally:
             QtWidgets.QApplication.restoreOverrideCursor()
         self._status_render()
@@ -282,7 +217,7 @@ class WorkspaceStatusMixin(object):
 
         flt = self.status_search.text().strip().lower()
         only_old = self.status_only_old.isChecked()
-        shown = [r for r in rows if (not flt or flt in r["asset"].lower())
+        shown = [r for r in rows if (not flt or flt in (r["asset"] + " " + r["type"]).lower())
                  and (not only_old or r["state"] in ("old", "norig"))]
         t = self.status_table
         t.setSortingEnabled(False)
@@ -292,18 +227,18 @@ class WorkspaceStatusMixin(object):
             col = {"ok": _GREEN, "old": _RED, "norig": _RED}.get(r["state"], _GREY)
             tint = QtGui.QColor(col)
             tint.setAlpha(34)
-            vals = [r["asset"], _ver(r["model"]) or ("-" if not r["model"] else "?"), _fmt(r["model_t"]),
+            vals = [r["asset"], r["type"], _ver(r["model"]) or ("-" if not r["model"] else "?"), _fmt(r["model_t"]),
                     _ver(r["cc"]) or ("-" if not r["cc"] else "?"), _fmt(r["cc_t"]),
                     _ver(r["rig"]) or ("-" if not r["rig"] else "?"), _fmt(r["rig_t"]), label[r["state"]]]
-            tips = ["", r["model"], r["model"], r["cc"], r["cc"], r["rig"], r["rig"], ""]
+            tips = ["", "", r["model"], r["model"], r["cc"], r["cc"], r["rig"], r["rig"], ""]
             cc_col = {"ok": _GREEN, "old": _RED}.get(r["cc_state"], _GREY)
             for c, v in enumerate(vals):
                 it = QtWidgets.QTableWidgetItem(v)
                 it.setToolTip(tips[c])
                 it.setBackground(tint)
-                if c in (3, 4):
+                if c in (4, 5):
                     it.setForeground(QtGui.QColor(cc_col))
-                elif c == 0 or c >= 5:
+                elif c == 0 or c >= 6:
                     it.setForeground(QtGui.QColor(col))
                 t.setItem(i, c, it)
         t.setSortingEnabled(True)

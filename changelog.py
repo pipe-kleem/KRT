@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.20", "date": "2026-11-16 12:00", "changes": [
+        "Import 3D + LOD Organize (Blender): the Blender File field turns red when a newer version of the file exists (next _vNN file or next vNN folder) and green when it is the latest. New Refresh button after the field; the check also runs automatically when the KRT json is loaded and when the panel is built.",
+    ]},
     {"version": "46.19", "date": "2026-11-14 19:00", "changes": [
         "Script / Tools Library: the Copy script / Run script buttons now always show their names (fixed size and colours).",
         "Switch Version menus (panels, guide path, whole pipeline JSON): every version now shows the date and time it was saved, and the loaded one is ticked.",

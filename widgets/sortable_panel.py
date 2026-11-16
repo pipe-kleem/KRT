@@ -435,7 +435,14 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             self.blend_field = QtWidgets.QLineEdit()
             self.blend_field.setPlaceholderText("Path to the .blend file (used only by the one-time button)")
             self.blend_field.editingFinished.connect(self._autofill_asset_name)
+            self.blend_field.editingFinished.connect(self._check_blend_version)
             blend_row.addWidget(self.blend_field)
+            self.btn_blend_refresh = QtWidgets.QPushButton("Refresh")
+            self.btn_blend_refresh.setFixedWidth(70)
+            self.btn_blend_refresh.setToolTip("Check for a newer version of this Blender file.\n"
+                                              "Red = a newer version exists, green = this is the latest.")
+            self.btn_blend_refresh.clicked.connect(self._check_blend_version)
+            blend_row.addWidget(self.btn_blend_refresh)
             btn_blend_browse = QtWidgets.QPushButton("📂")
             btn_blend_browse.setFixedWidth(30)
             btn_blend_browse.setToolTip("Browse for the .blend file")
@@ -1427,6 +1434,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         if self.p_type == "IMPORT_BLEND":
             if data.get("asset_name"): self.asset_name_field.setText(data["asset_name"])
             if data.get("blend_path"): self.blend_field.setText(self.workspace.relativize_path(data["blend_path"]))
+            self._check_blend_version()
             if "skip_wrinkle" in data: self.chk_skip_wrinkle.setChecked(bool(data["skip_wrinkle"]))
         if self.p_type == "FACIAL_EXTRACT":
             if "fe_source" in data: self.fe_source_field.setText(data["fe_source"])
@@ -1923,6 +1931,85 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
     }
 
     # ── IMPORT_BLEND: one-time Blender .blend -> ABC (KRT/PanelScripts/blend_abc_tool) ──
+    def _blend_latest_info(self, path):
+        """-> (state, latest_path). state: 'latest' | 'old' | 'unknown'.
+        Looks for a newer version two ways: sibling files <name>_vNN.blend in the same folder, and sibling
+        version folders (.../v04/<file>.blend -> .../v05/...) that hold a .blend."""
+        if not path or not os.path.isfile(path):
+            return "unknown", ""
+        d = os.path.dirname(path)
+        stem, ext = os.path.splitext(os.path.basename(path))
+        known = False
+        newer_n, newer_path = -1, ""
+
+        m = re.search(r"_v(\d+)$", stem, re.I)
+        if m:
+            known = True
+            cur_n = int(m.group(1))
+            base = re.sub(r"_v\d+$", "", stem, flags=re.I)
+            try:
+                names = os.listdir(d)
+            except OSError:
+                names = []
+            for n in names:
+                s2, e2 = os.path.splitext(n)
+                if e2.lower() != ext.lower():
+                    continue
+                mm = re.match(r"^" + re.escape(base) + r"_v(\d+)$", s2, re.I)
+                if mm and int(mm.group(1)) > cur_n and int(mm.group(1)) > newer_n:
+                    newer_n, newer_path = int(mm.group(1)), os.path.join(d, n)
+
+        fm = re.match(r"^v(\d+)$", os.path.basename(d), re.I)
+        if fm:
+            known = True
+            folder_n = int(fm.group(1))
+            parent = os.path.dirname(d)
+            try:
+                siblings = os.listdir(parent)
+            except OSError:
+                siblings = []
+            for n in siblings:
+                sm = re.match(r"^v(\d+)$", n, re.I)
+                if not sm or int(sm.group(1)) <= folder_n or int(sm.group(1)) <= newer_n:
+                    continue
+                cand_dir = os.path.join(parent, n)
+                try:
+                    blends = [f for f in os.listdir(cand_dir) if f.lower().endswith(ext.lower())]
+                except OSError:
+                    continue
+                if not blends:
+                    continue
+                same = re.sub(r"_v\d+(?=\.[^.]+$)", "_v" + sm.group(1).zfill(max(2, len(fm.group(1)))), os.path.basename(path), flags=re.I)
+                pick = same if same in blends else sorted(blends, key=lambda f: os.path.getmtime(os.path.join(cand_dir, f)))[-1]
+                newer_n, newer_path = int(sm.group(1)), os.path.join(cand_dir, pick)
+
+        if newer_path:
+            return "old", newer_path
+        return ("latest", "") if known else ("unknown", "")
+
+    def _check_blend_version(self):
+        """Colour the Blender File field: red = a newer version exists, green = latest, plain = unknown."""
+        if not hasattr(self, "blend_field"):
+            return
+        raw = self.blend_field.text()
+        path = (self.workspace.resolve_path(raw) or "").strip() if raw.strip() else ""
+        try:
+            state, latest = self._blend_latest_info(path)
+        except Exception:
+            state, latest = "unknown", ""
+        if state == "old":
+            color, tip = "#ff5252", "A NEWER version exists:\n" + latest
+            cmds.warning("[KRT] Blender file is not the latest version. Newer: {}".format(latest))
+        elif state == "latest":
+            color, tip = "#66bb6a", "This is the latest version."
+        else:
+            color, tip = "", "Path to the .blend file (used only by the one-time button)"
+        self.blend_field.setStyleSheet(
+            "QLineEdit {{ color: {0}; border: 1px solid {0}; }}".format(color) if color else "")
+        self.blend_field.setToolTip(tip)
+        self._blend_state = state
+        return state
+
     def _browse_blend_file(self):
         start = self.workspace.resolve_path(self.blend_field.text()) or ""
         kwargs = {"fm": 1, "ff": "Blender (*.blend);;All Files (*.*)"}
@@ -1932,6 +2019,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         if res:
             self.blend_field.setText(self.workspace.relativize_path(res[0]))
             self._autofill_asset_name()
+            self._check_blend_version()
 
     def _blend_to_abc_run(self):
         """One-time, manual: .blend -> finalise -> ABC -> import into Maya.
@@ -2438,6 +2526,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                     # organize step is required to have run.
                     if self.p_type == "IMPORT_BLEND":
                         self._autofill_asset_name()
+                        self._check_blend_version()
                     path = self.path().strip()
                     if path:
                         success, error_msg = self.workspace.import_3d_logic(path)

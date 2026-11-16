@@ -325,6 +325,15 @@ class WorkspacePagesMixin(object):
         btn_layout.addWidget(btn_build)
         btn_layout.addLayout(save_btn_layout)
         btn_layout.addWidget(btn_publish_ayon)
+        btn_pc2 = QtWidgets.QPushButton("CHECK PC2 IN BLENDER")
+        btn_pc2.setFixedHeight(50)
+        btn_pc2.setToolTip("End-of-rig test: exports PC2 of this scene (test animation from the Playblast tab) and opens a "
+                           "temporary copy of the panel's Blender file with the PC2 applied, to check by hand.")
+        btn_pc2.setStyleSheet("QPushButton { background: #f2f2f2; color: #111111; font-weight: bold; border: 1px solid #111111; }"
+                              "QPushButton:hover { background: #ffffff; }"
+                              "QPushButton:pressed { background: #cfcfcf; }")
+        btn_pc2.clicked.connect(self.pc2_check_logic)
+        btn_layout.addWidget(btn_pc2)
         main_vbox.addLayout(btn_layout)
 
         comment_view_layout = QtWidgets.QHBoxLayout()

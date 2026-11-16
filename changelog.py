@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.42", "date": "2026-11-18 10:00", "changes": [
+        "New white/black button CHECK PC2 IN BLENDER after Publish Krishna: loads the test animation (Playblast tab .anim) on the rig, exports PC2 for the Maya meshes that exist in the Blender panel's .blend, undoes the animation, and opens a temporary copy of that .blend in Blender with the PC2 applied by the pipeline tool's own Apply PC2 Caches & Rotate code, for a manual check. The temp copy and PC2 files are deleted when Blender closes; the server file is only read.",
+    ]},
     {"version": "46.41", "date": "2026-11-17 22:30", "changes": [
         "Blender panel wrinkle window: it no longer closes by itself or with the X button - it stays until you press Wrinkles OK (import the ABC) or Wrinkles NOT OK (delete the ABC).",
     ]},

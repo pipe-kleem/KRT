@@ -11,6 +11,7 @@ from .executors import WorkspaceExecutorsMixin
 from .playblast import WorkspacePlayblastMixin
 from .root_path import WorkspaceRootPathMixin
 from .status_page import WorkspaceStatusMixin
+from .pc2_check import WorkspacePc2Mixin
 from .project_init import WorkspaceProjectInitMixin
 
 
@@ -75,7 +76,7 @@ class CurrentPageStackedWidget(QtWidgets.QStackedWidget):
     def setCurrentWidget(self, widget):
         super(CurrentPageStackedWidget, self).setCurrentWidget(widget)
         self._after_switch()
-class SessionWorkspace(WorkspaceStatusMixin, WorkspaceProjectInitMixin, WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
+class SessionWorkspace(WorkspacePc2Mixin, WorkspaceStatusMixin, WorkspaceProjectInitMixin, WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
     # Stage 51: sidebar widths - expanded, and the thin rail that is all
     # that remains when the LOD Manager is collapsed to the left.
     SIDEBAR_WIDTH = 230

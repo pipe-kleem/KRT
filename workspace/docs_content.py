@@ -295,6 +295,22 @@ Facial Shape Extract, Breathing, CC Import + Auto Setup, Joint Transfer, Finger 
 use <code>utils/</code>. A new panel's script goes in this folder and is imported with <code>from ..PanelScripts import name</code>.</p>
 """ + see("p_all")),
 
+
+("pc2check", "Features", "Check PC2 in Blender", """
+<h2>CHECK PC2 IN BLENDER</h2>
+<p>The white / black button after <b>Publish Krishna</b>. Use it at the end of a rig, before publishing, to test that the PC2 export
+works in Blender.</p>
+<ol>
+<li>It takes the <b>Blender File</b> of the <a href="krt:p_blender">Import 3D + LOD Organize (Blender)</a> panel and reads its mesh names (headless Blender).</li>
+<li>It loads the test animation of the Playblast tab (<code>.anim</code>, Controls Filter) on the rig controls of the <b>current Maya scene</b>.</li>
+<li>It exports PC2 (the same method as the studio Cache Exporter) only for the Maya meshes whose name exists in that Blender file.</li>
+<li>It undoes the test animation, then opens a <b>temporary copy</b> of the .blend in a normal Blender window and applies the PC2 with the
+pipeline tool's own code (<i>Apply PC2 Caches &amp; Rotate</i>, frame start). You check it by hand.</li>
+<li>When you close Blender, the temporary copy and the PC2 files are deleted. The server .blend is only read, never saved.</li>
+</ol>
+<p>The Blender version that has the pipeline addon installed is used. Needs Studio Library (mutils) for the .anim, like the Playblast tab.</p>
+""" + see("p_blender", "t_pb")),
+
 ("tips", "Features", "Tips & troubleshooting", """
 <h2>Tips</h2>
 <ul>

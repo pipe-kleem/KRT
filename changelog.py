@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.41", "date": "2026-11-17 22:30", "changes": [
+        "Blender panel wrinkle window: it no longer closes by itself or with the X button - it stays until you press Wrinkles OK (import the ABC) or Wrinkles NOT OK (delete the ABC).",
+    ]},
     {"version": "46.40", "date": "2026-11-17 22:00", "changes": [
         "Blender panel, Blend -> ABC: new information popup after the export and before the wrinkle window - lists every mesh that is hidden in the .blend (eye icon, monitor icon or hidden collection) and so was not exported; press OK to continue. Also: when the ABC path is empty, the ABC goes into the Rig Root's existing model folder whether it is spelled model, Model or MODEL.",
     ]},

@@ -67,7 +67,10 @@ class WrinklePlayblastWindow(QtWidgets.QDialog):
         self._speed = 1.0
         self._c, self._s = 0, 0.0
 
-        self.setWindowTitle("Wrinkle Playblast (temporary - closes for good)")
+        self._answered = on_import is None      # with OK / NOT OK buttons the window stays until one is pressed
+        self._force = False
+        self.setWindowTitle("Wrinkle Playblast - press OK or NOT OK to continue" if on_import is not None
+                            else "Wrinkle Playblast (temporary - closes for good)")
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.Window)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
 
@@ -120,7 +123,7 @@ class WrinklePlayblastWindow(QtWidgets.QDialog):
             ok.clicked.connect(self._do_import)
             no = QtWidgets.QPushButton("Wrinkles NOT OK  -  Don't import")
             no.setStyleSheet("padding: 8px;")
-            no.clicked.connect(self.close)
+            no.clicked.connect(self._do_reject)
             row.addWidget(ok)
             row.addWidget(no)
             lay.addLayout(row)
@@ -238,13 +241,29 @@ class WrinklePlayblastWindow(QtWidgets.QDialog):
         self._pause()
         self._set_state(self._c, v / 100.0)
 
+    def _do_reject(self):
+        self._answered = True
+        self.close()
+
     def _do_import(self):
         cb, self._on_import = self._on_import, None
+        self._answered = True
         self.close()                       # frames are temporary, deleted on close
         if cb:
             cb()
 
     def closeEvent(self, event):
+        # The window never closes by itself (X button, Alt+F4, Esc ...) - only the artist's answer
+        # (Wrinkles OK / NOT OK) closes it. A replacement window (force) is the one exception.
+        if not self._answered and not self._force:
+            event.ignore()
+            try:
+                self.showNormal()
+                self.raise_()
+                self.activateWindow()
+            except Exception:
+                pass
+            return
         self._timer.stop()
         shutil.rmtree(self._folder, ignore_errors=True)   # temporary: gone after closing
         global _WINDOW
@@ -281,6 +300,7 @@ def show(folder, fade=0.6, hold=0.25, fps=None, on_import=None, on_reject=None, 
               % ", ".join(data["skipped"]))
 
     if _WINDOW is not None:
+        _WINDOW._force = True
         _WINDOW.close()
     _WINDOW = WrinklePlayblastWindow(folder, data, fade, hold, _maya_main_window(), on_import, on_reject)
     _WINDOW.show()

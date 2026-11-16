@@ -315,18 +315,33 @@ def _create_shelf():
         # KRT's button actually needs to parent to.
         cmds.shelfLayout(SHELF_NAME, parent=shelf_top)
 
-    # Never stack duplicates: remove every earlier KRT launch button from ANY shelf (older installs, a
-    # reloaded shelf_KRT.mel, a button dropped on another shelf), then add exactly one.
-    _ann = "Launch the KRT Procedural Rig Builder"
+    # Never stack duplicates: remove EVERY earlier KRT launch button, wherever it is (this shelf, any other
+    # shelf, a reloaded shelf file). A button counts as ours when its label, annotation, overlay label or
+    # command mentions KRT. Full (long) UI paths are used so the right control is deleted.
+    removed = 0
     try:
-        for _b in cmds.lsUI(type="shelfButton") or []:
+        buttons = set(cmds.lsUI(type="shelfButton", long=True) or [])
+        for lay in cmds.tabLayout(shelf_top, query=True, childArray=True) or []:
             try:
-                if cmds.shelfButton(_b, q=True, annotation=True) == _ann:
+                for c in cmds.shelfLayout(lay, query=True, childArray=True) or []:
+                    buttons.add(shelf_top + "|" + lay + "|" + c)
+            except Exception:
+                pass
+        for _b in buttons:
+            try:
+                if not cmds.shelfButton(_b, exists=True):
+                    continue
+                txt = " ".join(str(cmds.shelfButton(_b, q=True, **{k: True}) or "")
+                               for k in ("label", "annotation", "imageOverlayLabel", "command")).lower()
+                if "krt" in txt:
                     cmds.deleteUI(_b)
+                    removed += 1
             except Exception:
                 pass
     except Exception:
         pass
+    if removed:
+        cmds.warning(f"[KRT] Removed {removed} old KRT shelf button(s).")
     cmds.shelfButton(
         label="KRT",
         annotation="Launch the KRT Procedural Rig Builder",

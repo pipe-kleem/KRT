@@ -116,13 +116,57 @@ class WorkspacePagesMixin(object):
         self.graph_widget.update_attr_editor()
         self._syncing_selection = False
 
+    def refresh_krt_file_status(self, fresh=False):
+        """Show the full path of the loaded KRT json and colour it: light red = newer version exists (old file
+        loaded), light green = this is the latest, grey = unsaved / unknown."""
+        f = getattr(self, "krt_file_field", None)
+        if f is None:
+            return
+        path = (getattr(self, "session_path", "") or "").strip()
+        f.setText(path.replace("\\", "/"))
+        state, newer = "unknown", ""
+        if path:
+            try:
+                from ..utils import version_check
+                state, newer = version_check.latest_info(path, fresh=fresh)
+            except Exception:
+                state = "unknown"
+        base = "background: #1a1a1a; padding: 5px; font-family: 'Consolas'; "
+        if state == "old":
+            f.setStyleSheet("QLineEdit { %s color: #ef9a9a; border: 1px solid #e57373; }" % base)
+            f.setToolTip("OLD FILE - a newer version exists:\n" + newer.replace("\\", "/"))
+        elif state == "latest":
+            f.setStyleSheet("QLineEdit { %s color: #a5d6a7; border: 1px solid #81c784; }" % base)
+            f.setToolTip("This is the latest version of the KRT file.")
+        else:
+            f.setStyleSheet("QLineEdit { %s color: #9e9e9e; border: 1px solid #444444; }" % base)
+            f.setToolTip("Full path of the loaded KRT file." if path else "This session has not been saved yet.")
+
     def page_rig(self):
         page = QtWidgets.QWidget()
         main_vbox = QtWidgets.QVBoxLayout(page)
         main_vbox.setContentsMargins(0, 0, 0, 0)
         
+        # Full path of the loaded KRT json, above the Rig Name. Light red = a newer version of this json exists
+        # (an old file is loaded), light green = latest, grey = unsaved / no version in the name.
+        file_row = QtWidgets.QHBoxLayout()
+        file_row.setContentsMargins(15, 12, 15, 0)
+        lbl_file = QtWidgets.QLabel("<b>KRT File:</b>")
+        lbl_file.setStyleSheet("color: #cccccc; font-size: 13px;")
+        file_row.addWidget(lbl_file)
+        self.krt_file_field = QtWidgets.QLineEdit()
+        self.krt_file_field.setReadOnly(True)
+        self.krt_file_field.setPlaceholderText("Not saved yet")
+        file_row.addWidget(self.krt_file_field, 1)
+        btn_file_refresh = QtWidgets.QPushButton("Refresh")
+        btn_file_refresh.setToolTip("Check again whether a newer version of this KRT file exists")
+        btn_file_refresh.clicked.connect(lambda: self.refresh_krt_file_status(fresh=True))
+        file_row.addWidget(btn_file_refresh)
+        main_vbox.addLayout(file_row)
+        self.refresh_krt_file_status()
+
         header_layout = QtWidgets.QHBoxLayout()
-        header_layout.setContentsMargins(15, 15, 15, 5)
+        header_layout.setContentsMargins(15, 8, 15, 5)
         lbl_rig = QtWidgets.QLabel("<b>Rig Name:</b>")
         lbl_rig.setStyleSheet("color: #cccccc; font-size: 15px;")
         header_layout.addWidget(lbl_rig)

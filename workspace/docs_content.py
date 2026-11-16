@@ -64,6 +64,8 @@ loaded, every file panel re-checks whether a newer file exists (see <a href="krt
 <p>The main step-by-step builder. The left sidebar lists your <b>LODs</b>; each LOD holds its own stack of panels
 that run top-to-bottom when you build. The <b>Rig Name / Rig Root / Utilities</b> rows are at the top
 (<a href="krt:t_root">details</a>). Under them is the <b>search box</b> that filters panels by title, path or type.</p>
+<h3>KRT File row</h3>
+<p>The first row shows the <b>full path of the loaded KRT json</b>. <span class="red">Light red</span> = you have an OLD file loaded (a newer <code>_vNNN</code> exists - hover to see it), <span class="green">light green</span> = latest, grey = not saved yet. It re-checks when a file is loaded or saved, when you open this tab, and on <b>Refresh</b>.</p>
 <h3>Working with panels</h3>
 <ul>
 <li>Right-click a panel or use its <b>...</b> menu: Add Panel Above / Below, Duplicate, Copy / Cut / Paste, Undo Delete,

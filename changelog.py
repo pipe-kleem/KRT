@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.44", "date": "2026-11-18 12:00", "changes": [
+        "Rig Build Workspace: new KRT File row at the very top (above Rig Name) showing the full path of the loaded KRT json - light red when a newer version of that file exists (an old file is loaded), light green when it is the latest. Re-checked on load / save / opening the tab, plus a Refresh button.",
+    ]},
     {"version": "46.43", "date": "2026-11-18 11:00", "changes": [
         "Rig & Model Status: rig files published in a sub-folder of rigMain (e.g. rigMain/rigging/v001/chariotdriver_a_Rig_built.ma, or rigMain/hero) now count as the rig too; the newest rig file of rigMain/vNN and those sub-folders is used.",
     ]},

@@ -141,6 +141,10 @@ class SessionWorkspace(WorkspacePc2Mixin, WorkspaceStatusMixin, WorkspaceProject
           every KRT save) just re-syncs that same current version to disk.
         """
         self.session_path = path
+        try:
+            self.refresh_krt_file_status(fresh=True)
+        except Exception:
+            pass
         tab_index = self.main_window.session_stack.indexOf(self)
         tab_name = os.path.basename(path) if path else "Untitled Session"
         self.main_window.tab_bar.setTabText(tab_index, tab_name)
@@ -320,6 +324,11 @@ class SessionWorkspace(WorkspacePc2Mixin, WorkspaceStatusMixin, WorkspaceProject
             self.sidebar.show(); self.sidebar_stack.setCurrentIndex(2)
         else: self.sidebar.hide()
 
+        if index == 1:
+            try:
+                self.refresh_krt_file_status(fresh=True)      # someone may have saved a newer version meanwhile
+            except Exception:
+                pass
         if index == 5:
             self.refresh_scripts_lib_list()
         elif index == 6:

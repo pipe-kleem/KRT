@@ -1955,16 +1955,16 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
 
     # ── IMPORT_BLEND: one-time Blender .blend -> ABC (KRT/PanelScripts/blend_abc_tool) ──
     def _set_version_style(self, widget, state):
-        """Dark red = a newer version exists, green = latest, nothing = unknown. Appends to whatever style the
+        """Light red = a newer version exists, light green = latest, nothing = unknown. Appends to whatever style the
         field already has and removes only its own previous addition."""
         cur = widget.styleSheet() or ""
         old = widget.property("verSuffix") or ""
         if old and cur.endswith(old):
             cur = cur[:-len(old)]
         if state == "old":
-            suffix = " QLineEdit { color: #d32f2f; border: 1px solid #b71c1c; }"
+            suffix = " QLineEdit, QLineEdit:read-only, QLineEdit:hover, QLineEdit:focus { color: #ef9a9a; border: 1px solid #e57373; }"
         elif state == "latest":
-            suffix = " QLineEdit { color: #4caf50; border: 1px solid #2e7d32; }"
+            suffix = " QLineEdit, QLineEdit:read-only, QLineEdit:hover, QLineEdit:focus { color: #a5d6a7; border: 1px solid #81c784; }"
         else:
             suffix = ""
         if suffix and cur.strip() and "{" not in cur:
@@ -1982,7 +1982,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             try:
                 from ..utils import version_check
                 path = (self.workspace.resolve_path(raw) or "").strip()
-                state, latest = version_check.latest_info(path, fresh=fresh)
+                state, latest = version_check.latest_info(path, fresh=fresh, loose=self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"))
             except Exception:
                 state, latest = "unknown", ""
         self._set_version_style(self.field, state)
@@ -2000,7 +2000,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         from ..utils import version_check, version_label
         raw = self.field.text().strip()
         path = (self.workspace.resolve_path(raw) or "").strip() if raw and "\n" not in raw and len(raw) < 260 else ""
-        versions = version_check.all_versions(path, fresh=True)
+        versions = version_check.all_versions(path, fresh=True, loose=self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"))
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet("background-color: #252526; color: white; border: 1px solid #2bb5a8;")
         a_refresh = menu.addAction("Refresh check")
@@ -2473,12 +2473,16 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             return
         if is_script_file_ref(self.path()):
             style_readonly_path_field(self.field, self.accent)
+            self._field_base_tip = self.field.toolTip()
+            if hasattr(self, "btn_versions"):
+                self._field_version_check()
         else:
             self.field.setReadOnly(False)
             self.field.setStyleSheet("")
             self.field.setToolTip(
                 "Path to a .py/.mel script file (locks automatically once set), "
                 "or paste raw Python/MEL code directly.")
+            self._set_version_style(self.field, "unknown")
 
     def browse_file(self):
         kwargs = {'fm': 1}

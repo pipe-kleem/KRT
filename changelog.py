@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.23", "date": "2026-11-16 19:00", "changes": [
+        "Version colours are now light red (newer version exists) and light green (latest). Works on Script / Global Script panels too, including locked path fields and scripts without _vNN in the name (a sibling name_vNN.py counts as a newer version); the colour is re-applied whenever the script field locks or unlocks.",
+    ]},
     {"version": "46.22", "date": "2026-11-16 18:00", "changes": [
         "Every file panel (script, import 3D, skin JSON, tweaker, control shapes, material, joint positions, joint transfer, CC import): the path field turns dark red when a newer version exists and green when it is the latest, and a new Versions button (left click) lists all versions with their saved date to switch between. The check runs on load, on edits and when the panel runs.",
     ]},

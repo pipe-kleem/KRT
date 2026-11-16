@@ -43,7 +43,7 @@ def _folder_candidate(parent, name, number_text, fname, folder_digits, ext, fres
     return os.path.join(cand_dir, newest)
 
 
-def latest_info(path, fresh=False):
+def latest_info(path, fresh=False, loose=False):
     """-> (state, newer_path). state: 'latest' | 'old' | 'unknown' ('unknown' = no version in the name/folder
     or the file is missing)."""
     if not path or not os.path.isfile(path):
@@ -55,9 +55,9 @@ def latest_info(path, fresh=False):
     newer_n, newer_path = -1, ""
 
     m = re.search(r"_v(\d+)$", stem, re.I)
-    if m:
+    if m or loose:
         known = True
-        cur_n = int(m.group(1))
+        cur_n = int(m.group(1)) if m else 0
         base = re.sub(r"_v\d+$", "", stem, flags=re.I)
         for n in _listdir(d, fresh):
             s2, e2 = os.path.splitext(n)
@@ -85,7 +85,7 @@ def latest_info(path, fresh=False):
     return ("latest", "") if known else ("unknown", "")
 
 
-def all_versions(path, fresh=False):
+def all_versions(path, fresh=False, loose=False):
     """[(number, path), ...] every version of this file, oldest first, each once, always including `path`."""
     if not path or not os.path.isfile(path):
         return []
@@ -93,13 +93,15 @@ def all_versions(path, fresh=False):
     d = os.path.dirname(path)
     fname = os.path.basename(path)
     stem, ext = os.path.splitext(fname)
-    if re.search(r"_v(\d+)$", stem, re.I):
+    if loose or re.search(r"_v(\d+)$", stem, re.I):
         base = re.sub(r"_v\d+$", "", stem, flags=re.I)
         for n in _listdir(d, fresh):
             s2, e2 = os.path.splitext(n)
             mm = re.match(r"^" + re.escape(base) + r"_v(\d+)$", s2, re.I)
             if mm and e2.lower() == ext.lower():
                 found[int(mm.group(1))] = os.path.join(d, n)
+            elif loose and s2 == base and e2.lower() == ext.lower():
+                found[0] = os.path.join(d, n)
     fm = re.match(r"^v(\d+)$", os.path.basename(d), re.I)
     if fm:
         parent = os.path.dirname(d)

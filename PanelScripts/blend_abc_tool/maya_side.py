@@ -81,6 +81,9 @@ _STAGE = (("[blend]", 5, "Blend file opened"),
 _PB = re.compile(r"\[playblast\] \((\d+)/(\d+)\)")
 
 
+LAST_RESULT = {}      # the status dict printed by blender_run.py (SSD_RESULT:...) of the last export
+
+
 def _stream_blender(cmd, timeout):
     """Run Blender, print every useful output line LIVE in Maya, keep a progress bar.
     Returns (returncode, all_output_lines)."""
@@ -263,6 +266,14 @@ def export_blend_to_abc(blend_path, output_dir, blender_exe="",
     log("Starting Blender in the background (ESC in the progress window cancels) ...")
 
     returncode, lines = _stream_blender(cmd, timeout)
+    LAST_RESULT.clear()
+    for _ln in reversed(lines):
+        if _ln.startswith("SSD_RESULT:"):
+            try:
+                LAST_RESULT.update(json.loads(_ln[len("SSD_RESULT:"):]))
+            except Exception:
+                pass
+            break
 
     if returncode != 0 or not os.path.isfile(abc_path):
         tail = "\n".join(lines[-25:])

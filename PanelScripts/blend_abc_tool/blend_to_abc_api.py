@@ -31,6 +31,24 @@ DEFAULT_FINALISE = {"units": True, "modifiers": True, "collections": True, "obje
                     "materials": True, "purge_mats": True, "purge_all": True}
 
 
+def _show_hidden_info(hidden):
+    """Information popup (before the wrinkle window / import): meshes hidden in Blender were not exported.
+    Continues when the artist presses OK."""
+    if not hidden:
+        return
+    names = ["%s   (%s)" % (n, why) for n, why in hidden]
+    shown = names[:40] + (["... and %d more" % (len(names) - 40)] if len(names) > 40 else [])
+    text = ("%d mesh(es) are HIDDEN in the Blender file (eye / viewport button) and were NOT exported to the ABC:\n\n%s\n\n"
+            "Press OK to continue." % (len(names), "\n".join(shown)))
+    maya_side.log("HIDDEN meshes not exported: " + ", ".join(n for n, _w in hidden))
+    try:
+        import maya.cmds as cmds
+        cmds.confirmDialog(title="KRT - Hidden meshes in Blender", message=text, button=["OK"],
+                           defaultButton="OK", dismissString="OK")
+    except Exception:
+        pass
+
+
 def blend_to_abc(blend_path, output_dir, blender_exe="", abc_name="",
                  wrinkle_playblast=True, import_into_maya=True,
                  finalise_options=None, playblast_options=None,
@@ -69,6 +87,8 @@ def blend_to_abc(blend_path, output_dir, blender_exe="", abc_name="",
         if pb_dir:
             shutil.rmtree(pb_dir, ignore_errors=True)
         raise
+
+    _show_hidden_info(maya_side.LAST_RESULT.get("hidden_meshes") or [])
 
     if pb_dir and not os.path.isfile(os.path.join(pb_dir, "manifest.json")):
         maya_side.log("No wrinkle playblast produced (no wrinkle maps) - importing directly.")

@@ -2105,7 +2105,17 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         out_dir = os.path.dirname(cur) if cur else ""
         if not out_dir:
             root = self.workspace.rig_root()
-            out_dir = os.path.join(root, "model") if root else ""
+            out_dir = ""
+            if root:
+                # Use the model folder that already exists - it may be spelled "model", "Model" or "MODEL".
+                out_dir = os.path.join(root, "model")
+                try:
+                    for _n in os.listdir(root):
+                        if _n.lower() == "model" and os.path.isdir(os.path.join(root, _n)):
+                            out_dir = os.path.join(root, _n)
+                            break
+                except OSError:
+                    pass
         if not out_dir:
             cmds.warning("[KRT] Set the ABC path (or the Rig Root) so the ABC has a folder to be saved in.")
             return

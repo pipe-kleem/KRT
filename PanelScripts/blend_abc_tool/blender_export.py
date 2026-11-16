@@ -10,6 +10,9 @@ import bpy
 from blender_finalise import hide_mod_flags
 
 
+LAST_HIDDEN = []      # [(object name, why)] meshes that were NOT exported because they are hidden
+
+
 def clean_export(abc_path):
     """Select all visible meshes, hide edit-mode/mask modifiers, export ABC.
     Returns (absolute_path, mesh_count)."""
@@ -33,11 +36,18 @@ def clean_export(abc_path):
             obj.show_instancer_for_render = True
 
     meshes = []
+    del LAST_HIDDEN[:]
     for obj in view_layer.objects:
         if obj.type != 'MESH':
             continue
         if obj.hide_viewport or obj.hide_get():
+            LAST_HIDDEN.append((obj.name, "monitor icon (viewport)" if obj.hide_viewport else "eye icon"))
             continue
+        try:
+            if not obj.visible_get():
+                LAST_HIDDEN.append((obj.name, "hidden collection"))
+        except Exception:
+            pass
         obj.select_set(True)
         meshes.append(obj)
         for mod in obj.modifiers:

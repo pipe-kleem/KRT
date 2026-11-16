@@ -183,6 +183,8 @@ to skip it), then imports. If the wrinkles are rejected the exported ABC is dele
 <li><b>Asset Name</b> is filled from the file name automatically (<code>KL_x_workfileModel_lod_v01</code> -&gt; <code>x</code>).</li>
 <li><b>Hair / eyebrow / eyelash meshes</b> (emitters with hair particle systems) are exported with their geometry - the exporter
 turns on their emitter mesh in memory, so they no longer arrive as an empty transform.</li>
+<li><b>Hidden meshes:</b> after the export, before the wrinkle window, an information popup lists every mesh that is hidden in the .blend (eye icon, monitor icon or hidden collection) and was therefore not exported. Press OK to continue.</li>
+<li><b>ABC folder:</b> the ABC is saved next to the current ABC path, or into the Rig Root's existing <code>model</code> / <code>Model</code> folder (whatever its spelling).</li>
 <li><b>Compare Old vs New ABC</b> opens the <a href="krt:compare">mesh Compare tool</a> with the new ABC and the previous one preselected.</li>
 <li><b>Blender File field:</b> <span class="red">light red</span> = a newer .blend exists, <span class="green">light green</span> = latest.
 <b>Refresh</b> re-checks; <b>Versions</b> lists every .blend with date to switch. The ABC path has Switch Version in the ... menu.</li>

@@ -45,7 +45,7 @@ def main():
         print("[finalise] running Finalise File (units, rename, modifiers, purge) ...")
         status["finalise"] = blender_finalise.finalise(opts)
         abc, n = blender_export.clean_export(args.out)
-        status.update(ok=True, abc=abc, meshes=n)
+        status.update(ok=True, abc=abc, meshes=n, hidden_meshes=list(blender_export.LAST_HIDDEN))
         print("[export] %d meshes -> %s" % (n, abc))
     except Exception:
         status["error"] = traceback.format_exc()

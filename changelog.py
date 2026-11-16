@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.40", "date": "2026-11-17 22:00", "changes": [
+        "Blender panel, Blend -> ABC: new information popup after the export and before the wrinkle window - lists every mesh that is hidden in the .blend (eye icon, monitor icon or hidden collection) and so was not exported; press OK to continue. Also: when the ABC path is empty, the ABC goes into the Rig Root's existing model folder whether it is spelled model, Model or MODEL.",
+    ]},
     {"version": "46.39", "date": "2026-11-17 21:00", "changes": [
         "Rig & Model Status: models of props, locations and many characters were shown as 'No model' because they live in workfileModel_lod (not workfileMaster_model). Both folders are now checked and the newest .blend counts.",
     ]},

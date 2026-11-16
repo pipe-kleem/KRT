@@ -415,23 +415,85 @@ class WorkspacePagesMixin(object):
             self.load_pipeline_from_file(target_path)
 
     def page_docs(self):
+        from . import docs_content
         page = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(page)
         layout.setContentsMargins(20, 15, 20, 15)
         layout.setSpacing(8)
 
-        header = QtWidgets.QLabel("<b>📖 KRT DOCUMENTATION</b>")
+        top = QtWidgets.QHBoxLayout()
+        header = QtWidgets.QLabel("<b>KRT DOCUMENTATION</b>")
         header.setStyleSheet("font-size: 15px; color: #2bb5a8;")
-        layout.addWidget(header)
+        top.addWidget(header)
+        top.addStretch()
+        btn_back = QtWidgets.QPushButton("Back")
+        btn_home = QtWidgets.QPushButton("Home")
+        for b in (btn_back, btn_home):
+            b.setFixedHeight(26)
+            top.addWidget(b)
+        layout.addLayout(top)
+
+        row = QtWidgets.QHBoxLayout()
+        topics = QtWidgets.QListWidget()
+        topics.setFixedWidth(230)
+        topics.setStyleSheet(
+            "QListWidget { background:#1e1e1e; border:1px solid #333; color:#ddd; }"
+            "QListWidget::item { padding: 4px 8px; }"
+            "QListWidget::item:selected { background:#264f4a; color:white; }")
+        item_for = {}
+        last_sec = None
+        for tid, sec, title, _html in docs_content.TOPICS:
+            if sec != last_sec:
+                h = QtWidgets.QListWidgetItem(sec.upper())
+                h.setFlags(QtCore.Qt.NoItemFlags)
+                h.setForeground(QtGui.QColor("#2bb5a8"))
+                topics.addItem(h)
+                last_sec = sec
+            it = QtWidgets.QListWidgetItem("   " + title)
+            it.setData(QtCore.Qt.UserRole, tid)
+            topics.addItem(it)
+            item_for[tid] = it
+        row.addWidget(topics)
 
         browser = QtWidgets.QTextBrowser()
+        browser.setOpenLinks(False)
         browser.setOpenExternalLinks(False)
         browser.setStyleSheet(
             "QTextBrowser { background:#1e1e1e; border:1px solid #333; color:#ddd; "
             "padding: 14px; font-size: 13px; }")
-        browser.setHtml(self._docs_html())
-        layout.addWidget(browser)
+        row.addWidget(browser, 1)
+        layout.addLayout(row, 1)
 
+        history = []
+
+        def show(tid, push=True):
+            if push and history and history[-1] == tid:
+                return
+            if push:
+                history.append(tid)
+            browser.setHtml(docs_content.render(tid))
+            it = item_for.get(tid)
+            if it is not None:
+                topics.blockSignals(True)
+                topics.setCurrentItem(it)
+                topics.blockSignals(False)
+
+        def on_link(url):
+            tid = url.toString()
+            if tid.startswith("krt:"):
+                show(tid[4:])
+
+        def go_back():
+            if len(history) > 1:
+                history.pop()
+                show(history[-1], push=False)
+
+        topics.currentItemChanged.connect(
+            lambda cur, _prev: show(cur.data(QtCore.Qt.UserRole)) if cur is not None and cur.data(QtCore.Qt.UserRole) else None)
+        browser.anchorClicked.connect(on_link)
+        btn_back.clicked.connect(go_back)
+        btn_home.clicked.connect(lambda: show("overview"))
+        show("overview")
         return page
 
     def _docs_html(self):

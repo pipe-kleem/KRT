@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.25", "date": "2026-11-16 22:00", "changes": [
+        "Documentation tab rewritten and brought fully up to date: topic list on the left, linked pages with 'See also' links between related features (Blender panel, Compare tool, Version colours, Facial Shape Extract, CC Import, Utilities, Rig & Model Status, PanelScripts and more), Back / Home buttons, and a What's new page generated from this changelog. Text lives in workspace/docs_content.py.",
+    ]},
     {"version": "46.24", "date": "2026-11-16 21:00", "changes": [
         "New sidebar tab: Rig & Model Status. Pick a project at the top (or browse to one) and see every asset with its latest model version/date and latest rig version/date, counts of assets/models/rigs, and a filter, an only-outdated toggle and a Refresh button. A row turns red when the rig is older than the model (or has no rig) and green when it is up to date.",
     ]},

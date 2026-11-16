@@ -278,7 +278,7 @@ CC Import, and the Blender File and ABC of the Blender panel) checks its file:</
 <li><span class="red">Light red</span> text + border: a <b>newer version exists</b> (next <code>_vNN</code> file, or next <code>vNN</code> folder).</li>
 <li><span class="green">Light green</span>: this is the <b>latest</b> version. No colour: unknown (no version in the name, or file missing).</li>
 <li>The check runs when the panel is built, when a KRT JSON is loaded, when you edit the path, when the panel runs, and on <b>Refresh</b>.</li>
-<li><b>Versions</b> button (left click): lists every version <b>with its saved date</b>, ticks the current one; pick one to switch.</li>
+<li><b>Versions</b> button (left click) and <b>Switch Version</b> in the ... menu: list <b>every file of the same kind in that folder</b> (newest first) with its saved date, even when the name differs or has no version number; the current one is ticked; pick one to switch. 3D files (.ma .mb .fbx .obj .abc) are listed together. The Blender File field is the exception - it keeps its own version list.</li>
 <li>Scripts without <code>_vNN</code> in the name count as old when a sibling <code>name_vNN.py</code> exists.</li>
 </ul>
 <p>Hover the field for the path of the newer file. Directory listings are cached for a few seconds so many panels do not slow the server.</p>

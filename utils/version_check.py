@@ -121,3 +121,32 @@ def all_versions(path, fresh=False, loose=False):
         if nk not in best or k > best[nk][0]:
             best[nk] = (k, v)
     return sorted(((k % 100000 if k >= 0 else k), v) for k, v in best.values())
+
+
+_GROUPS = ((".ma", ".mb", ".fbx", ".obj", ".abc"),)
+
+
+def folder_files(path, fresh=False, limit=150):
+    """Every file in the same folder with the same kind of extension as `path` (3D files count as one kind),
+    whatever its name or version - [(mtime, full_path), ...] newest first, `path` always included.
+    Only lists the folder and reads dates; nothing is changed."""
+    if not path:
+        return []
+    d = os.path.dirname(path)
+    ext = os.path.splitext(path)[1].lower()
+    exts = next((g for g in _GROUPS if ext in g), (ext,))
+    out = []
+    for n in _listdir(d, fresh):
+        if os.path.splitext(n)[1].lower() in exts:
+            fp = os.path.join(d, n)
+            try:
+                if os.path.isfile(fp):
+                    out.append((os.path.getmtime(fp), fp))
+            except OSError:
+                pass
+    out.sort(key=lambda x: x[0], reverse=True)
+    out = out[:limit]
+    cur = os.path.normcase(os.path.abspath(path))
+    if os.path.isfile(path) and cur not in [os.path.normcase(os.path.abspath(f)) for _t, f in out]:
+        out.append((os.path.getmtime(path), path))
+    return out

@@ -802,24 +802,17 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             switch_menu.setEnabled(False)
             return v_actions
             
-        base_name, ext = os.path.splitext(os.path.basename(base_path))
-        base_name_no_v = re.sub(r'_v\d+$', '', base_name)
-        pattern = re.compile(r"^" + re.escape(base_name_no_v) + r"(?:_v(\d+))?" + re.escape(ext) + r"$")
-        
-        versions = []
-        for f in os.listdir(dir_name):
-            match = pattern.match(f)
-            if match:
-                versions.append(os.path.join(dir_name, f).replace('\\', '/'))
-                
-        versions.sort()
+        # Every file of the same kind in this folder (newest first, with its saved date) - the name does not have to
+        # match or carry a version number.
+        from ..utils import version_check, version_label
+        versions = [f.replace('\\', '/') for _t, f in version_check.folder_files(base_path, fresh=True)]
         if not versions:
             switch_menu.setEnabled(False)
         else:
+            cur = base_path.replace('\\', '/')
             for v in versions:
-                from ..utils import version_label
-                v_actions[switch_menu.addAction(version_label(v, mark=(v == base_path.replace('\\', '/'))))] = v
-                
+                v_actions[switch_menu.addAction(version_label(v, mark=(v == cur)))] = v
+
         return v_actions
 
     def save_versioned_data(self, overwrite=False):
@@ -2000,13 +1993,13 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         from ..utils import version_check, version_label
         raw = self.field.text().strip()
         path = (self.workspace.resolve_path(raw) or "").strip() if raw and "\n" not in raw and len(raw) < 260 else ""
-        versions = version_check.all_versions(path, fresh=True, loose=self.p_type in ("SCRIPT", "GLOBAL_SCRIPT"))
+        versions = [(0, f) for _t, f in version_check.folder_files(path, fresh=True)]
         menu = QtWidgets.QMenu(self)
         menu.setStyleSheet("background-color: #252526; color: white; border: 1px solid #2bb5a8;")
         a_refresh = menu.addAction("Refresh check")
         menu.addSeparator()
         if not versions:
-            a = menu.addAction("No versions found (file missing, or no _vNN / vNN in its name)")
+            a = menu.addAction("No files found (the file is missing)")
             a.setEnabled(False)
         actions = {}
         cur = os.path.normcase(os.path.abspath(path)) if path else ""
@@ -2338,6 +2331,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             a_vs = menu.addAction("📝 Edit code in VS Code")
             a_load = menu.addAction("📂 Load any other file")
             a_comp = menu.addAction("⚖ Compare older script in VS Code")
+            switch_menu = menu.addMenu("Switch Version")
+            v_actions = self.populate_versions_menu(switch_menu)
             if is_script_file_ref(self.path()):
                 # Stage 19: the field is currently locked to a .py/.mel file
                 # path - this is the only way back to a normal, editable,
@@ -2346,9 +2341,9 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT"):
             a_load = menu.addAction("📂 Load 3D file (.ma/.mb/.fbx/.obj/.abc)")
             a_rem = menu.addAction("❌ Remove file")
-            if self.p_type == "IMPORT_BLEND":
+            if True:
                 menu.addSeparator()
-                switch_menu = menu.addMenu("Switch Version (ABC)")
+                switch_menu = menu.addMenu("Switch Version (ABC)" if self.p_type == "IMPORT_BLEND" else "Switch Version")
                 v_actions = self.populate_versions_menu(switch_menu)
             if self.p_type == "CC_IMPORT":
                 from ..PanelScripts import cc_import

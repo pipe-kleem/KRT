@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.26", "date": "2026-11-16 23:00", "changes": [
+        "Rig & Model Status now reads the real kl_assets publish folders (P:/kl_assets/KL_ASSETS/assets/<category>/<asset>/publish/...): model = latest workfileMaster_model vNN .blend, rig = latest rigMain vNN .ma. Read only - it only lists folders and reads file names, paths and dates.",
+    ]},
     {"version": "46.25", "date": "2026-11-16 22:00", "changes": [
         "Documentation tab rewritten and brought fully up to date: topic list on the left, linked pages with 'See also' links between related features (Blender panel, Compare tool, Version colours, Facial Shape Extract, CC Import, Utilities, Rig & Model Status, PanelScripts and more), Back / Home buttons, and a What's new page generated from this changelog. Text lives in workspace/docs_content.py.",
     ]},

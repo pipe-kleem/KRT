@@ -1,8 +1,8 @@
 """Rig & Model Status tab: every asset of a project with its latest model and latest rig.
 
 Folder layout read (nothing is ever written):
-    <project root>/<asset>/model/*.abc|fbx|obj|ma|mb|blend   latest model file
-    <project root>/<asset>/rig/*.json|ma|mb                  latest rig file
+    <project root>/<root>/<asset>/publish/workfile/workfileMaster_model/vNN/*.blend   latest model
+    <root>/<asset>/publish/rig/rigMain/vNN/*.ma                        latest rig
 A rig is RED when the latest model file is newer than the latest rig file (the rig was built on an older
 model), GREEN when the rig is at least as new as the model.
 """
@@ -11,28 +11,40 @@ import re
 import time
 from ._shared import *
 
-DEFAULT_STATUS_ROOT = r"P:\rigging_team\Rigging_local_share"
-_MODEL_EXT = (".abc", ".fbx", ".obj", ".ma", ".mb", ".blend")
-_RIG_EXT = (".json", ".ma", ".mb")
+DEFAULT_STATUS_ROOT = r"P:\kl_assets\KL_ASSETS\assets"      # READ ONLY: server folder, only listed / dated, never written
+_MODEL_SUB = ("publish", "workfile", "workfileMaster_model")
+_RIG_SUB = ("publish", "rig", "rigMain")
+_MODEL_EXT = (".blend",)
+_RIG_EXT = (".ma", ".mb")
 _RED = "#ef9a9a"
 _GREEN = "#a5d6a7"
 _GREY = "#9e9e9e"
 
 
-def _latest(folder, exts):
-    """-> (path, mtime) of the newest file with one of `exts` in `folder`, or ('', 0)."""
+def _latest(base, exts):
+    """-> (path, mtime) of the file with one of `exts` inside the highest vNN folder of `base`
+    (<base>/vNN/<file>). Only lists folders and reads dates - nothing is written."""
+    best_n, best_dir = -1, ""
+    try:
+        for n in os.listdir(base):
+            m = re.match(r"^v(\d+)$", n, re.I)
+            if m and int(m.group(1)) > best_n and os.path.isdir(os.path.join(base, n)):
+                best_n, best_dir = int(m.group(1)), os.path.join(base, n)
+    except OSError:
+        return "", 0.0
+    if not best_dir:
+        return "", 0.0
     best, best_t = "", 0.0
     try:
-        for n in os.listdir(folder):
-            if not n.lower().endswith(exts):
-                continue
-            p = os.path.join(folder, n)
-            try:
-                t = os.path.getmtime(p)
-            except OSError:
-                continue
-            if t > best_t:
-                best, best_t = p, t
+        for n in os.listdir(best_dir):
+            if n.lower().endswith(exts):
+                p = os.path.join(best_dir, n)
+                try:
+                    t = os.path.getmtime(p)
+                except OSError:
+                    continue
+                if t > best_t:
+                    best, best_t = p, t
     except OSError:
         pass
     return best, best_t
@@ -59,7 +71,7 @@ def scan_project(root):
         a = os.path.join(root, n)
         if n.startswith(".") or not os.path.isdir(a):
             continue
-        mdir, rdir = os.path.join(a, "model"), os.path.join(a, "rig")
+        mdir, rdir = os.path.join(a, *_MODEL_SUB), os.path.join(a, *_RIG_SUB)
         if not (os.path.isdir(mdir) or os.path.isdir(rdir)):
             continue
         mp, mt = _latest(mdir, _MODEL_EXT)
@@ -94,10 +106,6 @@ class WorkspaceStatusMixin(object):
         self.status_project = QtWidgets.QComboBox()
         self.status_project.setMinimumWidth(240)
         bar.addWidget(self.status_project)
-        btn_browse = QtWidgets.QPushButton("...")
-        btn_browse.setFixedWidth(34)
-        btn_browse.setToolTip("Pick a different project folder")
-        bar.addWidget(btn_browse)
         self.status_search = QtWidgets.QLineEdit()
         self.status_search.setPlaceholderText("Filter assets...")
         self.status_search.setMinimumWidth(200)
@@ -137,41 +145,23 @@ class WorkspaceStatusMixin(object):
         self.status_search.textChanged.connect(lambda *_: self._status_render())
         self.status_only_old.toggled.connect(lambda *_: self._status_render())
         btn_refresh.clicked.connect(lambda *_: self.status_refresh())
-        btn_browse.clicked.connect(self._status_browse)
         return w
 
     # ── data ──
     def _status_fill_projects(self):
+        """Project = kl_assets; the dropdown lists its asset categories (characters, ...)."""
         self.status_project.blockSignals(True)
         self.status_project.clear()
-        root = DEFAULT_STATUS_ROOT
         try:
-            for n in sorted(os.listdir(root), key=str.lower):
-                p = os.path.join(root, n)
+            for n in sorted(os.listdir(DEFAULT_STATUS_ROOT), key=str.lower):
+                p = os.path.join(DEFAULT_STATUS_ROOT, n)
                 if not n.startswith(".") and os.path.isdir(p):
-                    self.status_project.addItem(n, p)
+                    self.status_project.addItem("kl_assets / " + n, p)
         except OSError:
             pass
-        want = "all_Rigs"
-        try:
-            rr = (self.get_rig_root() or "").replace("\\", "/").rstrip("/")
-            if rr:
-                want = os.path.basename(os.path.dirname(rr)) or want
-        except Exception:
-            pass
-        i = self.status_project.findText(want)
+        i = self.status_project.findText("kl_assets / characters")
         self.status_project.setCurrentIndex(i if i >= 0 else 0)
         self.status_project.blockSignals(False)
-
-    def _status_browse(self):
-        d = QtWidgets.QFileDialog.getExistingDirectory(self, "Select project folder", DEFAULT_STATUS_ROOT)
-        if d:
-            d = d.replace("/", os.sep)
-            i = self.status_project.findData(d)
-            if i < 0:
-                self.status_project.addItem(os.path.basename(d) or d, d)
-                i = self.status_project.count() - 1
-            self.status_project.setCurrentIndex(i)
 
     def status_refresh(self):
         root = self.status_project.currentData()

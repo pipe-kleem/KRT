@@ -118,15 +118,16 @@ studio's Studio Library (mutils) install to be reachable.</p>
 <h2>Rig &amp; Model Status</h2>
 <p>One table with every asset of a project: its <b>latest model</b> (version, date) and <b>latest rig</b> (version, date).</p>
 <ul>
-<li><b>Project</b> dropdown on top lists the project folders under <code>P:\\rigging_team\\Rigging_local_share</code>;
-<b>...</b> picks any other folder.</li>
+<li><b>Project</b> is kl_assets (<code>P:\\kl_assets\\KL_ASSETS\\assets</code>); the dropdown picks the category, default <code>characters</code>.</li>
+<li>Model = newest <code>.blend</code> in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/vNN/</code> (highest vNN);
+Rig = newest <code>.ma</code> in <code>&lt;asset&gt;/publish/rig/rigMain/vNN/</code>. Hover a cell for the file path.</li>
 <li>The count line shows assets, models, rigs, up to date, outdated and missing.</li>
-<li><b>Filter</b> by asset name, <b>Only outdated</b> toggle, and <b>Refresh</b> to re-scan. It also refreshes when you open the tab.</li>
+<li><b>Filter</b> by asset name, <b>Only outdated</b> toggle, and <b>Refresh</b> to re-scan (also refreshes when you open the tab).</li>
 <li>A row is <span class="red">red</span> when the latest model file is newer than the latest rig file (or there is no rig) and
 <span class="green">green</span> when the rig is at least as new as the model. Grey = no model.</li>
-<li>It reads <code>&lt;asset&gt;/model</code> (abc, fbx, obj, ma, mb, blend) and <code>&lt;asset&gt;/rig</code> (json, ma, mb). Hover a cell for the file path.</li>
+<li><b>Read only:</b> this server folder is only listed - KRT reads names, paths and dates and never changes anything there.</li>
 </ul>
-<p>Comparison is by file save date, because a rig JSON does not record which model version it was built on.</p>
+<p>Comparison is by file save date (the rig file does not record which model version it was built on).</p>
 """ + see("t_file", "versions")),
 
 ("t_profile", "Tabs", "Profile", """

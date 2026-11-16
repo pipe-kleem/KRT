@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.45", "date": "2026-11-18 13:00", "changes": [
+        "CHECK PC2 IN BLENDER: fixed 'none of the meshes match' - names like geo_x_lod_0 existing in both Maya and Blender were wrongly compared with the geo_ prefix removed on one side only. Added a progress window showing every step (reading Blender names, matching, loading animation, recording cache, writing each PC2, opening Blender); ESC cancels. The no-match message now lists example Blender names.",
+    ]},
     {"version": "46.44", "date": "2026-11-18 12:00", "changes": [
         "Rig Build Workspace: new KRT File row at the very top (above Rig Name) showing the full path of the loaded KRT json - light red when a newer version of that file exists (an old file is loaded), light green when it is the latest. Re-checked on load / save / opening the tab, plus a Refresh button.",
     ]},

@@ -28,6 +28,38 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _BLENDER_SCRIPT = os.path.join(_HERE, "blend_abc_tool", "pc2_blender.py")
 
 
+class _Progress(object):
+    """Maya progress window: shows what is happening; ESC cancels."""
+    def __init__(self, title="KRT - Check PC2 in Blender"):
+        self._open = True
+        cmds.progressWindow(title=title, progress=0, status="Starting ...", isInterruptable=True, maxValue=100)
+
+    def update(self, pct, text):
+        if self._open:
+            cmds.progressWindow(edit=True, progress=int(pct), status=text)
+        _log("%3d%%  %s" % (pct, text))
+        try:
+            from maya import QtWidgets as _q
+        except Exception:
+            try:
+                from PySide2 import QtWidgets as _q
+            except Exception:
+                from PySide6 import QtWidgets as _q
+        _q.QApplication.processEvents()
+
+    def cancelled(self):
+        return self._open and bool(cmds.progressWindow(query=True, isCancelled=True))
+
+    def close(self):
+        if self._open:
+            self._open = False
+            cmds.progressWindow(endProgress=True)
+
+
+class _Cancelled(Exception):
+    pass
+
+
 def _log(msg):
     sys.stdout.write("[KRT PC2] " + msg + "\n")
 
@@ -70,12 +102,23 @@ def _clean(name):
     return _short(name).strip().lower().split(".")[0]
 
 
-def _blend_mesh_names(blender, blend):
+def _blend_mesh_names(blender, blend, prog=None):
     """Names of all mesh objects in the .blend (headless Blender, read only)."""
     out = os.path.join(tempfile.gettempdir(), "krt_pc2_names_%s.json" % uuid.uuid4().hex[:6])
     kw = {"creationflags": 0x08000000} if os.name == "nt" else {}
-    subprocess.run([blender, "-b", "--factory-startup", blend, "--python", _BLENDER_SCRIPT, "--", "names", out],
-                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=600, **kw)
+    proc = subprocess.Popen([blender, "-b", "--factory-startup", blend, "--python", _BLENDER_SCRIPT, "--", "names", out],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, **kw)
+    t0 = time.time()
+    while proc.poll() is None:
+        if prog is not None:
+            prog.update(min(14, 3 + (time.time() - t0) * 0.5), "Reading mesh names from the .blend (Blender, background) ... %ds" % (time.time() - t0))
+            if prog.cancelled():
+                proc.kill()
+                raise _Cancelled()
+        if time.time() - t0 > 600:
+            proc.kill()
+            break
+        time.sleep(0.15)
     try:
         with open(out) as f:
             return json.load(f)
@@ -98,15 +141,15 @@ def _matching_meshes(blend_names):
             continue
         t = par[0]
         c = _clean(t)
-        if c.startswith("geo_"):
-            c = c[4:]
-        if c in wanted and t not in seen:
+        # same rule as the pipeline tool: exact name, or with / without the 'geo_' prefix
+        hit = c in wanted or (c.startswith("geo_") and c[4:] in wanted) or ("geo_" + c) in wanted
+        if hit and t not in seen:
             seen[t] = True
             found.append(t)
     return found
 
 
-def _export_pc2(transforms, out_dir, start, end):
+def _export_pc2(transforms, out_dir, start, end, prog=None):
     """cacheFile OneFile -> .mcx -> .pc2 per mesh, same method as the studio Cache Exporter. -> (ok, errors)"""
     os.makedirs(out_dir, exist_ok=True)
     tmp = os.path.join(out_dir, "_tmp_mcx_%s" % uuid.uuid4().hex[:6])
@@ -122,6 +165,8 @@ def _export_pc2(transforms, out_dir, start, end):
     if not shapes:
         return ok, [("cacheFile", "no mesh shapes")]
     sel, t0 = cmds.ls(selection=True, long=True) or [], cmds.currentTime(q=True)
+    if prog:
+        prog.update(40, "Recording %d meshes, frames %d-%d (Maya cache) ... this is the slow part" % (len(shapes), start, end))
     try:
         cmds.cacheFile(format="OneFile", directory=safe, fileName=cache_name, startTime=int(start), endTime=int(end),
                        sampleMultiplier=1, worldSpace=1, points=shapes)
@@ -136,6 +181,11 @@ def _export_pc2(transforms, out_dir, start, end):
             cmds.select(clear=True)
     used = set()
     for idx, t in enumerate(owners):
+        if prog:
+            prog.update(70 + 25.0 * idx / max(1, len(owners)), "Writing PC2 %d/%d: %s" % (idx + 1, len(owners), _short(t)))
+            if prog.cancelled():
+                shutil.rmtree(tmp, ignore_errors=True)
+                raise _Cancelled()
         base = cache_name + ("" if idx == 0 else str(idx))
         name = _short(t)
         if not os.path.exists(os.path.join(tmp, base + ".mcx")):
@@ -177,17 +227,21 @@ def run(ws, blend_path):
     work = tempfile.mkdtemp(prefix="krt_pc2_check_")
     pc2_dir = os.path.join(work, "pc2")
     blend_copy = os.path.join(work, os.path.basename(blend_path))
-    cmds.waitCursor(state=True)
+    prog = _Progress()
     undo_open = False
+    ok, errors, start, end, blender = [], [], 0, 0, ""
     try:
+        prog.update(2, "Looking for Blender ...")
         blender = _find_blender()
         _log("Blender: " + blender)
-        _log("Reading mesh names from the .blend ...")
-        names = _blend_mesh_names(blender, blend_path)
+        names = _blend_mesh_names(blender, blend_path, prog)
+        prog.update(15, "Matching Maya meshes with the %d meshes of the Blender file ..." % len(names))
         meshes = _matching_meshes(names)
         if not meshes:
-            _info("KRT - PC2 check", "None of the Maya meshes in this scene match the %d meshes of the Blender file.\n"
-                  "Open the rig scene first." % len(names))
+            prog.close()
+            _info("KRT - PC2 check", "None of the Maya meshes in this scene match the %d meshes of the Blender file.\n\n"
+                  "Blender examples: %s\n\nOpen the rig scene first (the meshes must have the same names)." % (
+                      len(names), ", ".join(names[:5])))
             shutil.rmtree(work, ignore_errors=True)
             return
         _log("%d Maya meshes match the Blender file (%d meshes there)." % (len(meshes), len(names)))
@@ -202,22 +256,29 @@ def run(ws, blend_path):
         cmds.undoInfo(openChunk=True)
         undo_open = True
         if anim:
-            _log("Loading test animation on '%s' ..." % pattern)
+            prog.update(20, "Loading the test animation on the rig controls (%s) ..." % pattern)
             okl, err, n = ws.pb_load_anim_on_filtered_controls(anim, pattern)
             if not okl:
+                prog.close()
                 cmds.undoInfo(closeChunk=True)
                 undo_open = False
                 cmds.undo()
                 _info("KRT - PC2 check", "Could not load the test animation:\n%s" % err)
                 shutil.rmtree(work, ignore_errors=True)
                 return
-            _log("Animation loaded on %d controls." % n)
+            prog.update(35, "Animation loaded on %d controls." % n)
+            if prog.cancelled():
+                raise _Cancelled()
 
-        _log("Exporting PC2 %d-%d ..." % (start, end))
-        ok, errors = _export_pc2(meshes, pc2_dir, start, end)
+        ok, errors = _export_pc2(meshes, pc2_dir, start, end, prog)
+    except _Cancelled:
+        prog.close()
+        shutil.rmtree(work, ignore_errors=True)
+        cmds.warning("[KRT] PC2 check cancelled.")
+        return
     finally:
-        cmds.waitCursor(state=False)
         if undo_open:
+            prog.update(96, "Removing the test animation again ...")
             cmds.undoInfo(closeChunk=True)
             try:
                 if anim:
@@ -225,13 +286,17 @@ def run(ws, blend_path):
             except Exception:
                 pass
     if not ok:
+        prog.close()
         _info("KRT - PC2 check", "No PC2 file was written.\n\n" + "\n".join("%s: %s" % e for e in errors[:15]))
         shutil.rmtree(work, ignore_errors=True)
         return
 
+    prog.update(98, "Copying the .blend (temporary copy) and opening Blender ...")
     shutil.copy2(blend_path, blend_copy)          # temporary COPY - the server file is only read
     cmd = [blender, blend_copy, "--python", _BLENDER_SCRIPT, "--", "apply", pc2_dir, str(start), str(end)]
     proc = subprocess.Popen(cmd)
+    prog.update(100, "Blender is starting - PC2 will be applied in a moment.")
+    prog.close()
 
     def _cleanup():
         proc.wait()

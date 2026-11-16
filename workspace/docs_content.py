@@ -310,6 +310,7 @@ works in Blender.</p>
 pipeline tool's own code (<i>Apply PC2 Caches &amp; Rotate</i>, frame start). You check it by hand.</li>
 <li>When you close Blender, the temporary copy and the PC2 files are deleted. The server .blend is only read, never saved.</li>
 </ol>
+<p>A <b>progress window</b> shows each step (reading Blender names, loading the animation, recording the cache, writing PC2 per mesh, opening Blender); ESC cancels. Mesh names match exactly or with / without the <code>geo_</code> prefix.</p>
 <p>The Blender version that has the pipeline addon installed is used. Needs Studio Library (mutils) for the .anim, like the Playblast tab.</p>
 """ + see("p_blender", "t_pb")),
 

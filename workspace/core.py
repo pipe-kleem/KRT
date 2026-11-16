@@ -10,6 +10,7 @@ from .pipeline_io import WorkspacePipelineIoMixin
 from .executors import WorkspaceExecutorsMixin
 from .playblast import WorkspacePlayblastMixin
 from .root_path import WorkspaceRootPathMixin
+from .status_page import WorkspaceStatusMixin
 from .project_init import WorkspaceProjectInitMixin
 
 
@@ -74,7 +75,7 @@ class CurrentPageStackedWidget(QtWidgets.QStackedWidget):
     def setCurrentWidget(self, widget):
         super(CurrentPageStackedWidget, self).setCurrentWidget(widget)
         self._after_switch()
-class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
+class SessionWorkspace(WorkspaceStatusMixin, WorkspaceProjectInitMixin, WorkspaceRootPathMixin, WorkspaceLodsMixin, WorkspacePagesMixin, WorkspacePanelsMixin, WorkspaceBuildMixin, WorkspacePipelineIoMixin, WorkspaceExecutorsMixin, WorkspacePlayblastMixin, QtWidgets.QWidget):
     # Stage 51: sidebar widths - expanded, and the thin rail that is all
     # that remains when the LOD Manager is collapsed to the left.
     SIDEBAR_WIDTH = 230
@@ -187,10 +188,11 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
         self.btn_node = self.create_nav_btn("🔌", "Module Graph Editor")
         self.btn_scripts = self.create_nav_btn("🧰", "Rigging Workspace - Script/Tools Library")
         self.btn_playblast = self.create_nav_btn("🎬", "Playblast")
+        self.btn_status = self.create_nav_btn("\U0001F4CA", "Rig & Model Status - all assets of a project")
         self.btn_docs = self.create_nav_btn("📖", "Open Documentation")
         self.btn_prof = self.create_nav_btn("👤", "User Profile Settings")
 
-        for b in [self.btn_file, self.btn_rig, self.btn_node, self.btn_scripts, self.btn_playblast, self.btn_docs]: act_layout.addWidget(b)
+        for b in [self.btn_file, self.btn_rig, self.btn_node, self.btn_scripts, self.btn_playblast, self.btn_status, self.btn_docs]: act_layout.addWidget(b)
         act_layout.addStretch(); act_layout.addWidget(self.btn_prof)
 
         # Stage 51: the sidebar (LOD MANAGER / SESSION GRAPH) collapses to
@@ -287,6 +289,7 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
         self.workspace_stack.addWidget(self.page_profile())   # 4
         self.workspace_stack.addWidget(self.page_scripts())   # 5
         self.workspace_stack.addWidget(self.page_playblast()) # 6
+        self.workspace_stack.addWidget(self.page_status())    # 7
 
         self.layout_main.addWidget(self.activity_bar)
         self.layout_main.addWidget(self.sidebar)
@@ -299,6 +302,7 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
         self.btn_prof.clicked.connect(lambda: self.switch_tab(4))
         self.btn_scripts.clicked.connect(lambda: self.switch_tab(5))
         self.btn_playblast.clicked.connect(lambda: self.switch_tab(6))
+        self.btn_status.clicked.connect(lambda: self.switch_tab(7))
         
         self.switch_tab(1)
         self.create_lod_workspace("LOD0")
@@ -319,6 +323,8 @@ class SessionWorkspace(WorkspaceProjectInitMixin, WorkspaceRootPathMixin, Worksp
             self.refresh_scripts_lib_list()
         elif index == 6:
             self.refresh_playblast_list()
+        elif index == 7:
+            self.status_refresh()
 
     def toggle_autosave(self, state):
         self.session_manager.data["auto_save_enabled"] = state

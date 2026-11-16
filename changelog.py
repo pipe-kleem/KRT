@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.24", "date": "2026-11-16 21:00", "changes": [
+        "New sidebar tab: Rig & Model Status. Pick a project at the top (or browse to one) and see every asset with its latest model version/date and latest rig version/date, counts of assets/models/rigs, and a filter, an only-outdated toggle and a Refresh button. A row turns red when the rig is older than the model (or has no rig) and green when it is up to date.",
+    ]},
     {"version": "46.23", "date": "2026-11-16 19:00", "changes": [
         "Version colours are now light red (newer version exists) and light green (latest). Works on Script / Global Script panels too, including locked path fields and scripts without _vNN in the name (a sibling name_vNN.py counts as a newer version); the colour is re-applied whenever the script field locks or unlocks.",
     ]},

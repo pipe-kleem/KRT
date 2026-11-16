@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.39", "date": "2026-11-17 21:00", "changes": [
+        "Rig & Model Status: models of props, locations and many characters were shown as 'No model' because they live in workfileModel_lod (not workfileMaster_model). Both folders are now checked and the newest .blend counts.",
+    ]},
     {"version": "46.38", "date": "2026-11-17 20:00", "changes": [
         "Switch Version (the ... menu) and the Versions button now list EVERY file of the same kind in the file's folder, newest first, each with its saved date - even if the name is different or has no version number. Applies to Skin JSON, Tweaker, Control Shapes, Material, Joint Positions, Script / Global Script, Import 3D, Import 3D + LOD, the ABC of the Blender panel and CC Import (3D files .ma/.mb/.fbx/.obj/.abc are listed together). Script and Import panels also gained Switch Version in their ... menu. The Blender File field is unchanged. Read only: the folder is only listed.",
     ]},

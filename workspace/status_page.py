@@ -13,6 +13,8 @@ from ._shared import *
 
 DEFAULT_STATUS_ROOT = r"P:\kl_assets\KL_ASSETS\assets"      # READ ONLY: server folder, only listed / dated, never written
 _MODEL_SUB = ("publish", "workfile", "workfileMaster_model")
+# Props / locations / many characters keep their model in workfileModel_lod instead; the newest file of either counts.
+_MODEL_SUBS = (_MODEL_SUB, ("publish", "workfile", "workfileModel_lod"))
 _RIG_SUB = ("publish", "rig", "rigMain")
 _CC_SUB = ("publish", "workfile", "workfileCc_model")
 _CC_EXT = (".ccproject",)
@@ -92,7 +94,11 @@ def scan_project(root):
         atype, _, rel = rel.partition("/")        # first folder under assets = type (characters / props / locations ...)
         if not rel:
             continue
-        mp, mt = _latest(os.path.join(a, *_MODEL_SUB), _MODEL_EXT)
+        mp, mt = "", 0.0
+        for sub in _MODEL_SUBS:
+            p2, t2 = _latest(os.path.join(a, *sub), _MODEL_EXT)
+            if p2 and t2 >= mt:
+                mp, mt = p2, t2
         cp, ct = _latest(os.path.join(a, *_CC_SUB), _CC_EXT)
         rp, rt = _latest(os.path.join(a, *_RIG_SUB), _RIG_EXT)
         src_t = max(mt, ct)               # the rig must be at least as new as the newest model / CC file

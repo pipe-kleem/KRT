@@ -119,7 +119,7 @@ studio's Studio Library (mutils) install to be reachable.</p>
 <p>One table with every asset of a project: its <b>latest model</b> (version, date) and <b>latest rig</b> (version, date).</p>
 <ul>
 <li><b>Project</b> is kl_assets (<code>P:\\kl_assets\\KL_ASSETS\\assets</code>); the dropdown filters by asset <b>Type</b> (characters, props, locations... - taken from the folder under <code>assets</code>); the <b>Type</b> column shows it for every asset, and the Filter box matches it too. The Type cell is a highlighted tag: characters = cyan, props = orange, locations = purple, anything else = grey-blue.</li>
-<li>Model = newest <code>.blend</code> in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/vNN/</code> (highest vNN);
+<li>Model = the newest <code>.blend</code> of the highest <code>vNN</code> folder in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/</code> <i>or</i> <code>workfileModel_lod/</code> (props and locations use the second one; whichever is newer counts);
 Rig = newest <code>.ma</code> in <code>&lt;asset&gt;/publish/rig/rigMain/vNN/</code>. Hover a cell for the file path.</li>
 <li>Assets inside group folders (for example <code>parshuramsubassets/bhargavakid_a</code>) are found too - any folder that has a <code>publish</code> folder is an asset.</li>
 <li><b>CC</b> columns: newest <code>.ccProject</code> in <code>publish/workfile/workfileCc_model/vNN/</code>; the CC cell is red when the rig is older than it (or there is no rig), green otherwise. The rig counts as old if it is older than the newest model <i>or</i> CC file.</li>

@@ -21,6 +21,9 @@ _RIG_EXT = (".ma", ".mb")
 _RED = "#ef9a9a"
 _GREEN = "#a5d6a7"
 _GREY = "#9e9e9e"
+# Type tag colours (the Type column is highlighted like a tag): characters / props / locations / anything else
+_TYPE_COLORS = {"characters": "#4dd0e1", "props": "#ffb74d", "locations": "#ba68c8"}
+_TYPE_OTHER = "#90a4ae"
 
 
 def _latest(base, exts):
@@ -301,7 +304,17 @@ class WorkspaceStatusMixin(object):
                 it = QtWidgets.QTableWidgetItem(v)
                 it.setToolTip(tips[c])
                 it.setBackground(tint)
-                if c in (4, 5):
+                if c == 1:
+                    tc = QtGui.QColor(_TYPE_COLORS.get(r["type"].lower(), _TYPE_OTHER))
+                    bg = QtGui.QColor(tc)
+                    bg.setAlpha(70)
+                    it.setBackground(bg)
+                    it.setForeground(tc)
+                    f = it.font()
+                    f.setBold(True)
+                    it.setFont(f)
+                    it.setTextAlignment(QtCore.Qt.AlignCenter)
+                elif c in (4, 5):
                     it.setForeground(QtGui.QColor(cc_col))
                 elif c == 0 or c >= 6:
                     it.setForeground(QtGui.QColor(col))

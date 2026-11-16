@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.35", "date": "2026-11-17 17:00", "changes": [
+        "Rig & Model Status: the Type column is now a highlighted tag - characters (cyan), props (orange), locations (purple), any other type (grey-blue) - so the asset kind stands out at a glance.",
+    ]},
     {"version": "46.34", "date": "2026-11-17 16:30", "changes": [
         "Installer: the earlier duplicate-button clean-up only matched one exact annotation, so old KRT buttons stayed and new ones piled up. It now finds every shelf button on every shelf whose label, annotation or command mentions KRT, deletes them by full UI path, then adds exactly one.",
     ]},

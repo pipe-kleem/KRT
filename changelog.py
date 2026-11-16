@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.30", "date": "2026-11-17 13:00", "changes": [
+        "Rig & Model Status: new Copy table button - copies all rows of the current view (filter and sort applied) with model / CC / rig paths as tab-separated text, ready to paste into Excel or send.",
+    ]},
     {"version": "46.29", "date": "2026-11-17 12:00", "changes": [
         "Rig & Model Status: right-click a row to copy the model, CC or rig file path, or open its folder (read only - nothing on the server is changed).",
     ]},

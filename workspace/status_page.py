@@ -129,6 +129,10 @@ class WorkspaceStatusMixin(object):
         bar.addStretch()
         self.status_only_old = QtWidgets.QCheckBox("Only outdated")
         bar.addWidget(self.status_only_old)
+        btn_copy = QtWidgets.QPushButton("Copy table")
+        btn_copy.setToolTip("Copy every row currently shown (respects filter / sort) as tab-separated text - paste into Excel, chat or mail")
+        btn_copy.setFixedHeight(28)
+        bar.addWidget(btn_copy)
         btn_refresh = QtWidgets.QPushButton("Refresh")
         btn_refresh.setToolTip("Re-scan the project folders now")
         btn_refresh.setFixedHeight(28)
@@ -163,6 +167,7 @@ class WorkspaceStatusMixin(object):
         self.status_search.textChanged.connect(lambda *_: self._status_render())
         self.status_only_old.toggled.connect(lambda *_: self._status_render())
         btn_refresh.clicked.connect(lambda *_: self.status_refresh())
+        btn_copy.clicked.connect(self._status_copy_all)
         return w
 
     # ── data ──
@@ -180,6 +185,25 @@ class WorkspaceStatusMixin(object):
         i = self.status_project.findText("kl_assets / characters")
         self.status_project.setCurrentIndex(i if i >= 0 else 0)
         self.status_project.blockSignals(False)
+
+    def _status_copy_all(self):
+        """Copy the table as currently shown (filter + sort applied) as tab-separated text, incl. file paths."""
+        t = self.status_table
+        heads = [t.horizontalHeaderItem(c).text() for c in range(t.columnCount())]
+        lines = ["\t".join(heads + ["Model path", "CC path", "Rig path"])]
+        for r in range(t.rowCount()):
+            asset = t.item(r, 0).text()
+            row = next((x for x in self._status_rows if x["asset"] == asset), {})
+            cells = [t.item(r, c).text() if t.item(r, c) else "" for c in range(t.columnCount())]
+            cells += [(row.get(k) or "").replace("\\", "/") for k in ("model", "cc", "rig")]
+            lines.append("\t".join(cells))
+        QtWidgets.QApplication.clipboard().setText("\n".join(lines))
+        self.status_counts.setToolTip("Copied %d rows to the clipboard" % (len(lines) - 1))
+        try:
+            import maya.cmds as _c
+            _c.inViewMessage(amg="Copied %d rows" % (len(lines) - 1), pos="midCenter", fade=True)
+        except Exception:
+            pass
 
     def _status_menu(self, pos):
         """Right-click a row: copy the model / CC / rig path (or open its folder). Read only - nothing is changed."""

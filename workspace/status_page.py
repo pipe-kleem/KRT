@@ -188,6 +188,71 @@ class WorkspaceStatusMixin(object):
             pass
         self.status_project.blockSignals(False)
 
+    def _status_copy_all(self):
+        """Copy the table as currently shown (filter + sort applied) as aligned plain text - readable in a .txt file.
+        Asset name, type, model / CC / rig version + date and status only; no file paths."""
+        t = self.status_table
+        heads = [t.horizontalHeaderItem(c).text() for c in range(t.columnCount())]
+        rows = []
+        for r in range(t.rowCount()):
+            rows.append([t.item(r, c).text() if t.item(r, c) else "" for c in range(t.columnCount())])
+        widths = [max([len(heads[c])] + [len(x[c]) for x in rows]) for c in range(len(heads))]
+
+        def line(cells):
+            return "  ".join(cells[c].ljust(widths[c]) for c in range(len(cells))).rstrip()
+        out = ["RIG & MODEL STATUS - %s - %s" % (self.status_project.currentText(), time.strftime("%d-%m-%Y %H:%M")),
+               line(heads), "  ".join("-" * w for w in widths)]
+        out += [line(x) for x in rows]
+        QtWidgets.QApplication.clipboard().setText("\n".join(out))
+        try:
+            import maya.cmds as _c
+            _c.inViewMessage(amg="Copied %d rows" % len(rows), pos="midCenter", fade=True)
+        except Exception:
+            pass
+
+    def _status_menu(self, pos):
+        """Right-click a row: copy the model / CC / rig path (or open its folder). Read only - nothing is changed."""
+        t = self.status_table
+        it = t.itemAt(pos)
+        if it is None:
+            return
+        asset, atype = t.item(it.row(), 0).text(), t.item(it.row(), 1).text()
+        r = next((x for x in self._status_rows if x["asset"] == asset and x["type"] == atype), None)
+        if not r:
+            return
+        menu = QtWidgets.QMenu(self)
+        acts = {}
+        for key, name in (("model", "model"), ("cc", "CC"), ("rig", "rig")):
+            a = menu.addAction("Copy %s path" % name)
+            a.setEnabled(bool(r[key]))
+            acts[a] = ("copy", r[key])
+        menu.addSeparator()
+        for key, name in (("model", "model"), ("cc", "CC"), ("rig", "rig")):
+            a = menu.addAction("Open %s folder" % name)
+            a.setEnabled(bool(r[key]))
+            acts[a] = ("open", r[key])
+        col = t.currentColumn()
+        key = {2: "model", 3: "model", 4: "cc", 5: "cc", 6: "rig", 7: "rig"}.get(col, "")
+        a = menu.addAction("Copy this cell's path")
+        a.setEnabled(bool(key))
+        acts[a] = ("copy", r.get(key, "") if key else "")
+        gp = t.viewport().mapToGlobal(pos)
+        try:
+            ch = menu.exec(gp)
+        except AttributeError:
+            ch = menu.exec_(gp)
+        if ch in acts:
+            kind, p = acts[ch]
+            if not p:
+                return
+            if kind == "copy":
+                QtWidgets.QApplication.clipboard().setText(p.replace("\\", "/"))
+            else:
+                try:
+                    os.startfile(os.path.dirname(p))
+                except Exception:
+                    pass
+
     def status_refresh(self):
         cat = self.status_project.currentData() or ""
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)

@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.33", "date": "2026-11-17 15:30", "changes": [
+        "Fix: KRT failed to launch (SessionWorkspace has no attribute _status_menu) - restored the Rig & Model Status right-click menu and Copy table methods.",
+    ]},
     {"version": "46.32", "date": "2026-11-17 15:00", "changes": [
         "Rig & Model Status: every asset now has a Type (characters / props / locations ... read from its folder path under kl_assets/assets). The dropdown can show all types or just one, the Type column is shown and copied, and the filter box matches the type too.",
     ]},

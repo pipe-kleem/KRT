@@ -144,6 +144,101 @@ def _popup(title, lines, icon='INFO'):
         print("[KRT pc2] popup failed: %s" % e)
 
 
+# ── commands from Maya (Delete / Save) ───────────────────────────────────────
+_STATE = {"initial": "", "waiting_save": False, "pc2": "", "cmd": ""}
+
+
+class KRT_OT_close_prompt(bpy.types.Operator):
+    bl_idname = "krt.close_prompt"
+    bl_label = "KRT - file saved"
+    message: bpy.props.StringProperty(default="")
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        try:
+            return wm.invoke_props_dialog(self, width=520, confirm_text="Close Blender")
+        except TypeError:
+            return wm.invoke_props_dialog(self, width=520)
+
+    def draw(self, context):
+        for ln in self.message.split("|"):
+            self.layout.label(text=ln)
+        self.layout.label(text="OK = close Blender.   Click outside the box = stay in Blender.")
+
+    def execute(self, context):
+        bpy.ops.wm.quit_blender()
+        return {'FINISHED'}
+
+
+def _ctx():
+    win = bpy.context.window_manager.windows[0]
+    area = next((a for a in win.screen.areas if a.type == 'VIEW_3D'), win.screen.areas[0])
+    return win, area
+
+
+def _start_save():
+    """Maya asked to SAVE: open Blender's own Save As window; after saving, the PC2 files are copied next to the file."""
+    try:
+        win, area = _ctx()
+        _STATE["initial"] = bpy.data.filepath
+        _STATE["waiting_save"] = True
+        with bpy.context.temp_override(window=win, area=area):
+            bpy.ops.wm.save_as_mainfile('INVOKE_DEFAULT')
+    except Exception:
+        traceback.print_exc()
+        _STATE["waiting_save"] = False
+
+
+def _after_save():
+    """The artist saved: copy the PC2 files next to the .blend and repoint the caches, save again, then ask stay / close."""
+    import shutil
+    msg = ["Saved: " + bpy.data.filepath]
+    try:
+        src = _STATE["pc2"]
+        stem = os.path.splitext(os.path.basename(bpy.data.filepath))[0]
+        dst = os.path.join(os.path.dirname(bpy.data.filepath), stem + "_pc2")
+        if os.path.isdir(src):
+            if os.path.isdir(dst):
+                shutil.rmtree(dst, ignore_errors=True)
+            shutil.copytree(src, dst)
+            n = 0
+            for o in bpy.data.objects:
+                for m in o.modifiers:
+                    if m.type == 'MESH_CACHE' and m.filepath:
+                        m.filepath = os.path.join(dst, os.path.basename(bpy.path.abspath(m.filepath)))
+                        n += 1
+            bpy.ops.wm.save_mainfile()
+            msg.append("PC2 files copied to: " + dst)
+            msg.append("%d cache modifiers now point there." % n)
+    except Exception:
+        traceback.print_exc()
+        msg.append("(could not copy the PC2 files - see the Blender console)")
+    try:
+        win, area = _ctx()
+        with bpy.context.temp_override(window=win, area=area):
+            bpy.ops.krt.close_prompt('INVOKE_DEFAULT', message="|".join(msg))
+    except Exception:
+        traceback.print_exc()
+
+
+def _poll():
+    try:
+        cmd = _STATE["cmd"]
+        if cmd and os.path.isfile(cmd):
+            with open(cmd) as f:
+                word = f.read().strip().lower()
+            os.remove(cmd)
+            if word == "save":
+                _start_save()
+        if _STATE["waiting_save"] and bpy.data.filepath and \
+                os.path.normcase(bpy.data.filepath) != os.path.normcase(_STATE["initial"]):
+            _STATE["waiting_save"] = False
+            _after_save()
+    except Exception:
+        traceback.print_exc()
+    return 0.5
+
+
 def _gui_apply(folder, start, end):
     lines, icon = [], 'INFO'
     try:
@@ -237,8 +332,15 @@ def main():
         print("[KRT pc2] %d mesh names written" % len(names))
     elif a[0] == "apply":
         folder, start, end = a[1], int(float(a[2])), int(float(a[3]))
+        _STATE["pc2"] = folder
+        _STATE["cmd"] = os.path.join(a[4], "cmd.txt") if len(a) > 4 else ""
+        try:
+            bpy.utils.register_class(KRT_OT_close_prompt)
+        except Exception:
+            pass
         # the addons are registered by now; wait a moment so the UI is fully up
         bpy.app.timers.register(lambda: _gui_apply(folder, start, end), first_interval=1.5)
+        bpy.app.timers.register(_poll, first_interval=2.0)
     elif a[0] == "render":
         folder, start, end, out_dir, step = a[1], int(float(a[2])), int(float(a[3])), a[4], int(a[5])
         try:

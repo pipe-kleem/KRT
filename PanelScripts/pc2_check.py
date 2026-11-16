@@ -2,13 +2,16 @@
 """PC2 check - the 'CHECK PC2 IN BLENDER' button (after Publish).
 
 At the end of a rig the artist wants to know: does the rig's PC2 export work in Blender?
-  1. finds the Blender File of the 'Import 3D + LOD Organize (Blender)' panel and lists its mesh names (headless Blender)
+  1. reads the mesh names of the Blender File of the 'Import 3D + LOD Organize (Blender)' panel (headless Blender)
   2. loads the test animation (Playblast tab .anim) on the rig controls of the CURRENT Maya scene
   3. exports PC2 (same method as the studio cache exporter) for the Maya meshes that exist in that Blender file
-  4. opens a TEMPORARY COPY of the .blend in a normal Blender window and applies the PC2 caches with the pipeline tool's
-     own code (Apply PC2 Caches & Rotate) - the artist checks it by hand
-  5. when Blender is closed the temp copy and the PC2 files are deleted.
-The server .blend is only read (copied) - never opened for writing. The test animation is undone in Maya afterwards.
+  4. undoes the test animation, then, as the artist chose:
+       * Blender file : opens a TEMPORARY COPY of the .blend in a normal Blender window with the PC2 applied by the pipeline
+                        tool's own code, timeline set to the range and visible - the artist scrubs it by hand
+       * Render       : renders a quick preview sequence in background Blender and plays it in a Maya window
+       * Both
+  5. temp copies / PC2 files / preview frames are deleted when Blender / the window is closed.
+The server .blend is only read (copied) - never opened for writing. Any error is shown in a window you can copy and send.
 """
 import os
 import re
@@ -16,16 +19,65 @@ import sys
 import json
 import time
 import uuid
+import glob
 import shutil
 import tempfile
 import threading
+import traceback
 import subprocess
 
 import maya.cmds as cmds
 import maya.mel as mel
 
+try:
+    from PySide2 import QtCore, QtGui, QtWidgets
+    from shiboken2 import wrapInstance
+except ImportError:
+    from PySide6 import QtCore, QtGui, QtWidgets
+    from shiboken6 import wrapInstance
+import maya.OpenMayaUI as omui
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _BLENDER_SCRIPT = os.path.join(_HERE, "blend_abc_tool", "pc2_blender.py")
+_VIEWERS = []
+
+
+def _log(msg):
+    sys.stdout.write("[KRT PC2] " + msg + "\n")
+
+
+def _main_window():
+    return wrapInstance(int(omui.MQtUtil.mainWindow()), QtWidgets.QWidget)
+
+
+def _info(title, text):
+    cmds.confirmDialog(title=title, message=text, button=["OK"], defaultButton="OK", dismissString="OK")
+
+
+def _error_dialog(title, text):
+    """Error window with the full text selectable + a Copy button, so the artist can send it."""
+    dlg = QtWidgets.QDialog(_main_window())
+    dlg.setWindowTitle(title)
+    dlg.resize(760, 460)
+    lay = QtWidgets.QVBoxLayout(dlg)
+    lay.addWidget(QtWidgets.QLabel("Something went wrong. Press 'Copy' and send this text:"))
+    box = QtWidgets.QPlainTextEdit(text)
+    box.setReadOnly(True)
+    box.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+    lay.addWidget(box, 1)
+    row = QtWidgets.QHBoxLayout()
+    cp = QtWidgets.QPushButton("Copy to clipboard")
+    ok = QtWidgets.QPushButton("Close")
+    row.addStretch()
+    row.addWidget(cp)
+    row.addWidget(ok)
+    lay.addLayout(row)
+    cp.clicked.connect(lambda: QtWidgets.QApplication.clipboard().setText(text))
+    ok.clicked.connect(dlg.accept)
+    try:
+        dlg.exec()
+    except AttributeError:
+        dlg.exec_()
 
 
 class _Progress(object):
@@ -38,14 +90,7 @@ class _Progress(object):
         if self._open:
             cmds.progressWindow(edit=True, progress=int(pct), status=text)
         _log("%3d%%  %s" % (pct, text))
-        try:
-            from maya import QtWidgets as _q
-        except Exception:
-            try:
-                from PySide2 import QtWidgets as _q
-            except Exception:
-                from PySide6 import QtWidgets as _q
-        _q.QApplication.processEvents()
+        QtWidgets.QApplication.processEvents()
 
     def cancelled(self):
         return self._open and bool(cmds.progressWindow(query=True, isCancelled=True))
@@ -60,12 +105,8 @@ class _Cancelled(Exception):
     pass
 
 
-def _log(msg):
-    sys.stdout.write("[KRT PC2] " + msg + "\n")
-
-
-def _info(title, text):
-    cmds.confirmDialog(title=title, message=text, button=["OK"], defaultButton="OK", dismissString="OK")
+def glob_dirs(pattern):
+    return [p for p in glob.glob(pattern) if os.path.isdir(p)]
 
 
 def _find_blender():
@@ -89,11 +130,6 @@ def _find_blender():
     return maya_side.find_blender("")
 
 
-def glob_dirs(pattern):
-    import glob
-    return [p for p in glob.glob(pattern) if os.path.isdir(p)]
-
-
 def _short(name):
     return name.split("|")[-1].split(":")[-1]
 
@@ -111,7 +147,8 @@ def _blend_mesh_names(blender, blend, prog=None):
     t0 = time.time()
     while proc.poll() is None:
         if prog is not None:
-            prog.update(min(14, 3 + (time.time() - t0) * 0.5), "Reading mesh names from the .blend (Blender, background) ... %ds" % (time.time() - t0))
+            prog.update(min(14, 3 + (time.time() - t0) * 0.5),
+                        "Reading mesh names from the .blend (Blender, background) ... %ds" % (time.time() - t0))
             if prog.cancelled():
                 proc.kill()
                 raise _Cancelled()
@@ -119,6 +156,9 @@ def _blend_mesh_names(blender, blend, prog=None):
             proc.kill()
             break
         time.sleep(0.15)
+    if not os.path.isfile(out):
+        raise RuntimeError("Blender did not write the mesh names (exit code %s). Blender: %s\nFile: %s" % (
+            proc.returncode, blender, blend))
     try:
         with open(out) as f:
             return json.load(f)
@@ -141,7 +181,6 @@ def _matching_meshes(blend_names):
             continue
         t = par[0]
         c = _clean(t)
-        # same rule as the pipeline tool: exact name, or with / without the 'geo_' prefix
         hit = c in wanted or (c.startswith("geo_") and c[4:] in wanted) or ("geo_" + c) in wanted
         if hit and t not in seen:
             seen[t] = True
@@ -205,8 +244,129 @@ def _export_pc2(transforms, out_dir, start, end, prog=None):
     return ok, errors
 
 
+# ── render preview ───────────────────────────────────────────────────────────
+class _FrameViewer(QtWidgets.QDialog):
+    """Plays the rendered preview frames; slider to scrub. Frames are deleted when it is closed."""
+    def __init__(self, folder, frames):
+        super(_FrameViewer, self).__init__(_main_window())
+        self._folder, self._frames, self._i = folder, frames, 0
+        self.setWindowTitle("PC2 render preview (temporary)")
+        self.resize(980, 640)
+        lay = QtWidgets.QVBoxLayout(self)
+        self.img = QtWidgets.QLabel()
+        self.img.setAlignment(QtCore.Qt.AlignCenter)
+        self.img.setMinimumSize(640, 360)
+        lay.addWidget(self.img, 1)
+        row = QtWidgets.QHBoxLayout()
+        self.btn = QtWidgets.QPushButton("Pause")
+        self.lbl = QtWidgets.QLabel("")
+        self.sl = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.sl.setRange(0, len(frames) - 1)
+        row.addWidget(self.btn)
+        row.addWidget(self.sl, 1)
+        row.addWidget(self.lbl)
+        lay.addLayout(row)
+        close = QtWidgets.QPushButton("Close (deletes the preview frames)")
+        lay.addWidget(close)
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self._tick)
+        self.btn.clicked.connect(self._toggle)
+        self.sl.valueChanged.connect(self._show)
+        close.clicked.connect(self.close)
+        self.timer.start(80)
+        self._show(0)
+
+    def _toggle(self):
+        if self.timer.isActive():
+            self.timer.stop()
+            self.btn.setText("Play")
+        else:
+            self.timer.start(80)
+            self.btn.setText("Pause")
+
+    def _tick(self):
+        self.sl.setValue((self._i + 1) % len(self._frames))
+
+    def _show(self, i):
+        self._i = int(i)
+        pm = QtGui.QPixmap(self._frames[self._i])
+        self.img.setPixmap(pm.scaled(self.img.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+        m = re.search(r"(\d+)\.png$", self._frames[self._i])
+        self.lbl.setText("frame %s   (%d/%d)" % (m.group(1) if m else "?", self._i + 1, len(self._frames)))
+
+    def resizeEvent(self, e):
+        super(_FrameViewer, self).resizeEvent(e)
+        if self._frames:
+            self._show(self._i)
+
+    def closeEvent(self, e):
+        self.timer.stop()
+        shutil.rmtree(self._folder, ignore_errors=True)
+        super(_FrameViewer, self).closeEvent(e)
+
+
+def _render_preview(blender, blend_copy, pc2_dir, start, end, prog):
+    """Background Blender renders a quick sequence; returns the frame folder (outside the work folder)."""
+    out_dir = tempfile.mkdtemp(prefix="krt_pc2_render_")
+    n_total = end - start + 1
+    step = max(1, int(round(n_total / 48.0)))
+    expected = len(range(start, end + 1, step)) + (0 if (end - start) % step == 0 else 1)
+    kw = {"creationflags": 0x08000000} if os.name == "nt" else {}
+    log_path = os.path.join(out_dir, "_blender.log")
+    logf = open(log_path, "w")
+    proc = subprocess.Popen([blender, "-b", blend_copy, "--python", _BLENDER_SCRIPT, "--", "render", pc2_dir,
+                             str(start), str(end), out_dir, str(step)], stdout=logf, stderr=subprocess.STDOUT, **kw)
+    t0 = time.time()
+    while proc.poll() is None:
+        done = len(glob.glob(os.path.join(out_dir, "frame_*.png")))
+        prog.update(min(97, 5 + 90.0 * done / max(1, expected)),
+                    "Rendering preview frame %d/%d (Blender, background) ... %ds" % (done, expected, time.time() - t0))
+        if prog.cancelled():
+            proc.kill()
+            logf.close()
+            shutil.rmtree(out_dir, ignore_errors=True)
+            raise _Cancelled()
+        time.sleep(0.3)
+    logf.close()
+    frames = sorted(glob.glob(os.path.join(out_dir, "frame_*.png")))
+    if not frames:
+        try:
+            with open(log_path) as f:
+                tail = "".join(f.readlines()[-25:])
+        except OSError:
+            tail = ""
+        shutil.rmtree(out_dir, ignore_errors=True)
+        raise RuntimeError("Blender rendered no frames (exit code %s). Last Blender output:\n%s" % (proc.returncode, tail))
+    return out_dir, frames
+
+
+# ── main entry ───────────────────────────────────────────────────────────────
 def run(ws, blend_path):
     """ws = the SessionWorkspace (has the Playblast tab fields). blend_path = the Blender File of the Blender panel."""
+    try:
+        _run(ws, blend_path)
+    except _Cancelled:
+        cmds.warning("[KRT] PC2 check cancelled.")
+    except Exception:
+        try:
+            cmds.progressWindow(endProgress=True)
+        except Exception:
+            pass
+        tb = traceback.format_exc()
+        sys.stdout.write(tb + "\n")
+        _error_dialog("KRT - Check PC2 in Blender - ERROR", "KRT %s\nBlender file: %s\n\n%s" % (
+            _krt_version(), blend_path, tb))
+
+
+def _krt_version():
+    try:
+        from .. import __version__
+        return __version__
+    except Exception:
+        return "?"
+
+
+def _run(ws, blend_path):
     if not blend_path or not os.path.isfile(blend_path):
         _info("KRT - PC2 check", "Blender File not found:\n%s\n\nSet it in the 'Import 3D + LOD Organize (Blender)' panel first." % blend_path)
         return
@@ -216,13 +376,18 @@ def run(ws, blend_path):
 
     anim = (ws.pb_anim_field.text() or "").strip() if hasattr(ws, "pb_anim_field") else ""
     pattern = (ws.pb_pattern_field.text() or "*_ctl").strip() if hasattr(ws, "pb_pattern_field") else "*_ctl"
-    ask = ("Check PC2 in Blender?\n\nBlender file:\n%s\n\n" % blend_path +
-           ("The test animation will be loaded on the rig controls (%s) of this scene, PC2 exported, and then the "
-            "animation is undone.\n\nAnimation: %s" % (pattern, anim) if anim else
-            "No .anim set in the Playblast tab - the scene's current animation / timeline is exported as it is."))
-    if cmds.confirmDialog(title="KRT - Check PC2 in Blender", message=ask, button=["Start", "Cancel"],
-                          defaultButton="Start", cancelButton="Cancel", dismissString="Cancel") != "Start":
+    ask = ("Check PC2 in Blender\n\nBlender file:\n%s\n\n" % blend_path +
+           ("The test animation (%s) is loaded on the rig controls (%s) of this scene, PC2 is exported, and the "
+            "animation is undone afterwards." % (os.path.basename(anim), pattern) if anim else
+            "No .anim set in the Playblast tab - the scene's current animation / timeline is exported as it is.") +
+           "\n\nWhat do you want to see?")
+    choice = cmds.confirmDialog(title="KRT - Check PC2 in Blender", message=ask,
+                                button=["Blender file", "Render", "Both", "Cancel"], defaultButton="Blender file",
+                                cancelButton="Cancel", dismissString="Cancel")
+    if choice == "Cancel":
         return
+    want_blender = choice in ("Blender file", "Both")
+    want_render = choice in ("Render", "Both")
 
     work = tempfile.mkdtemp(prefix="krt_pc2_check_")
     pc2_dir = os.path.join(work, "pc2")
@@ -259,26 +424,18 @@ def run(ws, blend_path):
             prog.update(20, "Loading the test animation on the rig controls (%s) ..." % pattern)
             okl, err, n = ws.pb_load_anim_on_filtered_controls(anim, pattern)
             if not okl:
-                prog.close()
-                cmds.undoInfo(closeChunk=True)
-                undo_open = False
-                cmds.undo()
-                _info("KRT - PC2 check", "Could not load the test animation:\n%s" % err)
-                shutil.rmtree(work, ignore_errors=True)
-                return
+                raise RuntimeError("Could not load the test animation:\n%s" % err)
             prog.update(35, "Animation loaded on %d controls." % n)
             if prog.cancelled():
                 raise _Cancelled()
 
         ok, errors = _export_pc2(meshes, pc2_dir, start, end, prog)
-    except _Cancelled:
+    except BaseException:
         prog.close()
         shutil.rmtree(work, ignore_errors=True)
-        cmds.warning("[KRT] PC2 check cancelled.")
-        return
+        raise
     finally:
         if undo_open:
-            prog.update(96, "Removing the test animation again ...")
             cmds.undoInfo(closeChunk=True)
             try:
                 if anim:
@@ -287,26 +444,53 @@ def run(ws, blend_path):
                 pass
     if not ok:
         prog.close()
-        _info("KRT - PC2 check", "No PC2 file was written.\n\n" + "\n".join("%s: %s" % e for e in errors[:15]))
+        _error_dialog("KRT - PC2 check", "No PC2 file was written.\n\n" + "\n".join("%s: %s" % e for e in errors[:40]))
         shutil.rmtree(work, ignore_errors=True)
         return
 
-    prog.update(98, "Copying the .blend (temporary copy) and opening Blender ...")
+    prog.update(97, "Copying the .blend (temporary copy) ...")
     shutil.copy2(blend_path, blend_copy)          # temporary COPY - the server file is only read
-    cmd = [blender, blend_copy, "--python", _BLENDER_SCRIPT, "--", "apply", pc2_dir, str(start), str(end)]
-    proc = subprocess.Popen(cmd)
-    prog.update(100, "Blender is starting - PC2 will be applied in a moment.")
+
+    frames_dir, frames = "", []
+    if want_render:
+        try:
+            frames_dir, frames = _render_preview(blender, blend_copy, pc2_dir, start, end, prog)
+        except _Cancelled:
+            prog.close()
+            shutil.rmtree(work, ignore_errors=True)
+            raise
+        except Exception:
+            prog.close()
+            _error_dialog("KRT - PC2 render failed", traceback.format_exc())
+            if not want_blender:
+                shutil.rmtree(work, ignore_errors=True)
+                return
+    prog.update(100, "Done." if not want_blender else "Opening Blender - PC2 is applied when it is up ...")
     prog.close()
 
-    def _cleanup():
-        proc.wait()
-        shutil.rmtree(work, ignore_errors=True)
-    threading.Thread(target=_cleanup, daemon=True).start()
+    if want_blender:
+        proc = subprocess.Popen([blender, blend_copy, "--python", _BLENDER_SCRIPT, "--", "apply", pc2_dir, str(start), str(end)])
 
-    msg = "Blender is opening a temporary copy of the file with PC2 applied.\n\n%d PC2 exported (frames %d-%d)" % (
-        len(ok), start, end)
+        def _cleanup():
+            proc.wait()
+            shutil.rmtree(work, ignore_errors=True)
+        threading.Thread(target=_cleanup, daemon=True).start()
+    else:
+        shutil.rmtree(work, ignore_errors=True)
+
+    if frames:
+        v = _FrameViewer(frames_dir, frames)
+        _VIEWERS.append(v)
+        v.show()
+
+    msg = "%d PC2 file(s) exported (frames %d-%d)." % (len(ok), start, end)
+    if want_blender:
+        msg += ("\n\nBlender is opening a temporary copy of the file with PC2 applied. The timeline is set to %d-%d - "
+                "drag the playhead to check. A message in Blender tells how many meshes got a cache."
+                % (start, end))
+    if frames:
+        msg += "\n\nThe render preview is in its own window."
     if errors:
-        msg += "\n%d problem(s):\n%s" % (len(errors), "\n".join("  %s: %s" % e for e in errors[:10]))
-    msg += ("\n\nCheck it by hand. When you close Blender the temporary copy and PC2 files are deleted "
-            "(do not save over the server file).")
+        msg += "\n\n%d problem(s):\n%s" % (len(errors), "\n".join("  %s: %s" % e for e in errors[:10]))
+    msg += "\n\nTemporary files are deleted when you close Blender / the preview. Do not save over the server file."
     _info("KRT - PC2 check", msg)

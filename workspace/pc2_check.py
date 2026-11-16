@@ -25,6 +25,13 @@ class WorkspacePc2Mixin(object):
         return out
 
     def pc2_check_logic(self):
+        try:
+            from ..PanelScripts import pc2_check as _pc2
+            if _pc2.session_active(self):          # a temporary Blender file is open: Delete / Save
+                _pc2.session_dialog(self)
+                return
+        except Exception:
+            pass
         panels = self._find_blend_panels()
         blend = ""
         for p in panels:

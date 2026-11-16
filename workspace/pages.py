@@ -376,6 +376,7 @@ class WorkspacePagesMixin(object):
         btn_pc2.setStyleSheet("QPushButton { background: #f2f2f2; color: #111111; font-weight: bold; border: 1px solid #111111; }"
                               "QPushButton:hover { background: #ffffff; }"
                               "QPushButton:pressed { background: #cfcfcf; }")
+        self.btn_pc2 = btn_pc2
         btn_pc2.clicked.connect(self.pc2_check_logic)
         btn_layout.addWidget(btn_pc2)
         main_vbox.addLayout(btn_layout)

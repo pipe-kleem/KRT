@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """pc2_blender.py - runs INSIDE Blender (started by KRT's PC2 check).
 
-  names mode (headless):  blender -b file.blend --python pc2_blender.py -- names <out.json>
-      writes the names of every mesh object in the file.
-  apply mode (window):    blender temp_copy.blend --python pc2_blender.py -- apply <pc2_folder> <start> <end>
-      applies the PC2 caches to the meshes with the pipeline tool's own operator ("Apply PC2 Caches & Rotate"),
-      falling back to an identical built-in version if the addon is not loaded. The artist then checks the file by hand.
+  names  (headless): blender -b file.blend --python pc2_blender.py -- names <out.json>
+  apply  (window)  : blender copy.blend   --python pc2_blender.py -- apply <pc2_folder> <start> <end>
+                     applies the PC2 caches with the pipeline tool's own operator ("Apply PC2 Caches & Rotate"),
+                     sets the scene range + current frame, makes sure a Timeline is visible, shows a result popup.
+  render (headless): blender -b copy.blend --python pc2_blender.py -- render <pc2_folder> <start> <end> <out_dir> <step>
+                     applies the PC2 and renders a quick preview sequence (Workbench) to <out_dir>/frame_0001.png ...
 
 The .blend it opens is always a temporary COPY; nothing is saved by this script.
 """
@@ -13,6 +14,7 @@ import os
 import sys
 import json
 import math
+import traceback
 import bpy
 
 
@@ -73,8 +75,9 @@ def _apply_builtin(folder, start):
 
 
 def _apply(folder, start, end):
+    """-> (how, matched_count, no_cache_names)"""
     scene = bpy.context.scene
-    used = "built-in copy of the pipeline code"
+    how = "built-in copy of the pipeline code"
     try:
         scene.pc2_cache_folder = folder
         scene.remove_old_modifiers = True
@@ -84,18 +87,143 @@ def _apply(folder, start, end):
         r1 = bpy.ops.pipeline.import_pc2_cache()
         r2 = bpy.ops.pipeline.set_pc2_frame_start()
         if 'FINISHED' in r1 and 'FINISHED' in r2:
-            used = "pipeline tool: Apply PC2 Caches & Rotate"
+            how = "pipeline tool: Apply PC2 Caches & Rotate"
         else:
             raise RuntimeError("operator did not finish")
     except Exception as e:
         print("[KRT pc2] pipeline operator not usable (%s) - using built-in copy" % e)
         _apply_builtin(folder, start)
+    scene.use_preview_range = False
     scene.frame_start = start
     scene.frame_end = end
     scene.frame_set(start)
-    n = sum(1 for o in scene.objects if o.type == 'MESH'
-            and any(m.type == 'MESH_CACHE' and m.filepath for m in o.modifiers))
-    print("[KRT pc2] applied with %s: %d meshes have a PC2 cache, frames %d-%d" % (used, n, start, end))
+    ok = [o.name for o in scene.objects if o.type == 'MESH'
+          and any(m.type == 'MESH_CACHE' and m.filepath for m in o.modifiers)]
+    none = [o.name for o in scene.objects if o.type == 'MESH' and o.name not in ok]
+    print("[KRT pc2] applied with %s: %d meshes have a PC2 cache, frames %d-%d" % (how, len(ok), start, end))
+    return how, len(ok), none
+
+
+# ── window helpers ───────────────────────────────────────────────────────────
+def _ensure_timeline():
+    """Make sure a Timeline editor is visible and shows the whole frame range, so the artist can just scrub."""
+    win = bpy.context.window_manager.windows[0] if bpy.context.window_manager.windows else None
+    if win is None:
+        return
+    screen = win.screen
+
+    def is_tl(a):
+        return a.type == 'DOPESHEET_EDITOR' and getattr(a, "ui_type", "") == 'TIMELINE'
+    area = next((a for a in screen.areas if is_tl(a)), None)
+    if area is None:
+        cands = [a for a in screen.areas if a.type != 'VIEW_3D']
+        if not cands:
+            return
+        area = sorted(cands, key=lambda a: a.height)[0]      # the smallest non-viewport area becomes the timeline
+        area.ui_type = 'TIMELINE'
+    try:
+        region = next(r for r in area.regions if r.type == 'WINDOW')
+        with bpy.context.temp_override(window=win, area=area, region=region):
+            bpy.ops.action.view_all()
+    except Exception as e:
+        print("[KRT pc2] timeline view_all failed: %s" % e)
+    try:
+        area.spaces.active.show_seconds = False       # frames, not seconds
+    except Exception:
+        pass
+    area.tag_redraw()
+
+
+def _popup(title, lines, icon='INFO'):
+    def draw(self, _context):
+        for ln in lines:
+            self.layout.label(text=ln)
+    try:
+        bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+    except Exception as e:
+        print("[KRT pc2] popup failed: %s" % e)
+
+
+def _gui_apply(folder, start, end):
+    lines, icon = [], 'INFO'
+    try:
+        how, n, none = _apply(folder, start, end)
+        lines.append("PC2 applied to %d mesh(es), frames %d-%d." % (n, start, end))
+        lines.append("Method: " + how)
+        if none:
+            icon = 'ERROR' if n == 0 else 'INFO'
+            lines.append("%d mesh(es) have no PC2 file, e.g.: %s" % (len(none), ", ".join(none[:4])))
+        lines.append("The timeline is set - drag the playhead to check.")
+    except Exception:
+        tb = traceback.format_exc()
+        print(tb)
+        icon = 'ERROR'
+        lines = ["PC2 apply FAILED - copy this and send it:"] + tb.strip().splitlines()[-8:]
+    try:
+        _ensure_timeline()
+    except Exception:
+        print(traceback.format_exc())
+    _popup("KRT PC2 check", lines, icon)
+    return None
+
+
+# ── render ───────────────────────────────────────────────────────────────────
+def _bounds():
+    """World bounding box (min, max) of every visible mesh at the current frame."""
+    from mathutils import Vector
+    dg = bpy.context.evaluated_depsgraph_get()
+    lo = Vector((1e9, 1e9, 1e9))
+    hi = Vector((-1e9, -1e9, -1e9))
+    for o in bpy.context.scene.objects:
+        if o.type != 'MESH' or o.hide_render:
+            continue
+        eo = o.evaluated_get(dg)
+        for c in eo.bound_box:
+            w = eo.matrix_world @ Vector(c)
+            lo = Vector((min(lo.x, w.x), min(lo.y, w.y), min(lo.z, w.z)))
+            hi = Vector((max(hi.x, w.x), max(hi.y, w.y), max(hi.z, w.z)))
+    return lo, hi
+
+
+def _make_camera():
+    from mathutils import Vector
+    lo, hi = _bounds()
+    centre = (lo + hi) / 2.0
+    size = max((hi - lo).x, (hi - lo).y, (hi - lo).z, 0.1)
+    cam_data = bpy.data.cameras.new("krt_pc2_cam")
+    cam = bpy.data.objects.new("krt_pc2_cam", cam_data)
+    bpy.context.scene.collection.objects.link(cam)
+    cam.location = centre + Vector((0.0, -size * 2.4, size * 0.05))
+    cam.rotation_euler = (math.radians(90), 0.0, 0.0)          # looks along +Y at the character
+    cam_data.clip_end = size * 20
+    return cam
+
+
+def _render(folder, start, end, out_dir, step):
+    scene = bpy.context.scene
+    _apply(folder, start, end)
+    os.makedirs(out_dir, exist_ok=True)
+    scene.render.engine = 'BLENDER_WORKBENCH'
+    try:
+        scene.display.shading.light = 'STUDIO'
+        scene.display.shading.color_type = 'TEXTURE'
+    except Exception:
+        pass
+    scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = 960, 540, 100
+    scene.render.image_settings.file_format = 'PNG'
+    scene.render.film_transparent = False
+    if scene.camera is None:
+        scene.camera = _make_camera()
+    frames = list(range(start, end + 1, max(1, step)))
+    if frames[-1] != end:
+        frames.append(end)
+    for i, fr in enumerate(frames, 1):
+        scene.frame_set(fr)
+        scene.render.filepath = os.path.join(out_dir, "frame_%04d.png" % fr)
+        bpy.ops.render.render(write_still=True)
+        print("KRT_RENDER %d/%d" % (i, len(frames)))
+        sys.stdout.flush()
+    print("KRT_RENDER_DONE")
 
 
 def main():
@@ -109,16 +237,16 @@ def main():
         print("[KRT pc2] %d mesh names written" % len(names))
     elif a[0] == "apply":
         folder, start, end = a[1], int(float(a[2])), int(float(a[3]))
-
-        def go():
-            try:
-                _apply(folder, start, end)
-            except Exception:
-                import traceback
-                traceback.print_exc()
-            return None            # run once
         # the addons are registered by now; wait a moment so the UI is fully up
-        bpy.app.timers.register(go, first_interval=1.0)
+        bpy.app.timers.register(lambda: _gui_apply(folder, start, end), first_interval=1.5)
+    elif a[0] == "render":
+        folder, start, end, out_dir, step = a[1], int(float(a[2])), int(float(a[3])), a[4], int(a[5])
+        try:
+            _render(folder, start, end, out_dir, step)
+        except Exception:
+            traceback.print_exc()
+            sys.stdout.flush()
+            sys.exit(1)
 
 
 main()

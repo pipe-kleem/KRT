@@ -6,6 +6,12 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.47", "date": "2026-11-18 15:00", "changes": [
+        "CHECK PC2 IN BLENDER: while the temporary Blender file is open the button turns into DELETE / SAVE TEMP BLENDER FILE. Delete closes Blender and deletes the temp files. Save brings Blender to the front and opens its Save As window; after saving, the PC2 files are copied next to the file (<name>_pc2), the caches are repointed there, and Blender asks whether to stay or close. The button returns to normal when Blender closes.",
+    ]},
+    {"version": "46.46", "date": "2026-11-18 14:00", "changes": [
+        "CHECK PC2 IN BLENDER: (1) any error now opens a window with the full text and a Copy to clipboard button, to send; (2) it asks first what you want to see - Blender file, Render, or Both; Render makes a quick Workbench preview sequence in background Blender and plays it in a Maya window with a slider; (3) when the Blender file opens, the scene range and current frame are set, a Timeline is made visible and zoomed to the range, and a message in Blender tells how many meshes got a PC2 cache.",
+    ]},
     {"version": "46.45", "date": "2026-11-18 13:00", "changes": [
         "CHECK PC2 IN BLENDER: fixed 'none of the meshes match' - names like geo_x_lod_0 existing in both Maya and Blender were wrongly compared with the geo_ prefix removed on one side only. Added a progress window showing every step (reading Blender names, matching, loading animation, recording cache, writing each PC2, opening Blender); ESC cancels. The no-match message now lists example Blender names.",
     ]},

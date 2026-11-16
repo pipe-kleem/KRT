@@ -14,6 +14,8 @@ from ._shared import *
 DEFAULT_STATUS_ROOT = r"P:\kl_assets\KL_ASSETS\assets"      # READ ONLY: server folder, only listed / dated, never written
 _MODEL_SUB = ("publish", "workfile", "workfileMaster_model")
 _RIG_SUB = ("publish", "rig", "rigMain")
+_CC_SUB = ("publish", "workfile", "workfileCc_model")
+_CC_EXT = (".ccproject",)
 _MODEL_EXT = (".blend",)
 _RIG_EXT = (".ma", ".mb")
 _RED = "#ef9a9a"
@@ -60,31 +62,45 @@ def _fmt(t):
     return time.strftime("%d-%m-%Y %H:%M", time.localtime(t)) if t else "-"
 
 
-def scan_project(root):
-    """-> list of dicts, one per asset folder under `root`, sorted by name."""
-    rows = []
+def _find_assets(root, rel="", depth=0):
+    """Asset folders = folders that contain 'publish'. A folder without it (e.g. parshuramsubassets) is a group:
+    look one or two levels deeper. Only lists folders."""
+    out = []
     try:
         names = sorted(os.listdir(root), key=str.lower)
     except OSError:
-        return rows
+        return out
     for n in names:
-        a = os.path.join(root, n)
-        if n.startswith(".") or not os.path.isdir(a):
+        p = os.path.join(root, n)
+        if n.startswith(".") or not os.path.isdir(p):
             continue
-        mdir, rdir = os.path.join(a, *_MODEL_SUB), os.path.join(a, *_RIG_SUB)
-        if not (os.path.isdir(mdir) or os.path.isdir(rdir)):
-            continue
-        mp, mt = _latest(mdir, _MODEL_EXT)
-        rp, rt = _latest(rdir, _RIG_EXT)
-        if not mp:
+        r = (rel + "/" + n) if rel else n
+        if os.path.isdir(os.path.join(p, "publish")):
+            out.append((r, p))
+        elif depth < 3:
+            out.extend(_find_assets(p, r, depth + 1))
+    return out
+
+
+def scan_project(root):
+    """-> list of dicts, one per asset (also assets inside group folders), sorted by name. Read only."""
+    rows = []
+    for rel, a in _find_assets(root):
+        mp, mt = _latest(os.path.join(a, *_MODEL_SUB), _MODEL_EXT)
+        cp, ct = _latest(os.path.join(a, *_CC_SUB), _CC_EXT)
+        rp, rt = _latest(os.path.join(a, *_RIG_SUB), _RIG_EXT)
+        src_t = max(mt, ct)               # the rig must be at least as new as the newest model / CC file
+        if not mp and not cp:
             state = "nomodel"
         elif not rp:
             state = "norig"
-        elif rt < mt:
+        elif rt < src_t:
             state = "old"
         else:
             state = "ok"
-        rows.append({"asset": n, "model": mp, "model_t": mt, "rig": rp, "rig_t": rt, "state": state})
+        cc_state = "" if not cp else ("old" if (mt and ct < mt) else "ok")
+        rows.append({"asset": rel, "model": mp, "model_t": mt, "cc": cp, "cc_t": ct, "cc_state": cc_state,
+                     "rig": rp, "rig_t": rt, "state": state})
     return rows
 
 
@@ -123,7 +139,7 @@ class WorkspaceStatusMixin(object):
         self.status_counts.setStyleSheet("color: #cccccc; font-size: 12px;")
         lay.addWidget(self.status_counts)
 
-        cols = ["Asset", "Model version", "Model saved", "Rig version", "Rig saved", "Status"]
+        cols = ["Asset", "Model version", "Model saved", "CC version", "CC saved", "Rig version", "Rig saved", "Status"]
         self.status_table = QtWidgets.QTableWidget(0, len(cols))
         self.status_table.setHorizontalHeaderLabels(cols)
         self.status_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -176,7 +192,7 @@ class WorkspaceStatusMixin(object):
         QT = QtCore.Qt
         rows = self._status_rows
         total = len(rows)
-        n_model = sum(1 for r in rows if r["model"])
+        n_model = sum(1 for r in rows if r["model"] or r["cc"])
         n_rig = sum(1 for r in rows if r["rig"])
         n_ok = sum(1 for r in rows if r["state"] == "ok")
         n_old = sum(1 for r in rows if r["state"] == "old")
@@ -202,13 +218,17 @@ class WorkspaceStatusMixin(object):
             tint = QtGui.QColor(col)
             tint.setAlpha(34)
             vals = [r["asset"], _ver(r["model"]) or ("-" if not r["model"] else "?"), _fmt(r["model_t"]),
+                    _ver(r["cc"]) or ("-" if not r["cc"] else "?"), _fmt(r["cc_t"]),
                     _ver(r["rig"]) or ("-" if not r["rig"] else "?"), _fmt(r["rig_t"]), label[r["state"]]]
-            tips = ["", r["model"], r["model"], r["rig"], r["rig"], ""]
+            tips = ["", r["model"], r["model"], r["cc"], r["cc"], r["rig"], r["rig"], ""]
+            cc_col = {"ok": _GREEN, "old": _RED}.get(r["cc_state"], _GREY)
             for c, v in enumerate(vals):
                 it = QtWidgets.QTableWidgetItem(v)
                 it.setToolTip(tips[c])
                 it.setBackground(tint)
-                if c in (0, 5) or c >= 3:
+                if c in (3, 4):
+                    it.setForeground(QtGui.QColor(cc_col))
+                elif c == 0 or c >= 5:
                     it.setForeground(QtGui.QColor(col))
                 t.setItem(i, c, it)
         t.setSortingEnabled(True)

@@ -121,6 +121,8 @@ studio's Studio Library (mutils) install to be reachable.</p>
 <li><b>Project</b> is kl_assets (<code>P:\\kl_assets\\KL_ASSETS\\assets</code>); the dropdown picks the category, default <code>characters</code>.</li>
 <li>Model = newest <code>.blend</code> in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/vNN/</code> (highest vNN);
 Rig = newest <code>.ma</code> in <code>&lt;asset&gt;/publish/rig/rigMain/vNN/</code>. Hover a cell for the file path.</li>
+<li>Assets inside group folders (for example <code>parshuramsubassets/bhargavakid_a</code>) are found too - any folder that has a <code>publish</code> folder is an asset.</li>
+<li><b>CC</b> columns: newest <code>.ccProject</code> in <code>publish/workfile/workfileCc_model/vNN/</code>; the CC cell is red when the model is newer than it, green otherwise. The rig counts as old if it is older than the newest model <i>or</i> CC file.</li>
 <li>The count line shows assets, models, rigs, up to date, outdated and missing.</li>
 <li><b>Filter</b> by asset name, <b>Only outdated</b> toggle, and <b>Refresh</b> to re-scan (also refreshes when you open the tab).</li>
 <li>A row is <span class="red">red</span> when the latest model file is newer than the latest rig file (or there is no rig) and

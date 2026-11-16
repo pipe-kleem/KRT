@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.27", "date": "2026-11-17 10:00", "changes": [
+        "Rig & Model Status: assets inside group folders (e.g. parshuramsubassets/bhargavakid_a) are now listed, and a new CC column shows the newest .ccProject (workfileCc_model) with its version/date, red if older than the model. A rig older than the model or the CC file is marked outdated.",
+    ]},
     {"version": "46.26", "date": "2026-11-16 23:00", "changes": [
         "Rig & Model Status now reads the real kl_assets publish folders (P:/kl_assets/KL_ASSETS/assets/<category>/<asset>/publish/...): model = latest workfileMaster_model vNN .blend, rig = latest rigMain vNN .ma. Read only - it only lists folders and reads file names, paths and dates.",
     ]},

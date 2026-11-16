@@ -443,6 +443,11 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                                               "Red = a newer version exists, green = this is the latest.")
             self.btn_blend_refresh.clicked.connect(self._check_blend_version)
             blend_row.addWidget(self.btn_blend_refresh)
+            self.btn_blend_versions = QtWidgets.QPushButton("Versions")
+            self.btn_blend_versions.setFixedWidth(70)
+            self.btn_blend_versions.setToolTip("Switch to another version of this Blender file (with its saved date).")
+            self.btn_blend_versions.clicked.connect(self._blend_versions_menu)
+            blend_row.addWidget(self.btn_blend_versions)
             btn_blend_browse = QtWidgets.QPushButton("📂")
             btn_blend_browse.setFixedWidth(30)
             btn_blend_browse.setToolTip("Browse for the .blend file")
@@ -1987,6 +1992,87 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             return "old", newer_path
         return ("latest", "") if known else ("unknown", "")
 
+    def _blend_all_versions(self, path):
+        """[(number, path), ...] of every version of this .blend, oldest first (same folder _vNN files and
+        sibling vNN folders), always including the current file."""
+        found = {}
+        if not path or not os.path.isfile(path):
+            return []
+        d = os.path.dirname(path)
+        fname = os.path.basename(path)
+        stem, ext = os.path.splitext(fname)
+        m = re.search(r"_v(\d+)$", stem, re.I)
+        if m:
+            base = re.sub(r"_v\d+$", "", stem, flags=re.I)
+            try:
+                names = os.listdir(d)
+            except OSError:
+                names = []
+            for n in names:
+                s2, e2 = os.path.splitext(n)
+                mm = re.match(r"^" + re.escape(base) + r"_v(\d+)$", s2, re.I)
+                if mm and e2.lower() == ext.lower():
+                    found[int(mm.group(1))] = os.path.join(d, n)
+        fm = re.match(r"^v(\d+)$", os.path.basename(d), re.I)
+        if fm:
+            parent = os.path.dirname(d)
+            try:
+                siblings = os.listdir(parent)
+            except OSError:
+                siblings = []
+            for n in siblings:
+                sm = re.match(r"^v(\d+)$", n, re.I)
+                if not sm:
+                    continue
+                cand_dir = os.path.join(parent, n)
+                try:
+                    blends = [f for f in os.listdir(cand_dir) if f.lower().endswith(ext.lower())]
+                except OSError:
+                    continue
+                if not blends:
+                    continue
+                same = re.sub(r"_v\d+(?=\.[^.]+$)", "_v" + sm.group(1).zfill(max(2, len(fm.group(1)))), fname, flags=re.I)
+                pick = same if same in blends else sorted(blends, key=lambda f: os.path.getmtime(os.path.join(cand_dir, f)))[-1]
+                found.setdefault(int(sm.group(1)) + 100000, os.path.join(cand_dir, pick))   # folder versions sort after file versions
+        if os.path.normcase(os.path.abspath(path)) not in [os.path.normcase(os.path.abspath(v)) for v in found.values()]:
+            found[-1] = path
+        best = {}
+        for k, v in found.items():
+            nk = os.path.normcase(os.path.abspath(v))
+            if nk not in best or k > best[nk][0]:
+                best[nk] = (k, v)
+        return sorted(((k % 100000 if k >= 0 else k), v) for k, v in best.values())
+
+    def _blend_versions_menu(self):
+        """Left-click menu on the Blender File row: every version with its date; pick one to switch."""
+        from ..utils import version_label
+        raw = self.blend_field.text()
+        path = (self.workspace.resolve_path(raw) or "").strip() if raw.strip() else ""
+        versions = self._blend_all_versions(path)
+        menu = QtWidgets.QMenu(self)
+        menu.setStyleSheet("background-color: #252526; color: white; border: 1px solid #2bb5a8;")
+        if not versions:
+            a = menu.addAction("No versions found (is the Blender File path valid?)")
+            a.setEnabled(False)
+        actions = {}
+        cur = os.path.normcase(os.path.abspath(path)) if path else ""
+        seen = set()
+        for _n, vp in versions:
+            key = os.path.normcase(os.path.abspath(vp))
+            if key in seen:
+                continue
+            seen.add(key)
+            actions[menu.addAction(version_label(vp.replace("\\", "/"), mark=(key == cur)))] = vp
+        pos = self.btn_blend_versions.mapToGlobal(self.btn_blend_versions.rect().bottomLeft())
+        try:
+            chosen = menu.exec(pos)
+        except AttributeError:
+            chosen = menu.exec_(pos)
+        if chosen in actions:
+            self.blend_field.setText(self.workspace.relativize_path(actions[chosen].replace("\\", "/")))
+            self._autofill_asset_name()
+            self._check_blend_version()
+
     def _check_blend_version(self):
         """Colour the Blender File field: red = a newer version exists, green = latest, plain = unknown."""
         if not hasattr(self, "blend_field"):
@@ -2272,6 +2358,10 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         elif self.p_type in ("IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT"):
             a_load = menu.addAction("📂 Load 3D file (.ma/.mb/.fbx/.obj/.abc)")
             a_rem = menu.addAction("❌ Remove file")
+            if self.p_type == "IMPORT_BLEND":
+                menu.addSeparator()
+                switch_menu = menu.addMenu("Switch Version (ABC)")
+                v_actions = self.populate_versions_menu(switch_menu)
             if self.p_type == "CC_IMPORT":
                 from ..PanelScripts import cc_import
                 menu.addSeparator()

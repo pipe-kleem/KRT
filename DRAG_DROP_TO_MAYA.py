@@ -315,6 +315,18 @@ def _create_shelf():
         # KRT's button actually needs to parent to.
         cmds.shelfLayout(SHELF_NAME, parent=shelf_top)
 
+    # Never stack duplicates: remove every earlier KRT launch button from ANY shelf (older installs, a
+    # reloaded shelf_KRT.mel, a button dropped on another shelf), then add exactly one.
+    _ann = "Launch the KRT Procedural Rig Builder"
+    try:
+        for _b in cmds.lsUI(type="shelfButton") or []:
+            try:
+                if cmds.shelfButton(_b, q=True, annotation=True) == _ann:
+                    cmds.deleteUI(_b)
+            except Exception:
+                pass
+    except Exception:
+        pass
     cmds.shelfButton(
         label="KRT",
         annotation="Launch the KRT Procedural Rig Builder",

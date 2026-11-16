@@ -6,6 +6,9 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.28", "date": "2026-11-17 11:00", "changes": [
+        "Drag-and-drop installer: no longer adds another KRT shelf button each time. Before adding its button it removes every earlier KRT launch button from all shelves, so there is always exactly one.",
+    ]},
     {"version": "46.27", "date": "2026-11-17 10:00", "changes": [
         "Rig & Model Status: assets inside group folders (e.g. parshuramsubassets/bhargavakid_a) are now listed, and a new CC column shows the newest .ccProject (workfileCc_model) with its version/date, red if older than the model. A rig older than the model or the CC file is marked outdated.",
     ]},

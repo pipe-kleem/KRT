@@ -187,21 +187,26 @@ class WorkspaceStatusMixin(object):
         self.status_project.blockSignals(False)
 
     def _status_copy_all(self):
-        """Copy the table as currently shown (filter + sort applied) as tab-separated text, incl. file paths."""
+        """Copy the table as currently shown (filter + sort applied) as aligned plain text - readable in a .txt file.
+        Asset name, model / CC / rig version + date and status only; no file paths."""
         t = self.status_table
         heads = [t.horizontalHeaderItem(c).text() for c in range(t.columnCount())]
-        lines = ["\t".join(heads + ["Model path", "CC path", "Rig path"])]
+        rows = []
         for r in range(t.rowCount()):
-            asset = t.item(r, 0).text()
-            row = next((x for x in self._status_rows if x["asset"] == asset), {})
-            cells = [t.item(r, c).text() if t.item(r, c) else "" for c in range(t.columnCount())]
-            cells += [(row.get(k) or "").replace("\\", "/") for k in ("model", "cc", "rig")]
-            lines.append("\t".join(cells))
-        QtWidgets.QApplication.clipboard().setText("\n".join(lines))
-        self.status_counts.setToolTip("Copied %d rows to the clipboard" % (len(lines) - 1))
+            rows.append([t.item(r, c).text() if t.item(r, c) else "" for c in range(t.columnCount())])
+        widths = [max(len(heads[c]), *(len(x[c]) for x in rows)) if rows else len(heads[c]) for c in range(len(heads))]
+
+        def line(cells):
+            return "  ".join(cells[c].ljust(widths[c]) for c in range(len(cells))).rstrip()
+        out = ["RIG & MODEL STATUS - %s - %s" % (self.status_project.currentText(), time.strftime("%d-%m-%Y %H:%M")),
+               self.status_counts.text().replace("&nbsp;", " ") if False else "", line(heads),
+               "  ".join("-" * w for w in widths)]
+        out = [o for o in out if o != ""]
+        out += [line(x) for x in rows]
+        QtWidgets.QApplication.clipboard().setText("\n".join(out))
         try:
             import maya.cmds as _c
-            _c.inViewMessage(amg="Copied %d rows" % (len(lines) - 1), pos="midCenter", fade=True)
+            _c.inViewMessage(amg="Copied %d rows" % len(rows), pos="midCenter", fade=True)
         except Exception:
             pass
 

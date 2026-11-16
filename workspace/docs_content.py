@@ -127,6 +127,7 @@ Rig = newest <code>.ma</code> in <code>&lt;asset&gt;/publish/rig/rigMain/vNN/</c
 <li><b>Filter</b> by asset name, <b>Only outdated</b> toggle, and <b>Refresh</b> to re-scan (also refreshes when you open the tab).</li>
 <li>A row is <span class="red">red</span> when the latest model file is newer than the latest rig file (or there is no rig) and
 <span class="green">green</span> when the rig is at least as new as the model. Grey = no model.</li>
+<li><b>Right-click a row</b> to copy the model, CC or rig file path (or open its folder). Hover a cell to see the path.</li>
 <li><b>Read only:</b> this server folder is only listed - KRT reads names, paths and dates and never changes anything there.</li>
 </ul>
 <p>Comparison is by file save date (the rig file does not record which model version it was built on).</p>

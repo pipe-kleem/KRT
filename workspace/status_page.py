@@ -155,6 +155,8 @@ class WorkspaceStatusMixin(object):
             " border-bottom: 1px solid #3a3a3a; }")
         lay.addWidget(self.status_table, 1)
 
+        self.status_table.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.status_table.customContextMenuRequested.connect(self._status_menu)
         self._status_rows = []
         self._status_fill_projects()
         self.status_project.currentIndexChanged.connect(lambda *_: self.status_refresh())
@@ -178,6 +180,50 @@ class WorkspaceStatusMixin(object):
         i = self.status_project.findText("kl_assets / characters")
         self.status_project.setCurrentIndex(i if i >= 0 else 0)
         self.status_project.blockSignals(False)
+
+    def _status_menu(self, pos):
+        """Right-click a row: copy the model / CC / rig path (or open its folder). Read only - nothing is changed."""
+        t = self.status_table
+        it = t.itemAt(pos)
+        if it is None:
+            return
+        asset = t.item(it.row(), 0).text()
+        r = next((x for x in self._status_rows if x["asset"] == asset), None)
+        if not r:
+            return
+        menu = QtWidgets.QMenu(self)
+        acts = {}
+        for key, name in (("model", "model"), ("cc", "CC"), ("rig", "rig")):
+            p = r[key]
+            a = menu.addAction("Copy %s path" % name)
+            a.setEnabled(bool(p))
+            acts[a] = ("copy", p)
+        menu.addSeparator()
+        for key, name in (("model", "model"), ("cc", "CC"), ("rig", "rig")):
+            p = r[key]
+            a = menu.addAction("Open %s folder" % name)
+            a.setEnabled(bool(p))
+            acts[a] = ("open", p)
+        col = t.currentColumn()
+        a = menu.addAction("Copy this cell's path")
+        a.setEnabled(col in (1, 2, 3, 4, 5, 6))
+        key = {1: "model", 2: "model", 3: "cc", 4: "cc", 5: "rig", 6: "rig"}.get(col, "")
+        acts[a] = ("copy", r.get(key, "") if key else "")
+        try:
+            ch = menu.exec(t.viewport().mapToGlobal(pos))
+        except AttributeError:
+            ch = menu.exec_(t.viewport().mapToGlobal(pos))
+        if ch in acts:
+            kind, p = acts[ch]
+            if not p:
+                return
+            if kind == "copy":
+                QtWidgets.QApplication.clipboard().setText(p.replace("\\", "/"))
+            else:
+                try:
+                    os.startfile(os.path.dirname(p))
+                except Exception:
+                    pass
 
     def status_refresh(self):
         root = self.status_project.currentData()

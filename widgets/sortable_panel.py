@@ -2141,13 +2141,19 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         self._autofill_asset_name()
         self.btn_blend_abc.setEnabled(False)
 
-        def _on_imported(abc, _nodes):
-            # Only now - the ABC really is in the scene - does it become the panel's path.
+        def _import_via_panel(abc):
+            """Import with this panel's own IMPORT ORGANIZE logic (proper folder structure from the Asset Name),
+            instead of the plain ABC import of the Blend -> ABC tool."""
             old_cur = (self.workspace.resolve_path(self.field.text()) or "").strip()
             if old_cur and os.path.normcase(old_cur) != os.path.normcase(abc):
                 self._prev_abc = old_cur        # becomes the 'old' ABC of the comparison
             self.field.setText(self.workspace.relativize_path(abc.replace("\\", "/")))
-            cmds.warning("[KRT] Blend -> ABC imported: " + abc)
+            QtWidgets.QApplication.processEvents()
+            self.execute(force=True)
+            return []
+
+        def _on_imported(abc, _nodes):
+            cmds.warning("[KRT] Blend -> ABC imported (Import Organize): " + abc)
 
         def _on_rejected(_abc):
             cmds.warning("[KRT] Wrinkles not OK - ABC was not imported and has been deleted.")
@@ -2160,7 +2166,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                 blend_path=blend, output_dir=out_dir, blender_exe="",
                 wrinkle_playblast=not self.chk_skip_wrinkle.isChecked(),
                 import_into_maya=True, forbidden_roots=["P:/kl_assets"],
-                on_imported=_on_imported, on_rejected=_on_rejected)
+                import_func=_import_via_panel, on_imported=_on_imported, on_rejected=_on_rejected)
         except Exception:
             import traceback
             traceback.print_exc()

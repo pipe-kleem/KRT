@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 blend_to_abc_api.py - the function to call from ANOTHER TOOL (no config file, no globals).
 
@@ -54,7 +54,7 @@ def blend_to_abc(blend_path, output_dir, blender_exe="", abc_name="",
                  finalise_options=None, playblast_options=None,
                  version_from_folder=True, forbidden_roots=(), timeout=1800,
                  playblast_fade=0.6, playblast_hold=0.25,
-                 on_imported=None, on_rejected=None):
+                 import_func=None, on_imported=None, on_rejected=None):
     """Finalise + Clean & Export ABC in background Blender, optional wrinkle check, Maya import.
 
     blend_path        : source .blend (never modified / saved)
@@ -107,7 +107,7 @@ def blend_to_abc(blend_path, output_dir, blender_exe="", abc_name="",
             maya_side.log("Could not delete the ABC %s: %s" % (abc, e))
 
     def _import_now():
-        n = maya_side.import_abc_into_maya(abc)
+        n = import_func(abc) if import_func else maya_side.import_abc_into_maya(abc)
         if on_imported:
             on_imported(abc, n)
         return n

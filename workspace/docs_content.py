@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Text of the Documentation tab.
 
 TOPICS is an ordered list of (id, section, title, html). Inside a topic, <a href="krt:other_id">text</a>
@@ -297,6 +297,24 @@ Facial Shape Extract, Breathing, CC Import + Auto Setup, Joint Transfer, Finger 
 use <code>utils/</code>. A new panel's script goes in this folder and is imported with <code>from ..PanelScripts import name</code>.</p>
 """ + see("p_all")),
 
+
+("p_fan", "Panel types", "Fan + Stretchy", """
+<h2>FAN + STRETCHY</h2>
+<p>Builds the <b>fan joints</b> (body and hands) and the <b>stretchy muscle joints</b> on a CC character. Add it from the panel menu:
+<i>Add Fan + Stretchy Panel</i>. Scripts: <code>PanelScripts/fan_stretchy</code> (<code>Fan.py</code>, <code>stretchy.py</code>,
+<code>stretchyFanAttrExport.py</code>, <code>tool.py</code>).</p>
+<ul>
+<li><b>Body fan</b> - arms, legs, neck and face fan joints (the right side is mirrored from the left).</li>
+<li><b>Hand fan</b> - fan joints on all fingers.</li>
+<li><b>Stretchy joints</b> - trapezius, deltoid, biceps and triceps muscle joints.</li>
+</ul>
+<p>RUN builds the ticked parts. Everything is first built from the <b>default data</b> inside the scripts. If the panel has a <b>data file</b>
+(JSON), its saved values are applied on top. Without a saved file the default data is used.</p>
+<p><b>Saving your tweaks:</b> adjust the fan / stretchy attributes in the scene, then use the panel's <b>...</b> menu &gt; <i>Save Fan + Stretchy Data</i>
+(Overwrite or New Version). It stores the same attributes that <code>stretchyFanAttrExport.py</code> prints, as a JSON in the rig's <b>Script</b> folder
+(<code>Script</code>, <code>script</code>, <code>Scripts</code> - whichever already exists; a <code>Scripts</code> folder is created only if none exists).
+Saving keeps values of parts that are not in the current scene.</p>
+""" + see("p_all", "panelscripts")),
 
 ("pc2check", "Features", "Check PC2 in Blender", """
 <h2>CHECK PC2 IN BLENDER</h2>

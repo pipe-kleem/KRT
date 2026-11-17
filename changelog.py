@@ -6,6 +6,10 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.49", "date": "2026-11-19 14:00", "changes": [
+        "New panel: FAN + STRETCHY (Add Panel menu). Three ticks - Body fan, Hand fan, Stretchy joints. RUN builds them from the default data of PanelScripts/fan_stretchy (Fan.py, stretchy.py); if the panel has a saved data file it is applied on top.",
+        "FAN + STRETCHY: '...' menu > Save Fan + Stretchy Data writes the current fan / stretchy attributes to a JSON in the rig's Script folder (Script / script / Scripts, any spelling).",
+    ]},
     {"version": "46.48", "date": "2026-11-19 10:00", "changes": [
         "Rig & Model Status: 'Status on date' - shows the status as it was at the end of the chosen day (latest model / CC / rig version that existed by then).",
         "Rig & Model Status: 'Google Sheet' button - copies the table and opens a new blank Google Sheet; press Ctrl+V in A1.",

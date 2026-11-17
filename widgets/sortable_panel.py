@@ -573,6 +573,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             self._build_joint_pos_ui(main_layout)
         if p_type == "BREATHING":
             self._build_breathing_ui(main_layout)
+        if p_type == "FAN_STRETCHY":
+            self._build_fan_stretchy_ui(main_layout)
         if p_type == "FACIAL_EXTRACT":
             self._build_facial_extract_ui(main_layout)
 
@@ -905,6 +907,15 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             except Exception as e:
                 om.MGlobal.displayError(f"Failed to export skin: {e}")
 
+        elif self.p_type == "FAN_STRETCHY":
+            from ..PanelScripts.fan_stretchy import tool as _fs
+            try:
+                n_fan, n_str = _fs.save(save_path, merge_from=self.path().strip())
+                self.field.setText(self.workspace.relativize_path(save_path))
+                cmds.warning("Fan + Stretchy data saved (%d fan, %d stretchy values): %s" % (n_fan, n_str, save_path))
+            except Exception as e:
+                om.MGlobal.displayError("Failed to save Fan + Stretchy data: {}".format(e))
+
         elif self.p_type == "JOINT_POS":
             from ..PanelScripts import joint_positions as jp
             try:
@@ -1028,6 +1039,11 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             ff = "Joint Positions (*.json);;All Files (*.*)"
             caption = "Save Joint Positions As"
             default_name = "joint_positions_v001" + default_ext
+        elif self.p_type == "FAN_STRETCHY":
+            default_ext = ".json"
+            ff = "Fan + Stretchy data (*.json);;All Files (*.*)"
+            caption = "Save Fan + Stretchy Data As"
+            default_name = "fanStretchy_v001" + default_ext
         elif self.p_type == "SHAPES":
             default_ext = ".json"
             ff = "Control Shapes (*.json);;All Files (*.*)"
@@ -1135,7 +1151,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
     # Panels whose main path field holds a real file: they get the red/green latest-version colour and the
     # left-click "Versions" button.
     VERSIONED_FIELD_TYPES = ("SCRIPT", "GLOBAL_SCRIPT", "IMPORT_3D", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT",
-                             "JSON", "TWEAKER", "SHAPES", "MATERIAL", "JOINT_POS", "JOINT_TRANSFER")
+                             "JSON", "TWEAKER", "SHAPES", "MATERIAL", "JOINT_POS", "JOINT_TRANSFER", "FAN_STRETCHY")
     _STEP_STATE_STYLE = {"": ("", "#888"), "running": ("...", "#ffca28"),
                          "ok": ("\u2714", "#4CAF50"), "error": ("\u2718", "#f44336")}
 
@@ -1313,6 +1329,43 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         except Exception:
             return False, traceback.format_exc()
 
+    # -- FAN + STRETCHY (PanelScripts/fan_stretchy) ------------------------------------------------
+    def _build_fan_stretchy_ui(self, main_layout):
+        self.field.setPlaceholderText("Data file in the Script folder - '...' > Save Fan + Stretchy Data (empty = default data)")
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(25, 0, 0, 0)
+        self.fs_checks = {}
+        for key, label, tip in (("body", "Body fan", "Fan joints on arms, legs, neck and face (mirrored L -> R)"),
+                                ("hand", "Hand fan", "Fan joints on all fingers"),
+                                ("stretchy", "Stretchy joints", "Muscle joints: trapezius, deltoid, biceps, triceps")):
+            c = QtWidgets.QCheckBox(label)
+            c.setChecked(True)
+            c.setToolTip(tip)
+            row.addWidget(c)
+            self.fs_checks[key] = c
+        row.addStretch()
+        main_layout.addLayout(row)
+
+    def _fan_stretchy_path(self):
+        """The data file: the field if filled, else the default name inside the rig's Script folder (any spelling)."""
+        path = self.path().strip()
+        if not path:
+            from ..PanelScripts.fan_stretchy import tool as _fs
+            path = _fs.default_data_path(self.workspace.rig_root() or "")
+        return path
+
+    def _fan_stretchy_run(self):
+        try:
+            from ..PanelScripts.fan_stretchy import tool as _fs
+            path = self._fan_stretchy_path()
+            if path and not os.path.isfile(path):
+                path = get_versioned_path(path, get_latest=True)
+            ok, err = _fs.run(self.fs_checks["body"].isChecked(), self.fs_checks["hand"].isChecked(),
+                              self.fs_checks["stretchy"].isChecked(), path if path and os.path.isfile(path) else "")
+            return ok, err
+        except Exception:
+            return False, traceback.format_exc()
+
     # -- FACIAL SHAPE EXTRACT --------------------------------------------------
     def _build_facial_extract_ui(self, main_layout):
         self.field.setVisible(False)
@@ -1425,6 +1478,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             return {"fe_source": self.fe_source_field.text(), "fe_targets": self.fe_targets_field.text()}
         if self.p_type == "JOINT_POS":
             return {"jp_root": self.jp_root_field.text()}
+        if self.p_type == "FAN_STRETCHY":
+            return {"fs_checks": {k: c.isChecked() for k, c in self.fs_checks.items()}}
         if self.p_type == "BREATHING":
             return {"br_body": self.br_body_field.text(), "br_meshes": self.br_meshes_field.text(),
                     "br_001": self.chk_br_001.isChecked()}
@@ -1457,6 +1512,10 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             if "fe_targets" in data: self.fe_targets_field.setText(data["fe_targets"])
         if self.p_type == "JOINT_POS" and data.get("jp_root"):
             self.jp_root_field.setText(data["jp_root"])
+        if self.p_type == "FAN_STRETCHY":
+            for k, v in (data.get("fs_checks") or {}).items():
+                if k in self.fs_checks:
+                    self.fs_checks[k].setChecked(bool(v))
         if self.p_type == "BREATHING":
             if "br_body" in data: self.br_body_field.setText(data["br_body"])
             if "br_meshes" in data: self.br_meshes_field.setText(data["br_meshes"])
@@ -1944,6 +2003,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         "PUBLISH": "rig",
         "MODULE": "guides",
         "JOINT_POS": "cc_rig",
+        "FAN_STRETCHY": "scripts",
     }
 
     # ── IMPORT_BLEND: one-time Blender .blend -> ABC (KRT/PanelScripts/blend_abc_tool) ──
@@ -2272,6 +2332,11 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             if parent and os.path.isdir(parent):
                 return parent
         root = self.workspace.rig_root()
+        if self.p_type == "FAN_STRETCHY" and root and os.path.isdir(root):
+            from ..PanelScripts.fan_stretchy import tool as _fs
+            d = _fs.script_dir(root)           # Script / script / Scripts - whichever already exists
+            if d:
+                return d
         if root and os.path.isdir(root):
             sub = self.TYPE_SUBDIR.get(self.p_type)
             if sub:
@@ -2319,6 +2384,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             actions_map[m.addAction("Add Joint Positions Panel (save/load joints)")] = ("JOINT POSITIONS", "JOINT_POS", offset)
             actions_map[m.addAction("Add Breathing Panel")] = ("BREATHING", "BREATHING", offset)
             actions_map[m.addAction("Add Facial Shape Extract Panel")] = ("FACIAL SHAPE EXTRACT", "FACIAL_EXTRACT", offset)
+            actions_map[m.addAction("Add Fan + Stretchy Panel (fan joints, muscle joints)")] = ("FAN + STRETCHY", "FAN_STRETCHY", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)
@@ -2400,6 +2466,14 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             a_save_over = menu.addAction("💾 Save Joint Positions (Overwrite)")
             a_save_new = menu.addAction("💾 Save Joint Positions (New Version)")
             switch_menu = menu.addMenu("🔄 Switch Version")
+            v_actions = self.populate_versions_menu(switch_menu)
+        elif self.p_type == "FAN_STRETCHY":
+            a_load = menu.addAction("Load data file")
+            a_rem = menu.addAction("Remove file (use default data)")
+            menu.addSeparator()
+            a_save_over = menu.addAction("Save Fan + Stretchy Data (Overwrite)")
+            a_save_new = menu.addAction("Save Fan + Stretchy Data (New Version)")
+            switch_menu = menu.addMenu("Switch Version")
             v_actions = self.populate_versions_menu(switch_menu)
         elif self.p_type == "SHAPES":
             a_load = menu.addAction("📂 Load new file")
@@ -2517,6 +2591,7 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
         elif self.p_type == "JOINT_TRANSFER": kwargs['ff'] = "JSON (*.json);;All Files (*.*)"
         elif self.p_type == "FINGER_FIX": kwargs['ff'] = "Maya Files (*.ma *.mb);;All Files (*.*)"
         elif self.p_type == "JOINT_POS": kwargs['ff'] = "Joint Positions (*.json);;All Files (*.*)"
+        elif self.p_type == "FAN_STRETCHY": kwargs['ff'] = "Fan + Stretchy data (*.json);;All Files (*.*)"
         elif self.p_type == "PUBLISH": kwargs['fm'] = 3; kwargs['caption'] = "Select Publish Directory"
         else: return
         
@@ -2658,6 +2733,8 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
                     self._update_cc_output_label()
                 elif self.p_type == "JOINT_POS":
                     success, error_msg = self._joint_pos_run()
+                elif self.p_type == "FAN_STRETCHY":
+                    success, error_msg = self._fan_stretchy_run()
                 elif self.p_type == "BREATHING":
                     success, error_msg = self._breathing_run()
                 elif self.p_type == "FACIAL_EXTRACT":

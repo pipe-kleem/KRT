@@ -46,6 +46,7 @@ PANEL_TYPE_ACCENTS = {
     "JOINT_POS":     "#90a4ae",   # blue grey   - save/load joint positions (PanelScripts/joint_positions.py)
     "BREATHING":     "#81c784",   # soft green  - breathing setup (PanelScripts/breathing.py)
     "FACIAL_EXTRACT": "#f48fb1",   # pink        - facial shape extract (PanelScripts/facial_shape_extract.py)
+    "FAN_STRETCHY": "#ffb74d",     # amber       - fan + stretchy joints (PanelScripts/fan_stretchy)
 }
 
 # Stage 17, request "different design per panel type", REVISED Stage 18
@@ -94,6 +95,7 @@ PANEL_TYPE_ICONS = {
     "JOINT_POS":     "📍",
     "BREATHING":     "🫁",
     "FACIAL_EXTRACT": "\U0001F3AD",
+    "FAN_STRETCHY": "\U0001F4A0",
 }
 
 # Stage 17: each panel type's DEFAULT background - a faint wash of its own
@@ -127,6 +129,7 @@ PANEL_TYPE_BG_TINT = {
     "JOINT_POS":     "#363a3d",
     "BREATHING":     "#323d33",
     "FACIAL_EXTRACT": "#3d3036",
+    "FAN_STRETCHY": "#3d3630",
 }
 
 # Stage 17, "these fields are where we're loading/saving a path, not typing
@@ -136,7 +139,7 @@ PANEL_TYPE_BG_TINT = {
 # excluded on purpose: that field can hold raw pasted code instead of a
 # path. Stage 18 adds IMPORT_3D (now that MA/IMPORT_3D are one merged,
 # always-Browse-set panel type - request #1).
-READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT", "JOINT_POS"}
+READONLY_FIELD_TYPES = {"JSON", "SHAPES", "PUBLISH", "TWEAKER", "IMPORT_3D", "MATERIAL", "IMPORT_LOD", "IMPORT_BLEND", "CC_IMPORT", "JOINT_POS", "FAN_STRETCHY"}
 
 # Stage 18, request #4: every read-only field across the Rig Workspace uses
 # this SAME colour, regardless of which panel type it belongs to - a single

@@ -56,6 +56,7 @@ def panel_run_label(p_type):
     if p_type == "JOINT_POS": return "LOAD JOINTS"
     if p_type == "BREATHING": return "BUILD BREATHING"
     if p_type == "FACIAL_EXTRACT": return "EXTRACT SHAPES"
+    if p_type == "FAN_STRETCHY": return "BUILD FAN"
     return "LOAD"
 
 

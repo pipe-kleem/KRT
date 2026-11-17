@@ -99,6 +99,7 @@ class WorkspaceLodsMixin(object):
         menu_add.addAction("Add Joint Positions Panel (save/load joints)", lambda: self.add_panel("JOINT POSITIONS", "JOINT_POS", ""))
         menu_add.addAction("Add Breathing Panel", lambda: self.add_panel("BREATHING", "BREATHING", ""))
         menu_add.addAction("Add Facial Shape Extract Panel", lambda: self.add_panel("FACIAL SHAPE EXTRACT", "FACIAL_EXTRACT", ""))
+        menu_add.addAction("Add Fan + Stretchy Panel (fan joints, muscle joints)", lambda: self.add_panel("FAN + STRETCHY", "FAN_STRETCHY", ""))
         from ..widgets.menu_search import add_menu_search
         add_menu_search(menu_add)
         btn_add_panel.setMenu(menu_add); rig_vbox.addWidget(btn_add_panel); rig_vbox.addStretch()

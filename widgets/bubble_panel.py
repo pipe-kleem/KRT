@@ -571,6 +571,7 @@ class SortableBubblePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.
             actions_map[m.addAction("Add Joint Positions Panel (save/load joints)")] = ("JOINT POSITIONS", "JOINT_POS", offset)
             actions_map[m.addAction("Add Breathing Panel")] = ("BREATHING", "BREATHING", offset)
             actions_map[m.addAction("Add Facial Shape Extract Panel")] = ("FACIAL SHAPE EXTRACT", "FACIAL_EXTRACT", offset)
+            actions_map[m.addAction("Add Fan + Stretchy Panel (fan joints, muscle joints)")] = ("FAN + STRETCHY", "FAN_STRETCHY", offset)
 
         _populate(add_above_menu, 0)
         _populate(add_below_menu, 1)

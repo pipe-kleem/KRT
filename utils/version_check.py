@@ -54,18 +54,25 @@ def latest_info(path, fresh=False, loose=False):
     known = False
     newer_n, newer_path = -1, ""
 
-    m = re.search(r"_v(\d+)$", stem, re.I)
+    # trailing version tokens: _v03 or _v03_v003 (blend version + export counter) - compared as a tuple
+    m = re.search(r"((?:_v\d+)+)$", stem, re.I)
     if m or loose:
         known = True
-        cur_n = int(m.group(1)) if m else 0
-        base = re.sub(r"_v\d+$", "", stem, flags=re.I)
+        cur_t = tuple(int(x) for x in re.findall(r"_v(\d+)", m.group(1), re.I)) if m else (0,)
+        base = stem[:m.start()] if m else stem
+        best_t = None
         for n in _listdir(d, fresh):
             s2, e2 = os.path.splitext(n)
             if e2.lower() != ext.lower():
                 continue
-            mm = re.match(r"^" + re.escape(base) + r"_v(\d+)$", s2, re.I)
-            if mm and int(mm.group(1)) > cur_n and int(mm.group(1)) > newer_n:
-                newer_n, newer_path = int(mm.group(1)), os.path.join(d, n)
+            mm = re.match(r"^" + re.escape(base) + r"((?:_v\d+)+)$", s2, re.I)
+            if not mm:
+                continue
+            t2 = tuple(int(x) for x in re.findall(r"_v(\d+)", mm.group(1), re.I))
+            if t2 > cur_t and (best_t is None or t2 > best_t):
+                best_t, newer_path = t2, os.path.join(d, n)
+        if best_t is not None:
+            newer_n = best_t[0]
 
     fm = re.match(r"^v(\d+)$", os.path.basename(d), re.I)
     if fm:

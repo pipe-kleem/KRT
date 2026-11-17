@@ -1,4 +1,4 @@
-﻿"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
+"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
 
 Folder layout read (nothing is ever written):
     <project root>/<root>/<asset>/publish/workfile/workfileMaster_model/vNN/*.blend   latest model
@@ -173,8 +173,7 @@ class WorkspaceStatusMixin(object):
             d.setVisible(False)
             bar.addWidget(d)
         self.status_asof = QtWidgets.QCheckBox("Status on date")
-        self.status_asof.setToolTip("Show the rig / model / CC status as it was at the end of the chosen day "
-                                    "(latest version that existed by then)")
+        self.status_asof.setToolTip("Show only the assets whose model, CC or rig file was created on the chosen day")
         bar.addWidget(self.status_asof)
         self.status_asof_date = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
         self.status_asof_date.setCalendarPopup(True)
@@ -232,7 +231,7 @@ class WorkspaceStatusMixin(object):
         btn_copy.clicked.connect(self._status_copy_all)
         btn_sheet.clicked.connect(self._status_google_sheet)
         self.status_asof.toggled.connect(self._status_asof_changed)
-        self.status_asof_date.dateChanged.connect(lambda *_: self.status_refresh() if self.status_asof.isChecked() else None)
+        self.status_asof_date.dateChanged.connect(lambda *_: self._status_render())
         return w
 
     # â”€â”€ data â”€â”€
@@ -252,7 +251,7 @@ class WorkspaceStatusMixin(object):
 
     def _status_asof_changed(self, *_):
         self.status_asof_date.setVisible(self.status_asof.isChecked())
-        self.status_refresh()
+        self._status_render()          # no re-scan: the data is already loaded, only the filter changes
 
     def _status_google_sheet(self):
         """Tab-separated table (with header) to the clipboard + a new blank Google Sheet in the browser: paste with Ctrl+V."""
@@ -277,6 +276,11 @@ class WorkspaceStatusMixin(object):
 
     def _status_period(self):
         """-> (start_ts, end_ts) of the chosen period, or None for any date. Local time, end exclusive."""
+        if self.status_asof.isChecked():          # one exact day: files created on that date only
+            d = self.status_asof_date.date()
+            t0 = time.mktime((d.year(), d.month(), d.day(), 0, 0, 0, 0, 0, -1))
+            d2 = d.addDays(1)
+            return t0, time.mktime((d2.year(), d2.month(), d2.day(), 0, 0, 0, 0, 0, -1))
         key = self.status_when.currentData()
         if key == "all":
             return None

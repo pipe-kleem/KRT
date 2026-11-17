@@ -270,7 +270,7 @@ def _bounds():
     lo = Vector((1e9, 1e9, 1e9))
     hi = Vector((-1e9, -1e9, -1e9))
     for o in bpy.context.scene.objects:
-        if o.type != 'MESH' or o.hide_render:
+        if o.type != 'MESH':
             continue
         eo = o.evaluated_get(dg)
         for c in eo.bound_box:
@@ -280,17 +280,51 @@ def _bounds():
     return lo, hi
 
 
+def _show_all():
+    """Make every mesh visible in viewport and render (objects, collections, view-layer excludes)."""
+    def walk(lc):
+        lc.exclude = False
+        try:
+            lc.hide_viewport = False
+        except Exception:
+            pass
+        for c in lc.children:
+            walk(c)
+    try:
+        walk(bpy.context.view_layer.layer_collection)
+    except Exception:
+        pass
+    for c in bpy.data.collections:
+        c.hide_viewport = False
+        c.hide_render = False
+    for o in bpy.context.scene.objects:
+        if o.type == 'MESH':
+            o.hide_render = False
+            o.hide_viewport = False
+            try:
+                o.hide_set(False)
+            except Exception:
+                pass
+    bpy.context.view_layer.update()
+
+
 def _make_camera():
     from mathutils import Vector
     lo, hi = _bounds()
+    if lo.x > hi.x:
+        lo, hi = Vector((-1, -1, -1)), Vector((1, 1, 1))
     centre = (lo + hi) / 2.0
     size = max((hi - lo).x, (hi - lo).y, (hi - lo).z, 0.1)
+    print("[KRT pc2] render bounds", tuple(lo), tuple(hi))
     cam_data = bpy.data.cameras.new("krt_pc2_cam")
     cam = bpy.data.objects.new("krt_pc2_cam", cam_data)
     bpy.context.scene.collection.objects.link(cam)
-    cam.location = centre + Vector((0.0, -size * 2.4, size * 0.05))
+    cam_data.lens = 50
+    cam_data.sensor_width = 36
+    cam.location = centre + Vector((0.0, -size * 2.2, 0.0))
     cam.rotation_euler = (math.radians(90), 0.0, 0.0)          # looks along +Y at the character
-    cam_data.clip_end = size * 20
+    cam_data.clip_start = size * 0.01
+    cam_data.clip_end = size * 50
     return cam
 
 
@@ -307,8 +341,9 @@ def _render(folder, start, end, out_dir, step):
     scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = 960, 540, 100
     scene.render.image_settings.file_format = 'PNG'
     scene.render.film_transparent = False
-    if scene.camera is None:
-        scene.camera = _make_camera()
+    _show_all()
+    scene.frame_set(start)
+    scene.camera = _make_camera()          # always our own camera, framed on the whole model
     frames = list(range(start, end + 1, max(1, step)))
     if frames[-1] != end:
         frames.append(end)

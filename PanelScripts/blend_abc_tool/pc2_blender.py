@@ -269,9 +269,9 @@ def _bounds():
     dg = bpy.context.evaluated_depsgraph_get()
     lo = Vector((1e9, 1e9, 1e9))
     hi = Vector((-1e9, -1e9, -1e9))
-    for o in bpy.context.scene.objects:
-        if o.type != 'MESH':
-            continue
+    objs = [o for o in bpy.context.scene.objects if o.type == 'MESH']
+    cached = [o for o in objs if any(m.type == 'MESH_CACHE' and m.filepath for m in o.modifiers)]
+    for o in (cached or objs):            # frame the animated (cached) meshes, ignore far-away helper objects
         eo = o.evaluated_get(dg)
         for c in eo.bound_box:
             w = eo.matrix_world @ Vector(c)
@@ -321,8 +321,17 @@ def _make_camera():
     bpy.context.scene.collection.objects.link(cam)
     cam_data.lens = 50
     cam_data.sensor_width = 36
-    cam.location = centre + Vector((0.0, -size * 2.2, 0.0))
-    cam.rotation_euler = (math.radians(90), 0.0, 0.0)          # looks along +Y at the character
+    # the tallest side of the bounding box is the character's height: look at it from the front, never from the top
+    ext = hi - lo
+    if ext.y > ext.z * 1.2 and ext.y >= ext.x:           # Y-up scene (Maya orientation): look along -Z
+        dist = max(ext.x, ext.y) * 2.2
+        cam.location = centre + Vector((0.0, 0.0, dist))
+        cam.rotation_euler = (0.0, 0.0, 0.0)
+    else:                                               # Z-up scene: look along +Y
+        dist = max(ext.x, ext.z) * 2.2
+        cam.location = centre + Vector((0.0, -dist, 0.0))
+        cam.rotation_euler = (math.radians(90), 0.0, 0.0)
+    print("[KRT pc2] camera at", tuple(cam.location), "extent", tuple(ext))
     cam_data.clip_start = size * 0.01
     cam_data.clip_end = size * 50
     return cam
@@ -349,6 +358,7 @@ def _render(folder, start, end, out_dir, step):
         frames.append(end)
     for i, fr in enumerate(frames, 1):
         scene.frame_set(fr)
+        bpy.context.view_layer.update()
         scene.render.filepath = os.path.join(out_dir, "frame_%04d.png" % fr)
         bpy.ops.render.render(write_still=True)
         print("KRT_RENDER %d/%d" % (i, len(frames)))

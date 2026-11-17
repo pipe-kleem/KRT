@@ -1,4 +1,4 @@
-"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
+﻿"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
 
 Folder layout read (nothing is ever written):
     <project root>/<root>/<asset>/publish/workfile/workfileMaster_model/vNN/*.blend   latest model
@@ -47,7 +47,7 @@ def _latest(base, exts, cutoff=None):
                 if n.lower().endswith(exts):
                     p = os.path.join(d, n)
                     try:
-                        t = os.path.getmtime(p)
+                        t = os.path.getctime(p)
                     except OSError:
                         continue
                     if cutoff is not None and t >= cutoff:
@@ -235,7 +235,7 @@ class WorkspaceStatusMixin(object):
         self.status_asof_date.dateChanged.connect(lambda *_: self.status_refresh() if self.status_asof.isChecked() else None)
         return w
 
-    # ── data ──
+    # â”€â”€ data â”€â”€
     def _status_fill_projects(self):
         """Project = kl_assets. The dropdown filters by asset TYPE, taken from the folder under assets
         (characters, props, locations ...). 'All types' scans everything."""

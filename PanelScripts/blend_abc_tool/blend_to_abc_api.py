@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 blend_to_abc_api.py - the function to call from ANOTHER TOOL (no config file, no globals).
 
@@ -88,7 +88,7 @@ def blend_to_abc(blend_path, output_dir, blender_exe="", abc_name="",
             shutil.rmtree(pb_dir, ignore_errors=True)
         raise
 
-    _show_hidden_info(maya_side.LAST_RESULT.get("hidden_meshes") or [])
+    _show_hidden_info((getattr(maya_side, "LAST_RESULT", {}) or {}).get("hidden_meshes") or [])
 
     if pb_dir and not os.path.isfile(os.path.join(pb_dir, "manifest.json")):
         maya_side.log("No wrinkle playblast produced (no wrinkle maps) - importing directly.")

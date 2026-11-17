@@ -1,4 +1,4 @@
-"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
+﻿"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
 
 Folder layout read (nothing is ever written):
     <project root>/<root>/<asset>/publish/workfile/workfileMaster_model/vNN/*.blend   latest model
@@ -14,7 +14,7 @@ from ._shared import *
 DEFAULT_STATUS_ROOT = r"P:\kl_assets\KL_ASSETS\assets"      # READ ONLY: server folder, only listed / dated, never written
 _MODEL_SUB = ("publish", "workfile", "workfileMaster_model")
 # Props / locations / many characters keep their model in workfileModel_lod instead; the newest file of either counts.
-_MODEL_SUBS = (_MODEL_SUB, ("publish", "workfile", "workfileModel_lod"))
+_MODEL_SUBS = (_MODEL_SUB,)      # only workfileMaster_model counts as the model (workfileModel_lod is ignored)
 _RIG_SUB = ("publish", "rig", "rigMain")
 _CC_SUB = ("publish", "workfile", "workfileCc_model")
 _CC_EXT = (".ccproject",)
@@ -234,7 +234,7 @@ class WorkspaceStatusMixin(object):
         self.status_asof_date.dateChanged.connect(lambda *_: self._status_render())
         return w
 
-    # â”€â”€ data â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ data Ã¢â€â‚¬Ã¢â€â‚¬
     def _status_fill_projects(self):
         """Project = kl_assets. The dropdown filters by asset TYPE, taken from the folder under assets
         (characters, props, locations ...). 'All types' scans everything."""

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Text of the Documentation tab.
 
 TOPICS is an ordered list of (id, section, title, html). Inside a topic, <a href="krt:other_id">text</a>
@@ -27,7 +27,7 @@ def see(*ids):
 
 
 TOPICS = [
-# ───────────────────────────── Getting started ─────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Getting started â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ("overview", "Getting started", "Overview", """
 <h2>Overview</h2>
 <p>KRT (Kleem Rigging Tool) is a module-based biped / creature rig-building pipeline on top of mGear Shifter.
@@ -48,7 +48,7 @@ components live and connect to each other.</p>
 
 ("whatsnew", "Getting started", "What's new (changelog)", "@@CHANGELOG@@"),
 
-# ───────────────────────────── Tabs ─────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ("t_file", "Tabs", "File", """
 <h2>File</h2>
 <p>Save / Load the current pipeline as a KRT JSON, auto-save settings, the recent-files list and the session
@@ -121,7 +121,7 @@ studio's Studio Library (mutils) install to be reachable.</p>
 <p>One table with every asset of a project: its <b>latest model</b> (version, date) and <b>latest rig</b> (version, date).</p>
 <ul>
 <li><b>Project</b> is kl_assets (<code>P:\\kl_assets\\KL_ASSETS\\assets</code>); the dropdown filters by asset <b>Type</b> (characters, props, locations... - taken from the folder under <code>assets</code>); the <b>Type</b> column shows it for every asset, and the Filter box matches it too. The Type cell is a highlighted tag: characters = cyan, props = orange, locations = purple, anything else = grey-blue.</li>
-<li>Model = the newest <code>.blend</code> of the highest <code>vNN</code> folder in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/</code> <i>or</i> <code>workfileModel_lod/</code> (props and locations use the second one; whichever is newer counts);
+<li>Model = the newest <code>.blend</code> of the highest <code>vNN</code> folder in <code>&lt;asset&gt;/publish/workfile/workfileMaster_model/</code> (<code>workfileModel_lod/</code> is ignored);
 Rig = the newest <code>.ma</code> / <code>.mb</code> in <code>&lt;asset&gt;/publish/rig/rigMain/vNN/</code> <i>or</i> in a sub-folder of rigMain such as <code>rigMain/rigging/vNNN/</code> (the <code>*_Rig_built.ma</code> files) or <code>rigMain/hero/</code>; whichever is newest counts. Hover a cell for the file path.</li>
 <li>Assets inside group folders (for example <code>parshuramsubassets/bhargavakid_a</code>) are found too - any folder that has a <code>publish</code> folder is an asset.</li>
 <li><b>CC</b> columns: newest <code>.ccProject</code> in <code>publish/workfile/workfileCc_model/vNN/</code>; the CC cell is red when the rig is older than it (or there is no rig), green otherwise. The rig counts as old if it is older than the newest model <i>or</i> CC file.</li>
@@ -143,7 +143,7 @@ Rig = the newest <code>.ma</code> / <code>.mb</code> in <code>&lt;asset&gt;/publ
 offers to restore the newest auto-saved backup.</p>
 """),
 
-# ───────────────────────────── Panels ─────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ("p_all", "Panel types", "Panel types - overview", """
 <h2>Panel types</h2>
 <p>Every type has its own icon and tint. Fields marked read-only (brown) are only set by Browse / Save / Switch Version.</p>
@@ -274,7 +274,7 @@ around the rebuild help locate a Maya crash.</p>
 <b>Delete</b> / <b>Zero Out</b> / <b>Parent</b> / <b>Instance</b> style panels perform that one clean-up or scene action when run.</p>
 """ + see("p_all")),
 
-# ───────────────────────────── Features ─────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ("versions", "Features", "Version colours & Versions button", """
 <h2>Version colours &amp; Versions button</h2>
 <p>Every file panel (Script, Global Script, Import 3D, Skin JSON, Tweaker, Control Shapes, Material, Joint Positions, Joint Transfer,

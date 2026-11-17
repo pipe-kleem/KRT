@@ -300,28 +300,35 @@ class _FrameViewer(QtWidgets.QDialog):
             self._show(self._i)
 
     def _really_close(self):
-        self._decided = True
         self.close()
 
-    def closeEvent(self, e):
-        if not getattr(self, "_decided", False):
-            # never closes by itself: the artist must decide
-            r = QtWidgets.QMessageBox.question(
-                self, "KRT - PC2 render preview",
-                "Close the preview and delete the temporary frames?\n\nChoose No to keep checking.",
-                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
-            if r != QtWidgets.QMessageBox.Yes:
-                e.ignore()
-                return
+    def _delete_frames(self):
+        """Delete the temporary render frames. Releases the image first and retries (Windows can hold files briefly)."""
         self.timer.stop()
-        shutil.rmtree(self._folder, ignore_errors=True)
+        try:
+            self.img.clear()
+        except Exception:
+            pass
+        folder = self._folder
+        for _ in range(5):
+            shutil.rmtree(folder, ignore_errors=True)
+            if not os.path.exists(folder):
+                return
+            time.sleep(0.2)
+        # still there: try again when Maya exits
+        import atexit
+        atexit.register(lambda: shutil.rmtree(folder, ignore_errors=True))
+
+    def closeEvent(self, e):
+        # Closing in ANY way (X, Esc, Close button) is the artist's decision: the render frames are always deleted.
+        self._delete_frames()
         try:
             _VIEWERS.remove(self)
         except Exception:
             pass
         super(_FrameViewer, self).closeEvent(e)
 
-    def reject(self):                      # Esc must not close it silently either
+    def reject(self):
         self.close()
 
 

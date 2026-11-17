@@ -480,6 +480,11 @@ class WorkspacePagesMixin(object):
         header.setStyleSheet("font-size: 15px; color: #2bb5a8;")
         top.addWidget(header)
         top.addStretch()
+        search = QtWidgets.QLineEdit()
+        search.setPlaceholderText("Search documentation (keywords)...")
+        search.setClearButtonEnabled(True)
+        search.setFixedWidth(300)
+        top.addWidget(search)
         btn_back = QtWidgets.QPushButton("Back")
         btn_home = QtWidgets.QPushButton("Home")
         for b in (btn_back, btn_home):
@@ -519,6 +524,64 @@ class WorkspacePagesMixin(object):
         layout.addLayout(row, 1)
 
         history = []
+        plain = {}
+
+        def text_of(tid, html):
+            if tid not in plain:
+                d = QtGui.QTextDocument()
+                d.setHtml(html)
+                plain[tid] = (docs_content_title(tid) + " " + d.toPlainText()).lower()
+            return plain[tid]
+
+        def docs_content_title(tid):
+            for t_id, _s, title, _h in docs_content.TOPICS:
+                if t_id == tid:
+                    return title
+            return ""
+
+        def highlight():
+            q = search.text().strip().lower()
+            sels = []
+            if q:
+                for w in q.split():
+                    cur = QtGui.QTextCursor(browser.document())
+                    while True:
+                        cur = browser.document().find(w, cur)
+                        if cur.isNull():
+                            break
+                        sel = QtWidgets.QTextEdit.ExtraSelection()
+                        sel.cursor = cur
+                        sel.format.setBackground(QtGui.QColor("#b58900"))
+                        sel.format.setForeground(QtGui.QColor("#000000"))
+                        sels.append(sel)
+            browser.setExtraSelections(sels)
+            if sels:
+                browser.setTextCursor(sels[0].cursor)
+                browser.ensureCursorVisible()
+
+        def do_search(*_):
+            q = search.text().strip().lower()
+            words = q.split()
+            first = None
+            for tid, it in item_for.items():
+                html = next(h for t_id, _s, _t, h in docs_content.TOPICS if t_id == tid)
+                hit = (not words) or all(w in text_of(tid, html) for w in words)
+                it.setHidden(not hit)
+                if hit and first is None:
+                    first = tid
+            # section headers: hide when none of their topics is visible
+            for i in range(topics.count()):
+                itm = topics.item(i)
+                if not itm.data(QtCore.Qt.UserRole):
+                    nxt, vis = i + 1, False
+                    while nxt < topics.count() and topics.item(nxt).data(QtCore.Qt.UserRole):
+                        vis = vis or not topics.item(nxt).isHidden()
+                        nxt += 1
+                    itm.setHidden(not vis)
+            if words and first:
+                show(first)
+            else:
+                highlight()
 
         def show(tid, push=True):
             if push and history and history[-1] == tid:
@@ -526,6 +589,7 @@ class WorkspacePagesMixin(object):
             if push:
                 history.append(tid)
             browser.setHtml(docs_content.render(tid))
+            highlight()
             it = item_for.get(tid)
             if it is not None:
                 topics.blockSignals(True)
@@ -545,6 +609,7 @@ class WorkspacePagesMixin(object):
         topics.currentItemChanged.connect(
             lambda cur, _prev: show(cur.data(QtCore.Qt.UserRole)) if cur is not None and cur.data(QtCore.Qt.UserRole) else None)
         browser.anchorClicked.connect(on_link)
+        search.textChanged.connect(do_search)
         btn_back.clicked.connect(go_back)
         btn_home.clicked.connect(lambda: show("overview"))
         show("overview")

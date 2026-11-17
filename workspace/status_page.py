@@ -28,33 +28,37 @@ _TYPE_COLORS = {"characters": "#4dd0e1", "props": "#ffb74d", "locations": "#ba68
 _TYPE_OTHER = "#90a4ae"
 
 
-def _latest(base, exts):
+def _latest(base, exts, cutoff=None):
     """-> (path, mtime) of the file with one of `exts` inside the highest vNN folder of `base`
     (<base>/vNN/<file>). Only lists folders and reads dates - nothing is written."""
-    best_n, best_dir = -1, ""
+    vers = []
     try:
         for n in os.listdir(base):
             m = re.match(r"^v(\d+)$", n, re.I)
-            if m and int(m.group(1)) > best_n and os.path.isdir(os.path.join(base, n)):
-                best_n, best_dir = int(m.group(1)), os.path.join(base, n)
+            if m and os.path.isdir(os.path.join(base, n)):
+                vers.append((int(m.group(1)), os.path.join(base, n)))
     except OSError:
         return "", 0.0
-    if not best_dir:
-        return "", 0.0
-    best, best_t = "", 0.0
-    try:
-        for n in os.listdir(best_dir):
-            if n.lower().endswith(exts):
-                p = os.path.join(best_dir, n)
-                try:
-                    t = os.path.getmtime(p)
-                except OSError:
-                    continue
-                if t > best_t:
-                    best, best_t = p, t
-    except OSError:
-        pass
-    return best, best_t
+    vers.sort(reverse=True)
+    for _n, d in vers:                      # highest version first; with a cutoff, the newest one that existed by then
+        best, best_t = "", 0.0
+        try:
+            for n in os.listdir(d):
+                if n.lower().endswith(exts):
+                    p = os.path.join(d, n)
+                    try:
+                        t = os.path.getmtime(p)
+                    except OSError:
+                        continue
+                    if cutoff is not None and t >= cutoff:
+                        continue
+                    if t > best_t:
+                        best, best_t = p, t
+        except OSError:
+            pass
+        if best:
+            return best, best_t
+    return "", 0.0
 
 
 def _ver(path):
@@ -92,7 +96,7 @@ def _find_assets(root, rel="", depth=0):
     return out
 
 
-def scan_project(root):
+def scan_project(root, cutoff=None):
     """-> list of dicts, one per asset (also assets inside group folders), sorted by name. Read only."""
     rows = []
     for rel, a in _find_assets(root):
@@ -101,10 +105,10 @@ def scan_project(root):
             continue
         mp, mt = "", 0.0
         for sub in _MODEL_SUBS:
-            p2, t2 = _latest(os.path.join(a, *sub), _MODEL_EXT)
+            p2, t2 = _latest(os.path.join(a, *sub), _MODEL_EXT, cutoff)
             if p2 and t2 >= mt:
                 mp, mt = p2, t2
-        cp, ct = _latest(os.path.join(a, *_CC_SUB), _CC_EXT)
+        cp, ct = _latest(os.path.join(a, *_CC_SUB), _CC_EXT, cutoff)
         # Rig = newest .ma/.mb in rigMain/vNN/ OR in a sub-folder of rigMain (e.g. rigMain/rigging/vNNN/*_Rig_built.ma, hero/)
         rp, rt = "", 0.0
         rbase = os.path.join(a, *_RIG_SUB)
@@ -115,7 +119,7 @@ def scan_project(root):
         except OSError:
             pass
         for c in cands:
-            p2, t2 = _latest(c, _RIG_EXT)
+            p2, t2 = _latest(c, _RIG_EXT, cutoff)
             if p2 and t2 >= rt:
                 rp, rt = p2, t2
         src_t = max(mt, ct)               # the rig must be at least as new as the newest model / CC file
@@ -168,6 +172,15 @@ class WorkspaceStatusMixin(object):
             d.setDisplayFormat("dd-MM-yyyy")
             d.setVisible(False)
             bar.addWidget(d)
+        self.status_asof = QtWidgets.QCheckBox("Status on date")
+        self.status_asof.setToolTip("Show the rig / model / CC status as it was at the end of the chosen day "
+                                    "(latest version that existed by then)")
+        bar.addWidget(self.status_asof)
+        self.status_asof_date = QtWidgets.QDateEdit(QtCore.QDate.currentDate())
+        self.status_asof_date.setCalendarPopup(True)
+        self.status_asof_date.setDisplayFormat("dd-MM-yyyy")
+        self.status_asof_date.setVisible(False)
+        bar.addWidget(self.status_asof_date)
         bar.addStretch()
         self.status_only_old = QtWidgets.QCheckBox("Only outdated")
         bar.addWidget(self.status_only_old)
@@ -175,6 +188,10 @@ class WorkspaceStatusMixin(object):
         btn_copy.setToolTip("Copy every row currently shown (respects filter / sort) as tab-separated text - paste into Excel, chat or mail")
         btn_copy.setFixedHeight(28)
         bar.addWidget(btn_copy)
+        btn_sheet = QtWidgets.QPushButton("Google Sheet")
+        btn_sheet.setToolTip("Copy the table, open a new blank Google Sheet in the browser - then press Ctrl+V in cell A1")
+        btn_sheet.setFixedHeight(28)
+        bar.addWidget(btn_sheet)
         btn_refresh = QtWidgets.QPushButton("Refresh")
         btn_refresh.setToolTip("Re-scan the project folders now")
         btn_refresh.setFixedHeight(28)
@@ -213,6 +230,9 @@ class WorkspaceStatusMixin(object):
         self.status_to.dateChanged.connect(lambda *_: self._status_render())
         btn_refresh.clicked.connect(lambda *_: self.status_refresh())
         btn_copy.clicked.connect(self._status_copy_all)
+        btn_sheet.clicked.connect(self._status_google_sheet)
+        self.status_asof.toggled.connect(self._status_asof_changed)
+        self.status_asof_date.dateChanged.connect(lambda *_: self.status_refresh() if self.status_asof.isChecked() else None)
         return w
 
     # ── data ──
@@ -229,6 +249,25 @@ class WorkspaceStatusMixin(object):
         except OSError:
             pass
         self.status_project.blockSignals(False)
+
+    def _status_asof_changed(self, *_):
+        self.status_asof_date.setVisible(self.status_asof.isChecked())
+        self.status_refresh()
+
+    def _status_google_sheet(self):
+        """Tab-separated table (with header) to the clipboard + a new blank Google Sheet in the browser: paste with Ctrl+V."""
+        t = self.status_table
+        lines = ["\t".join(t.horizontalHeaderItem(c).text() for c in range(t.columnCount()))]
+        for r in range(t.rowCount()):
+            lines.append("\t".join((t.item(r, c).text() if t.item(r, c) else "") for c in range(t.columnCount())))
+        QtWidgets.QApplication.clipboard().setText("\n".join(lines))
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://sheets.new"))
+        try:
+            import maya.cmds as _c
+            _c.inViewMessage(amg="%d rows copied - click cell A1 in the new Google Sheet and press Ctrl+V" % t.rowCount(),
+                             pos="midCenter", fade=True)
+        except Exception:
+            pass
 
     def _status_when_changed(self, *_):
         custom = self.status_when.currentData() == "custom"

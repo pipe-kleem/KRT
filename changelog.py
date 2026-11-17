@@ -6,6 +6,11 @@ Keep it newest-first. The newest entry should match __version__ in __init__.py.
 """
 
 ENTRIES = [
+    {"version": "46.48", "date": "2026-11-19 10:00", "changes": [
+        "Rig & Model Status: 'Status on date' - shows the status as it was at the end of the chosen day (latest model / CC / rig version that existed by then).",
+        "Rig & Model Status: 'Google Sheet' button - copies the table and opens a new blank Google Sheet; press Ctrl+V in A1.",
+        "Documentation: search box - type keywords, only matching topics are listed, the first match opens with the words highlighted.",
+    ]},
     {"version": "46.47", "date": "2026-11-18 15:00", "changes": [
         "CHECK PC2 IN BLENDER: while the temporary Blender file is open the button turns into DELETE / SAVE TEMP BLENDER FILE. Delete closes Blender and deletes the temp files. Save brings Blender to the front and opens its Save As window; after saving, the PC2 files are copied next to the file (<name>_pc2), the caches are repointed there, and Blender asks whether to stay or close. The button returns to normal when Blender closes.",
     ]},

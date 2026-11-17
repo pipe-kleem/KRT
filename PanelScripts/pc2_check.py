@@ -272,7 +272,7 @@ class _FrameViewer(QtWidgets.QDialog):
         self.timer.timeout.connect(self._tick)
         self.btn.clicked.connect(self._toggle)
         self.sl.valueChanged.connect(self._show)
-        close.clicked.connect(self.close)
+        close.clicked.connect(self._really_close)
         self.timer.start(80)
         self._show(0)
 
@@ -299,10 +299,30 @@ class _FrameViewer(QtWidgets.QDialog):
         if self._frames:
             self._show(self._i)
 
+    def _really_close(self):
+        self._decided = True
+        self.close()
+
     def closeEvent(self, e):
+        if not getattr(self, "_decided", False):
+            # never closes by itself: the artist must decide
+            r = QtWidgets.QMessageBox.question(
+                self, "KRT - PC2 render preview",
+                "Close the preview and delete the temporary frames?\n\nChoose No to keep checking.",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+            if r != QtWidgets.QMessageBox.Yes:
+                e.ignore()
+                return
         self.timer.stop()
         shutil.rmtree(self._folder, ignore_errors=True)
+        try:
+            _VIEWERS.remove(self)
+        except Exception:
+            pass
         super(_FrameViewer, self).closeEvent(e)
+
+    def reject(self):                      # Esc must not close it silently either
+        self.close()
 
 
 def _render_preview(blender, blend_copy, pc2_dir, start, end, prog):

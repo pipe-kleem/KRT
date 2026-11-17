@@ -2102,20 +2102,31 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             cmds.warning("[KRT] blend_abc_tool folder is missing: " + tool_dir)
             return
         cur = (self.workspace.resolve_path(self.path()) or "").strip()
-        out_dir = os.path.dirname(cur) if cur else ""
-        if not out_dir:
-            root = self.workspace.rig_root()
-            out_dir = ""
-            if root:
-                # Use the model folder that already exists - it may be spelled "model", "Model" or "MODEL".
-                out_dir = os.path.join(root, "model")
-                try:
-                    for _n in os.listdir(root):
-                        if _n.lower() == "model" and os.path.isdir(os.path.join(root, _n)):
-                            out_dir = os.path.join(root, _n)
-                            break
-                except OSError:
-                    pass
+        root = (self.workspace.rig_root() or "").strip()
+        # Folder rule: an existing model folder ("model" / "Model" / "MODEL", any spelling) is always used - first next to the
+        # rig folder (asset level), then inside the rig root. Only if there is none, a new folder named "Model" is created.
+        cands = []
+        if root:
+            if os.path.basename(root.replace("\\", "/").rstrip("/")).lower() in ("rig", "rigs"):
+                cands.append(os.path.dirname(root.replace("\\", "/").rstrip("/")))
+            cands.append(root)
+        out_dir = ""
+        for base in cands:
+            try:
+                for _n in os.listdir(base):
+                    if _n.lower() == "model" and os.path.isdir(os.path.join(base, _n)):
+                        out_dir = os.path.join(base, _n)
+                        break
+            except OSError:
+                pass
+            if out_dir:
+                break
+        if not out_dir and cur and os.path.basename(os.path.dirname(cur)).lower() == "model":
+            out_dir = os.path.dirname(cur)
+        if not out_dir and cands:
+            out_dir = os.path.join(cands[0], "Model")
+        if not out_dir and cur:
+            out_dir = os.path.dirname(cur)
         if not out_dir:
             cmds.warning("[KRT] Set the ABC path (or the Rig Root) so the ABC has a folder to be saved in.")
             return

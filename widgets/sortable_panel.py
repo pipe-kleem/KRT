@@ -1390,6 +1390,10 @@ class SortablePanel(CollapseMixin, SelectableMixin, CacheMixin, QtWidgets.QFrame
             btn = QtWidgets.QPushButton("Get Selected")
             btn.clicked.connect(lambda _=False, e=edit: self._get_selection_into(e))
             row.addWidget(btn)
+            btn_sel = QtWidgets.QPushButton("Select")
+            btn_sel.setToolTip("Select the mesh(es) listed in this field in the viewport (to check what is added).")
+            btn_sel.clicked.connect(lambda _=False, e=edit: self._select_field_objects(e))
+            row.addWidget(btn_sel)
             main_layout.addLayout(row)
         self.fe_source_field.setText(default_src)
 

@@ -351,6 +351,13 @@ def _render(folder, start, end, out_dir, step):
     scene.render.image_settings.file_format = 'PNG'
     scene.render.film_transparent = False
     _show_all()
+    # only meshes that received a PC2 cache are rendered: the others would stay static (e.g. another LOD / duplicate set)
+    hidden = []
+    for o in scene.objects:
+        if o.type == 'MESH' and not any(m.type == 'MESH_CACHE' and m.filepath for m in o.modifiers):
+            o.hide_render = True
+            hidden.append(o.name)
+    print("[KRT pc2] render: %d meshes without a PC2 cache are hidden: %s" % (len(hidden), ", ".join(hidden[:30])))
     scene.frame_set(start)
     scene.camera = _make_camera()          # always our own camera, framed on the whole model
     frames = list(range(start, end + 1, max(1, step)))

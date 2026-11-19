@@ -1,4 +1,4 @@
-﻿"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
+"""Rig & Model Status tab: every asset of a project with its latest model and latest rig.
 
 Folder layout read (nothing is ever written):
     <project root>/<root>/<asset>/publish/workfile/workfileMaster_model/vNN/*.blend   latest model
@@ -8,6 +8,7 @@ model), GREEN when the rig is at least as new as the model.
 """
 import os
 import re
+import subprocess
 import time
 from ._shared import *
 
@@ -188,7 +189,7 @@ class WorkspaceStatusMixin(object):
         btn_copy.setFixedHeight(28)
         bar.addWidget(btn_copy)
         btn_sheet = QtWidgets.QPushButton("Google Sheet")
-        btn_sheet.setToolTip("Copy the table, open a new blank Google Sheet in the browser - then press Ctrl+V in cell A1")
+        btn_sheet.setToolTip("Make the tracker sheet (CH / DRAFT 1 / DRAFT 2 / HAIR-CLOTH / Ready for RIG / RIG STATUS ...) from the rows shown, then open Google Sheets to import it")
         btn_sheet.setFixedHeight(28)
         bar.addWidget(btn_sheet)
         btn_refresh = QtWidgets.QPushButton("Refresh")
@@ -254,16 +255,29 @@ class WorkspaceStatusMixin(object):
         self._status_render()          # no re-scan: the data is already loaded, only the filter changes
 
     def _status_google_sheet(self):
-        """Tab-separated table (with header) to the clipboard + a new blank Google Sheet in the browser: paste with Ctrl+V."""
-        t = self.status_table
-        lines = ["\t".join(t.horizontalHeaderItem(c).text() for c in range(t.columnCount()))]
-        for r in range(t.rowCount()):
-            lines.append("\t".join((t.item(r, c).text() if t.item(r, c) else "") for c in range(t.columnCount())))
-        QtWidgets.QApplication.clipboard().setText("\n".join(lines))
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://sheets.new"))
+        """Build the production-tracker sheet (.xlsx) from the rows shown, then open the folder and Google Sheets:
+        drag the file onto the Google Sheets page (or File > Import) - the drop-downs and colours come along."""
+        from . import status_sheet
+        rows = list(getattr(self, "_status_shown", None) or self._status_rows)
+        if not rows:
+            cmds.warning("[KRT] Nothing to export - the table is empty.")
+            return
+        proj = re.sub(r"[^A-Za-z0-9_\-]+", "_", self.status_project.currentText()).strip("_") or "project"
+        folder = os.path.join(os.path.expanduser("~"), "Documents", "KRT_Status")
+        path = os.path.join(folder, "rig_model_status_%s_%s.xlsx" % (proj, time.strftime("%Y%m%d_%H%M")))
+        try:
+            status_sheet.write_xlsx(path, rows)
+        except Exception as e:
+            cmds.warning("[KRT] Could not write the sheet: %s" % e)
+            return
+        try:
+            subprocess.Popen('explorer /select,"%s"' % path.replace("/", "\\"))
+        except Exception:
+            pass
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl("https://docs.google.com/spreadsheets/u/0/"))
         try:
             import maya.cmds as _c
-            _c.inViewMessage(amg="%d rows copied - click cell A1 in the new Google Sheet and press Ctrl+V" % t.rowCount(),
+            _c.inViewMessage(amg="Sheet saved (%d assets). Drag the file onto Google Sheets, or File > Import > Upload" % len(rows),
                              pos="midCenter", fade=True)
         except Exception:
             pass
@@ -401,6 +415,7 @@ class WorkspaceStatusMixin(object):
         only_old = self.status_only_old.isChecked()
         shown = [r for r in rows if (not flt or flt in (r["asset"] + " " + r["type"]).lower())
                  and (not only_old or r["state"] in ("old", "norig"))]
+        self._status_shown = shown
         t = self.status_table
         t.setSortingEnabled(False)
         t.setRowCount(len(shown))
